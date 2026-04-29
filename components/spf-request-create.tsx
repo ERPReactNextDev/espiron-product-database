@@ -54,6 +54,7 @@ export type SPFRequest = {
   item_description?: string[];
   item_photo?: string[];
   item_code?: string;
+  item_qty?: string;
   status?: string;
   date_created?: string;
   date_updated?: string;
@@ -903,7 +904,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
             <CardDetails
               title="SPF Details"
               fields={[
-                { label: "Item Code", value: formData.item_code },
+                { label: "Item Qty", value: formData.item_qty },
                 { label: "Payment Terms", value: formData.payment_terms },
                 { label: "Warranty", value: formData.warranty },
                 { label: "Delivery Date", value: formData.delivery_date },
@@ -974,6 +975,12 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-medium line-clamp-2">
                           {desc.replace(/\|/g, " · ")}
+                        </p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">
+                          {(() => {
+                            const qtys = (formData.item_qty || "").split(",").map((q: string) => q.trim());
+                            return qtys[index] ? `Qty: ${qtys[index]}` : null;
+                          })()}
                         </p>
                         <p
                           className={`text-[10px] mt-0.5 ${isActive ? "text-red-600" : "text-muted-foreground"}`}
@@ -1535,7 +1542,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
             <CardDetails
               title="SPF Details"
               fields={[
-                { label: "Item Code", value: formData.item_code },
+                { label: "Item Qty", value: formData.item_qty },
                 { label: "Payment Terms", value: formData.payment_terms },
                 { label: "Warranty", value: formData.warranty },
                 { label: "Delivery Date", value: formData.delivery_date },
@@ -1558,6 +1565,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                   <tr className="bg-gray-100">
                     <th className="border px-1 py-1 text-center w-15">#</th>
                     <th className="border px-1 py-1 text-center w-28">Image</th>
+                    <th className="border px-1 py-1 text-center w-24">Item Qty</th>
                     <th className="border px-1 py-1 text-center w-30">
                       Item Description
                     </th>
@@ -1623,13 +1631,19 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                               <img
                                 src={formData.item_photo[index]}
                                 alt={desc}
-                                className="w-24 h-24 object-contain cursor-pointer hover:opacity-80 transition-opacity"
+                                className="w-12 h-12 object-contain cursor-pointer hover:opacity-80 transition-opacity"
                                 onClick={() => openImagePreview(formData.item_photo?.[index])}
                               />
                             ) : (
                               <span className="text-[10px]">-</span>
                             )}
                           </div>
+                        </td>
+                        <td className="border px-1 py-1 text-center align-middle text-[10px]">
+                          {(() => {
+                            const qtys = (formData.item_qty || "").split(",").map((q: string) => q.trim());
+                            return qtys[index] || "-";
+                          })()}
                         </td>
                         <td className="border px-1 py-1 whitespace-pre-wrap text-center align-middle text-[10px] leading-tight select-none">
                           {desc.replace(/\|/g, "\n")}
@@ -1681,7 +1695,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                           }
                         }}
                       >
-                        <td colSpan={3} className="border px-2 py-1 text-center align-middle">
+                        <td colSpan={4} className="border px-2 py-1 text-center align-middle">
                           {(productOffers[index] || []).length > 0 && (
                             <div className="border rounded mb-2 overflow-hidden">
                               <div className="max-h-64 overflow-y-auto">

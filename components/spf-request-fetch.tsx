@@ -93,6 +93,7 @@ type SPFRequestData = {
   item_description: string;
   item_photo: string;
   item_code?: string;
+  item_qty?: string;
 };
 
 const ROW_SEP = "|ROW|";
@@ -1471,6 +1472,12 @@ useEffect(() => {
                       <p className="text-xs font-medium line-clamp-2">
                         {desc.replace(/\|/g, " · ")}
                       </p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">
+                        {(() => {
+                          const qtys = (requestData?.item_qty || "").split(",").map((q) => q.trim());
+                          return qtys[index] ? `Qty: ${qtys[index]}` : null;
+                        })()}
+                      </p>
                       <p
                         className={`text-[10px] mt-0.5 ${isActive ? "text-orange-600" : "text-muted-foreground"}`}
                       >
@@ -2102,6 +2109,7 @@ useEffect(() => {
   <tr className="bg-gray-100">
     <th className="border px-1 py-1 text-center w-15">#</th>
     <th className="border px-1 py-1 text-center w-28">Image</th>
+    <th className="border px-1 py-1 text-center w-24">Item Qty</th>
     <th className="border px-1 py-1 text-center w-30">
       Item Description
     </th>
@@ -2174,6 +2182,12 @@ useEffect(() => {
                           )}
                         </div>
                       </td>
+                      <td className="border px-1 py-1 text-center align-middle text-[10px]">
+                        {(() => {
+                          const qtys = (requestData?.item_qty || "").split(",").map((q: string) => q.trim());
+                          return qtys[index] || "-";
+                        })()}
+                      </td>
         <td className="border px-1 py-1 whitespace-pre-wrap text-center align-middle text-[10px] leading-tight select-none">
           {desc.replace(/\|/g, "\n")}
         </td>
@@ -2220,7 +2234,7 @@ useEffect(() => {
           }
         }}
       >
-        <td colSpan={3} className="border px-2 py-1 text-center align-middle">
+        <td colSpan={4} className="border px-2 py-1 text-center align-middle">
           {(productOffers[index] || []).length > 0 && (
                           <div className="border rounded mb-2 overflow-hidden">
                             <div className="max-h-64 overflow-y-auto">
@@ -3043,7 +3057,7 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                             : ""}
                         </span>
                         {optItemCode && (
-                          <span className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                          <span className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 whitespace-nowrap">
                             {optItemCode}
                           </span>
                         )}
@@ -3292,6 +3306,9 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
             <th className="border px-3 py-2 text-center whitespace-nowrap w-40">
               Image
             </th>
+            <th className="border px-3 py-2 text-center whitespace-nowrap w-28">
+              Item Qty
+            </th>
             <th className="border px-3 py-2 text-center whitespace-nowrap">
               Item Description
             </th>
@@ -3342,6 +3359,12 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                   ) : (
                     <span className="text-muted-foreground text-xs">-</span>
                   )}
+                </td>
+                <td className="border px-3 py-2 text-center align-top pt-3 text-sm">
+                  {(() => {
+                    const qtys = (requestData?.item_qty || "").split(",").map((q: string) => q.trim());
+                    return qtys[rowIndex] || "-";
+                  })()}
                 </td>
                 <td className="border px-3 py-2 whitespace-pre-wrap align-top pt-3 text-sm leading-relaxed">
                   {desc.replace(/\|/g, "\n")}
