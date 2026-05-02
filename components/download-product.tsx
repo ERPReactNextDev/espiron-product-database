@@ -85,7 +85,7 @@ export default function DownloadProduct({ products, iconOnly = false }: Props) {
        *  Next 1         : Commercial Type
        *  Next 3         : POLE — Qty Per Container, Landed Cost, SRP
        *  Next 7         : LIGHT (SINGLE DIMENSION) — Unit Cost, L, W, H, Qty/Box, Landed, SRP
-       *  Next 10        : LIGHT (MULTIPLE DIMENSION) — Item Names|…, Unit Cost|…, L|…, W|…, H|…, Qty/Box|…, Landed|…, SRP|…, Total Landed, Total SRP [last 2 = DOWNLOAD ONLY]
+       *  Next 11        : LIGHT (MULTIPLE DIMENSION) — Item Names|…, Unit Cost|…, L|…, W|…, H|…, Qty/Box|…, Landed|…, SRP|…, Total Unit Cost, Total Landed, Total SRP [last 3 = DOWNLOAD ONLY]
        * ───────────────────────────────────────────────────────────────── */
       const staticColumns = [
         "Product Usage",
@@ -180,9 +180,9 @@ export default function DownloadProduct({ products, iconOnly = false }: Props) {
       header3.push("", "", "", "", "", "", "", "");
 
       // ── LIGHT (MULTIPLE) TOTALS — download only (part of LIGHT MULTIPLE group) ──
-      header1.push("LIGHT (Multiple) - Total Landed Cost", "LIGHT (Multiple) - Total SRP");
-      header2.push("LIGHT (MULTIPLE DIMENSION)", "LIGHT (MULTIPLE DIMENSION)");
-      header3.push("", "");
+      header1.push("LIGHT (Multiple) - Total Unit Cost", "LIGHT (Multiple) - Total Landed Cost", "LIGHT (Multiple) - Total SRP");
+      header2.push("LIGHT (MULTIPLE DIMENSION)", "LIGHT (MULTIPLE DIMENSION)", "LIGHT (MULTIPLE DIMENSION)");
+      header3.push("", "", "");
 
       ws.addRow(header1);
       ws.addRow(header2);
@@ -246,9 +246,9 @@ export default function DownloadProduct({ products, iconOnly = false }: Props) {
       const lightSingleEnd = lightSingleStart + 6;
       ws.mergeCells(2, lightSingleStart, 2, lightSingleEnd);
 
-      // ── LIGHT (MULTIPLE) — 8 pipe-delimited columns + 2 total columns ──
+      // ── LIGHT (MULTIPLE) — 8 pipe-delimited columns + 3 total columns ──
       const lightMultiStart = lightSingleEnd + 1;
-      const lightMultiEnd = lightMultiStart + 9; // 8 data cols + 2 total cols = 10 cols total
+      const lightMultiEnd = lightMultiStart + 10; // 8 data cols + 3 total cols = 11 cols total
       ws.mergeCells(2, lightMultiStart, 2, lightMultiEnd);
 
       // ── Style helpers ──
@@ -321,8 +321,8 @@ export default function DownloadProduct({ products, iconOnly = false }: Props) {
         applyHeaderStyle(ws.getRow(3), col, "E2EFDA");
       }
 
-      // LIGHT Multiple Totals (darker green for emphasis) — last 2 cols only
-      const lightMultiTotalsStart = lightMultiEnd - 1;
+      // LIGHT Multiple Totals (darker green for emphasis) — last 3 cols only
+      const lightMultiTotalsStart = lightMultiEnd - 2;
       for (let col = lightMultiTotalsStart; col <= lightMultiEnd; col++) {
         applyHeaderStyle(ws.getRow(1), col, "C6E0B4");
         applyHeaderStyle(ws.getRow(2), col, "C6E0B4", false, true);
@@ -429,14 +429,16 @@ export default function DownloadProduct({ products, iconOnly = false }: Props) {
 
         // LIGHT (MULTIPLE) TOTALS — download only
         if (cd.commercialType === "LIGHT" && cd.useArrayInput && Array.isArray(cd.multiRows) && cd.multiRows.length > 0) {
+          const totalUnitCost = cd.multiRows.reduce((sum: number, r: any) => sum + (parseFloat(r.unitCost) || 0), 0);
           const totalLanded = cd.multiRows.reduce((sum: number, r: any) => sum + (parseFloat(r.landed) || 0), 0);
           const totalSrp = cd.multiRows.reduce((sum: number, r: any) => sum + (parseFloat(r.srp) || 0), 0);
           // Round up Total SRP to nearest 100: Math.ceil(totalSrp / 100) * 100
           const roundedSrp = totalSrp ? Math.ceil(totalSrp / 100) * 100 : "";
+          row.push(totalUnitCost ? totalUnitCost.toFixed(2) : "");
           row.push(totalLanded ? totalLanded.toFixed(2) : "");
           row.push(roundedSrp);
         } else {
-          row.push("", "");
+          row.push("", "", "");
         }
 
         ws.addRow(row);

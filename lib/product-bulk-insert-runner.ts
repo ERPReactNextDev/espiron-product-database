@@ -66,6 +66,9 @@ export type ParsedProductRow = {
   lightMultiQtyPerBoxes: string;
   lightMultiLandedCosts: string;
   lightMultiSrps: string;
+  lightMultiTotalUnitCost: string;
+  lightMultiTotalLandedCost: string;
+  lightMultiTotalSrp: string;
   // row meta
   wsIndex: number;
   rowIndex: number;
@@ -190,6 +193,7 @@ export function parseWorkbookRowsNew(workbook: Workbook): ParsedProductRow[] {
       lightMultiItemNames: number; lightMultiUC: number; lightMultiL: number;
       lightMultiW: number; lightMultiH: number; lightMultiQty: number;
       lightMultiLanded: number; lightMultiSrp: number;
+      lightMultiTotalUC: number; lightMultiTotalLanded: number; lightMultiTotalSrp: number;
     }
 
     const cm: ColMap = {
@@ -205,6 +209,7 @@ export function parseWorkbookRowsNew(workbook: Workbook): ParsedProductRow[] {
       lightMultiItemNames: -1, lightMultiUC: -1, lightMultiL: -1,
       lightMultiW: -1, lightMultiH: -1, lightMultiQty: -1,
       lightMultiLanded: -1, lightMultiSrp: -1,
+      lightMultiTotalUC: -1, lightMultiTotalLanded: -1, lightMultiTotalSrp: -1,
     };
 
     // Multi-row column arrays (for pipe-joining)
@@ -262,6 +267,11 @@ export function parseWorkbookRowsNew(workbook: Workbook): ParsedProductRow[] {
       if (spec === "LIGHT (Multiple) - Qty/Boxes")    { multiQtyCols.push(col); continue; }
       if (spec === "LIGHT (Multiple) - Landed Costs") { multiLandedCols.push(col); continue; }
       if (spec === "LIGHT (Multiple) - SRPs")         { multiSrpCols.push(col); continue; }
+
+      // LIGHT Multiple Totals (download-only)
+      if (spec === "LIGHT (Multiple) - Total Unit Cost")   { cm.lightMultiTotalUC = col; continue; }
+      if (spec === "LIGHT (Multiple) - Total Landed Cost") { cm.lightMultiTotalLanded = col; continue; }
+      if (spec === "LIGHT (Multiple) - Total SRP")         { cm.lightMultiTotalSrp = col; continue; }
 
       // Skip group-only labels
       const SKIP_GROUPS = ["COMMERCIAL DETAILS", "DRAWINGS", "WARRANTY", "POLE", "LIGHT (SINGLE DIMENSION)", "LIGHT (MULTIPLE DIMENSION)"];
@@ -336,6 +346,9 @@ export function parseWorkbookRowsNew(workbook: Workbook): ParsedProductRow[] {
         lightMultiQtyPerBoxes: joinCols(row, multiQtyCols),
         lightMultiLandedCosts: joinCols(row, multiLandedCols),
         lightMultiSrps: joinCols(row, multiSrpCols),
+        lightMultiTotalUnitCost: getCell(row, cm.lightMultiTotalUC),
+        lightMultiTotalLandedCost: getCell(row, cm.lightMultiTotalLanded),
+        lightMultiTotalSrp: getCell(row, cm.lightMultiTotalSrp),
         wsIndex, rowIndex: r, specValues,
       });
     }

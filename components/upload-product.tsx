@@ -147,27 +147,33 @@ function buildCommercialDetails(row: ParsedProductRow): Record<string, any> {
       const landeds = parseArr(row.lightMultiLandedCosts);
       const srps    = parseArr(row.lightMultiSrps);
 
-      const multiRows = names.map((name, i) => ({
-        itemName: name,
-        unitCost: parseFloat(ucs[i] || "0") || 0,
-        length: parseFloat(lengths[i] || "0") || 0,
-        width: parseFloat(widths[i] || "0") || 0,
-        height: parseFloat(heights[i] || "0") || 0,
-        qtyPerCarton: parseInt(qtys[i] || "1") || 1,
-        landed: parseFloat(landeds[i] || "0") || 0,
-        srp: parseFloat(srps[i] || "0") || 0,
-      }));
+      // Only treat as multi if we actually have item names
+      if (names.length > 0) {
+        const multiRows = names.map((name, i) => ({
+          itemName: name,
+          unitCost: parseFloat(ucs[i] || "0") || 0,
+          length: parseFloat(lengths[i] || "0") || 0,
+          width: parseFloat(widths[i] || "0") || 0,
+          height: parseFloat(heights[i] || "0") || 0,
+          qtyPerCarton: parseInt(qtys[i] || "1") || 1,
+          landed: parseFloat(landeds[i] || "0") || 0,
+          srp: parseFloat(srps[i] || "0") || 0,
+        }));
 
-      const totalLanded = multiRows.reduce((s, r) => s + r.landed, 0);
+        const totalLanded = multiRows.reduce((s, r) => s + r.landed, 0);
+        const totalUnitCost = row.lightMultiTotalUnitCost ? parseFloat(row.lightMultiTotalUnitCost) : multiRows.reduce((s, r) => s + r.unitCost, 0);
+        const totalSrp = row.lightMultiTotalSrp ? parseFloat(row.lightMultiTotalSrp) : multiRows.reduce((s, r) => s + r.srp, 0);
 
-      return {
-        ...base,
-        calculationType: "LIGHTS",
-        useArrayInput: true,
-        multiRows,
-        landedCost: totalLanded || null,
-        srp: multiRows[0]?.srp || null,
-      };
+        return {
+          ...base,
+          calculationType: "LIGHTS",
+          useArrayInput: true,
+          multiRows,
+          totalUnitCost: totalUnitCost || null,
+          landedCost: totalLanded || null,
+          srp: totalSrp || null,
+        };
+      }
     }
 
     return {

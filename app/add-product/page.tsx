@@ -296,6 +296,7 @@ export default function AddProductPage() {
   const [qtyPerContainer, setQtyPerContainer] = useState<number>(1);
   const [landedCost, setLandedCost] = useState<number>(0);
   const [srp, setSrp] = useState<number>(0);
+  const [totalUnitCost, setTotalUnitCost] = useState<number>(0);
   const [multiRows, setMultiRows] = useState<MultiRow[]>([
     {
       itemName: "",
@@ -552,12 +553,33 @@ export default function AddProductPage() {
         landed: 0,
         srp: 0,
       });
+      // Redistribute total unit cost if it exists
+      if (totalUnitCost > 0) {
+        const distributedCost = totalUnitCost / copy.length;
+        return copy.map(row => ({ ...row, unitCost: distributedCost }));
+      }
       return copy;
     });
   };
 
   const removeMultiRow = (index: number) => {
-    setMultiRows(prev => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+    setMultiRows(prev => {
+      const newRows = prev.length > 1 ? prev.filter((_, i) => i !== index) : prev;
+      // Redistribute total unit cost if it exists
+      if (totalUnitCost > 0 && newRows.length > 0) {
+        const distributedCost = totalUnitCost / newRows.length;
+        return newRows.map(row => ({ ...row, unitCost: distributedCost }));
+      }
+      return newRows;
+    });
+  };
+
+  const distributeTotalUnitCost = (total: number, rows: MultiRow[]) => {
+    if (total > 0 && rows.length > 0) {
+      const distributedCost = total / rows.length;
+      return rows.map(row => ({ ...row, unitCost: distributedCost }));
+    }
+    return rows;
   };
 
   const formatPHP = (value: number, decimals = 2) => {
@@ -670,6 +692,7 @@ export default function AddProductPage() {
           pcsPerCarton: pcsPerCartonValue,
           qtyPerContainer: commercialType === "POLE" ? qtyPerContainer : null,
           useArrayInput: commercialType === "LIGHT" ? useArrayInput : false,
+          totalUnitCost: commercialType === "LIGHT" && useArrayInput ? totalUnitCost : null,
           multiRows: commercialType === "LIGHT" ? multiRows : [],
           landedCost: landedCost || null,
           srp: srp || null,
@@ -769,6 +792,7 @@ export default function AddProductPage() {
             pcsPerCarton: pcsPerCarton ? parseInt(pcsPerCarton) : null,
             qtyPerContainer: commercialType === "POLE" ? qtyPerContainer : null,
             useArrayInput: commercialType === "LIGHT" ? useArrayInput : false,
+            totalUnitCost: commercialType === "LIGHT" && useArrayInput ? totalUnitCost : null,
             multiRows: commercialType === "LIGHT" ? multiRows : [],
             landedCost: landedCost || null,
             srp: srp || null,
@@ -1189,6 +1213,7 @@ export default function AddProductPage() {
                             setPackWidth("");
                             setPackHeight("");
                             setPcsPerCarton("");
+                            setTotalUnitCost(0);
                             setMultiRows([
                               {
                                 itemName: "",
@@ -1244,6 +1269,29 @@ export default function AddProductPage() {
 
                     {commercialType === "LIGHT" && useArrayInput && (
   <div className="space-y-3">
+    <div className="flex items-center gap-4">
+      <div className="space-y-1 flex-1 max-w-50">
+        <Label className="text-xs text-gray-500">Total Unit Cost (USD)</Label>
+        <Input
+          type="number"
+          step="0.01"
+          placeholder="0.00"
+          value={totalUnitCost || ""}
+          onChange={(e) => {
+            const newTotal = Number(e.target.value) || 0;
+            setTotalUnitCost(newTotal);
+            // Distribute to all rows
+            setMultiRows(prev => distributeTotalUnitCost(newTotal, prev));
+          }}
+          className="h-8 text-sm"
+        />
+      </div>
+      <div className="text-xs text-gray-500 pt-5">
+        {multiRows.length > 0 && totalUnitCost > 0 && (
+          <span>Each row: {(totalUnitCost / multiRows.length).toFixed(2)} USD</span>
+        )}
+      </div>
+    </div>
     <Label className="text-xs text-gray-500">Multiple Packaging Dimensions</Label>
     <div className="overflow-x-auto">
       <table className="w-full text-sm border-collapse">
@@ -1267,7 +1315,7 @@ export default function AddProductPage() {
                 <Input value={row.itemName} onChange={(e) => updateMultiRow(index, "itemName", e.target.value)} className="h-8 text-sm" />
               </td>
               <td className="py-1.5 px-2">
-                <Input type="number" value={row.unitCost || ""} onChange={(e) => updateMultiRow(index, "unitCost", Number(e.target.value))} className="h-8 text-sm" />
+                <Input type="number" value={row.unitCost || ""} disabled className="h-8 text-sm bg-gray-50" />
               </td>
               <td className="py-1.5 px-2">
                 <Input type="number" value={row.length || ""} onChange={(e) => updateMultiRow(index, "length", Number(e.target.value))} className="h-8 text-sm" />
