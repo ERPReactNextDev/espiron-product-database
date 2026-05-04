@@ -39,8 +39,8 @@ import { useUser } from "@/contexts/UserContext";
 import MultipleSpecsDetected from "@/components/multiple-specs-detected";
 import { useRoleAccess } from "@/contexts/RoleAccessContext";
 import { generateTDSPdf } from "@/lib/generateTDSPdf";
+import SPFGenerateTDSDialog from "@/components/spf-generate-tds-dialog";
 import RevisionTypeSelector, { RevisionType } from "@/components/revision-type-selector";
-
 
 /* ─────────────────────────────────────────────────────────────── */
 /* TYPES                                                           */
@@ -435,6 +435,12 @@ useEffect(() => {
   const [hasDraft, setHasDraft] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isLoadingDraft, setIsLoadingDraft] = useState(false);
+
+  /* ── TDS Dialog state ── */
+  const [tdsDialogOpen, setTdsDialogOpen] = useState(false);
+  const [selectedProductForTDS, setSelectedProductForTDS] = useState<any | null>(null);
+  const [selectedRowIndexForTDS, setSelectedRowIndexForTDS] = useState<number | null>(null);
+  const [selectedOptionIndexForTDS, setSelectedOptionIndexForTDS] = useState<number | null>(null);
 
   /* ── Image Preview modal ── */
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
@@ -2506,28 +2512,31 @@ useEffect(() => {
                                           {prod.__tdsBrand && (
                                             <button
                                               type="button"
-                                              className="mt-1 text-[10px] text-green-600 underline"
+                                              className="mt-1 text-[10px] text-green-600 underline block"
                                               onClick={() => {
-                                                import("jspdf").then(({ default: jsPDF }) =>
-                                                  import("jspdf-autotable").then(({ default: autoTable }) => {
-                                                    generateTDSPdf({
-                                                      jsPDF,
-                                                      autoTable,
-                                                      brand: prod.__tdsBrand,
-                                                      productName: prod.productName || "",
-                                                      itemCode: prod.productName || "",
-                                                      mainImage: prod.mainImage,
-                                                      technicalSpecifications: prod.technicalSpecifications,
-                                                      dimensionalDrawing: prod.dimensionalDrawing ?? null,
-                                                      illuminanceDrawing: prod.illuminanceDrawing ?? null,
-                                                      hideEmptySpecs: true,
-                                                    });
-                                                  })
-                                                );
+                                                const rowBase = `${spfNumber}-${String(index + 1).padStart(3, "0")}`;
+                                                const itemCode = `${rowBase}-OPT-${i + 1}`;
+                                                setSelectedRowIndexForTDS(index);
+                                                setSelectedOptionIndexForTDS(i);
+                                                setSelectedProductForTDS({
+                                                  ...prod,
+                                                  itemCode,
+                                                });
+                                                setTdsDialogOpen(true);
                                               }}
                                             >
-                                              ⬇ Download TDS
+                                              Generate TDS
                                             </button>
+                                          )}
+                                          {prod.__tdsPdfUrl && (
+                                            <a
+                                              href={prod.__tdsPdfUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="mt-1 text-[10px] text-blue-600 underline block"
+                                            >
+                                              View TDS
+                                            </a>
                                           )}
                                         </td>
                                         <td className="border px-2 py-1 text-center align-middle">
@@ -4094,6 +4103,35 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Generate TDS Dialog ── */}
+      <SPFGenerateTDSDialog
+        open={tdsDialogOpen}
+        onClose={() => {
+          setTdsDialogOpen(false);
+          setSelectedProductForTDS(null);
+          setSelectedRowIndexForTDS(null);
+          setSelectedOptionIndexForTDS(null);
+        }}
+        product={selectedProductForTDS}
+        onTDSGenerated={(googleDocsUrl) => {
+          if (selectedRowIndexForTDS !== null && selectedOptionIndexForTDS !== null) {
+            setProductOffers((prev) => {
+              const copy = { ...prev };
+              const row = [...(copy[selectedRowIndexForTDS] || [])];
+              const product = row[selectedOptionIndexForTDS];
+              if (product) {
+                row[selectedOptionIndexForTDS] = {
+                  ...product,
+                  __tdsPdfUrl: googleDocsUrl,
+                };
+                copy[selectedRowIndexForTDS] = row;
+              }
+              return copy;
+            });
+          }
+        }}
+      />
     </>
   );
 }

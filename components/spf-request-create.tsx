@@ -28,6 +28,7 @@ import SPFTimer from "@/components/spf-timer";
 import MultipleSpecsDetected from "@/components/multiple-specs-detected";
 import { useRoleAccess } from "@/contexts/RoleAccessContext";
 import { generateTDSPdf } from "@/lib/generateTDSPdf";
+import SPFGenerateTDSDialog from "@/components/spf-generate-tds-dialog";
 
 /* ─────────────────────────────────────────────────────────────── */
 /* TYPES                                                           */
@@ -316,6 +317,12 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [hasDraft, setHasDraft] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
+
+  /* ── TDS Dialog state ── */
+  const [tdsDialogOpen, setTdsDialogOpen] = useState(false);
+  const [selectedProductForTDS, setSelectedProductForTDS] = useState<any | null>(null);
+  const [selectedRowIndexForTDS, setSelectedRowIndexForTDS] = useState<number | null>(null);
+  const [selectedOptionIndexForTDS, setSelectedOptionIndexForTDS] = useState<number | null>(null);
 
   /* ── Sync formData when rowData changes ── */
   useEffect(() => {
@@ -1940,28 +1947,29 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                                                 type="button"
                                                 className="mt-0.5 text-[8px] text-green-600 underline block"
                                                 onClick={() => {
-                                                  const win = window.open("", "_blank");
-                                                  if (win) win.document.title = "Generating TDS...";
-                                                  import("jspdf").then(({ default: jsPDF }) =>
-                                                    import("jspdf-autotable").then(({ default: autoTable }) => {
-                                                      generateTDSPdf({
-                                                        jsPDF,
-                                                        autoTable,
-                                                        brand: prod.__tdsBrand,
-                                                        productName: prod.productName || "",
-                                                        itemCode: prod.productName || "",
-                                                        mainImage: prod.mainImage,
-                                                        technicalSpecifications: prod.technicalSpecifications,
-                                                        dimensionalDrawing: prod.dimensionalDrawing ?? null,
-                                                        illuminanceDrawing: prod.illuminanceDrawing ?? null,
-                                                        hideEmptySpecs: true,
-                                                      });
-                                                    })
-                                                  );
+                                                  const rowBase = `${formData.spf_number}-${String(index + 1).padStart(3, "0")}`;
+                                                  const itemCode = `${rowBase}-OPT-${i + 1}`;
+                                                  setSelectedRowIndexForTDS(index);
+                                                  setSelectedOptionIndexForTDS(i);
+                                                  setSelectedProductForTDS({
+                                                    ...prod,
+                                                    itemCode,
+                                                  });
+                                                  setTdsDialogOpen(true);
                                                 }}
                                               >
-                                                ⬇ TDS
+                                                Generate TDS
                                               </button>
+                                            )}
+                                            {prod.__tdsPdfUrl && (
+                                              <a
+                                                href={prod.__tdsPdfUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="mt-0.5 text-[8px] text-blue-600 underline block"
+                                              >
+                                                View TDS
+                                              </a>
                                             )}
                                           </td>
                                           <td className="border px-0.5 py-0.5 text-center align-middle text-[9px] leading-tight">
@@ -2492,6 +2500,36 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Generate TDS Dialog ── */}
+      <SPFGenerateTDSDialog
+        open={tdsDialogOpen}
+        onClose={() => {
+          setTdsDialogOpen(false);
+          setSelectedProductForTDS(null);
+          setSelectedRowIndexForTDS(null);
+          setSelectedOptionIndexForTDS(null);
+        }}
+        product={selectedProductForTDS}
+        onTDSGenerated={(googleDocsUrl) => {
+          // Store the Google Docs viewer link in the product
+          if (selectedRowIndexForTDS !== null && selectedOptionIndexForTDS !== null) {
+            setProductOffers((prev) => {
+              const copy = { ...prev };
+              const row = [...(copy[selectedRowIndexForTDS] || [])];
+              const product = row[selectedOptionIndexForTDS];
+              if (product) {
+                row[selectedOptionIndexForTDS] = {
+                  ...product,
+                  __tdsPdfUrl: googleDocsUrl,
+                };
+                copy[selectedRowIndexForTDS] = row;
+              }
+              return copy;
+            });
+          }
+        }}
+      />
     </>
   );
 }

@@ -326,12 +326,12 @@ export default async function handler(
     const finalProductRefIDs       = rowProductRefIDs.join(ROW_SEP);
     const finalBranches            = rowBranches.join(ROW_SEP);
     const finalSpfRemarksPD        = rowSpfRemarksPD.join(ROW_SEP);
-    const rowTdsBrands: string[] = [];
+    const rowTdsPdfUrls: string[] = [];
     for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
       const rowProducts = rowMap[rowIdx] || [];
-      rowTdsBrands.push(rowProducts.map((p: any) => p.__tdsBrand ?? "").join(","));
+      rowTdsPdfUrls.push(rowProducts.map((p: any) => p.__tdsPdfUrl ?? "").join(","));
     }
-    const finalTds = rowTdsBrands.join(ROW_SEP);
+    const finalTds = rowTdsPdfUrls.join(ROW_SEP);
     const finalItemCode        = rowItemCodes.some((r) => r !== "" && r.length > 0)
       ? rowItemCodes.join(ROW_SEP)
       : (item_code ?? null);

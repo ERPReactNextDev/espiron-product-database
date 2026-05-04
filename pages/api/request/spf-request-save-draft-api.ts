@@ -127,7 +127,7 @@ export default async function handler(
     const rowProductRefIDs:      string[] = [];
     const rowBranches:          string[] = [];
     const rowSpfRemarksPD:      string[] = [];
-    const rowTdsBrands:         string[] = [];
+    const rowTdsPdfUrls:        string[] = [];
     const rowIsExisting:        string[] = [];
 
     for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
@@ -155,7 +155,7 @@ export default async function handler(
       const productRefIDs: string[] = [];
       const branches: string[] = [];
       const spfRemarksPD: string[] = [];
-      const tdsBrands: string[] = [];
+      const tdsPdfUrls: string[] = [];
       const isExisting: string[] = [];
 
       const rowBase = `${spf_number}-${String(rowIdx + 1).padStart(3, "0")}`;
@@ -217,7 +217,7 @@ export default async function handler(
         priceValidities.push(priceValidity);
         dimensionalDrawings.push(p?.dimensionalDrawing?.url || "-");
         illuminanceDrawings.push(p?.illuminanceDrawing?.url || "-");
-        tdsBrands.push(p?.__tdsBrand ?? "");
+        tdsPdfUrls.push(p?.__tdsPdfUrl ?? "");
 
         const supplierId = String(p?.supplier?.supplierId || "");
         const cached     = supplierId ? supplierCache.get(supplierId) : undefined;
@@ -307,7 +307,7 @@ export default async function handler(
       rowProductRefIDs.push(productRefIDs.join(","));
       rowBranches.push(branches.join(","));
       rowSpfRemarksPD.push(spfRemarksPD.join(","));
-      rowTdsBrands.push(tdsBrands.join(","));
+      rowTdsPdfUrls.push(tdsPdfUrls.join(","));
       rowIsExisting.push(isExisting.join(","));
     }
 
@@ -340,7 +340,7 @@ export default async function handler(
     const finalProductRefIDs       = rowProductRefIDs.join(ROW_SEP);
     const finalBranches            = rowBranches.join(ROW_SEP);
     const finalSpfRemarksPD        = rowSpfRemarksPD.join(ROW_SEP);
-    const finalTds                 = rowTdsBrands.join(ROW_SEP);
+    const finalTdsPdfUrls          = rowTdsPdfUrls.join(ROW_SEP);
     const finalIsExisting          = rowIsExisting.join(ROW_SEP);
     const finalItemCode        = rowItemCodes.some((r) => r !== "-" && r !== "")
       ? rowItemCodes.join(ROW_SEP)
@@ -381,7 +381,7 @@ export default async function handler(
         final_selling_cost: finalSellingCosts,
         proj_lead_time: finalLeadTimes,
         price_validity: finalPriceValidities,
-        tds: finalTds,
+        tds: finalTdsPdfUrls,
         dimensional_drawing: finalDimensionalDrawings,
         illuminance_drawing: finalIlluminanceDrawings,
         is_existing: finalIsExisting,

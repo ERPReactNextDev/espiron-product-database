@@ -321,13 +321,13 @@ export default async function handler(
       : (item_code ?? null);
 
     const initialStatus = "Pending For Procurement";
-    // ── TDS brands per product per row ──
-    const rowTdsBrands: string[] = [];
+    // ── TDS PDF URLs per product per row ──
+    const rowTdsPdfUrls: string[] = [];
     for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
       const rowProducts = rowMap[rowIdx] || [];
-      rowTdsBrands.push(rowProducts.map((p: any) => p.__tdsBrand ?? "").join(","));
+      rowTdsPdfUrls.push(rowProducts.map((p: any) => p.__tdsPdfUrl ?? "").join(","));
     }
-    const finalTds = rowTdsBrands.join(ROW_SEP);
+    const finalTds = rowTdsPdfUrls.join(ROW_SEP);
 
     /* ── Check existing SPF ── */
     const { data: existing, error: checkError } = await supabase
