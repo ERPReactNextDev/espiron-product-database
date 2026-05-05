@@ -163,6 +163,7 @@ export default async function handler(
         }
         return s;
       };
+      const hasMultipleOffers = rowProducts.length > 1;
 
       for (let optIdx = 0; optIdx < rowProducts.length; optIdx++) {
         const p = rowProducts[optIdx];
@@ -203,7 +204,7 @@ export default async function handler(
         supplierBrands.push(p?.supplier?.supplierBrand || p?.supplier?.supplierBrandName || "-");
         sellingCosts.push("-");
         leadTimes.push("-");
-        itemCodes.push(`${rowBase}-${optionIndexToLetters(optIdx)}`);
+        itemCodes.push(hasMultipleOffers ? `${rowBase}-${optionIndexToLetters(optIdx)}` : rowBase);
         priceValidities.push(priceValidity);
         dimensionalDrawings.push(p?.dimensionalDrawing?.url || "-");
         illuminanceDrawings.push(p?.illuminanceDrawing?.url || "-");

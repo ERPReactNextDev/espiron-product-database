@@ -177,6 +177,7 @@ export default async function handler(
         }
         return s;
       };
+      const hasMultipleOffers = rowProducts.length > 1;
 
       for (let optIdx = 0; optIdx < rowProducts.length; optIdx++) {
         const p = rowProducts[optIdx];
@@ -221,7 +222,7 @@ export default async function handler(
         sellingCosts.push(p?.__sellingCost ?? "-");
         leadTimes.push(p?.__leadTime      ?? "-");
 
-        itemCodes.push(`${rowBase}-${optionIndexToLetters(optIdx)}`);
+        itemCodes.push(hasMultipleOffers ? `${rowBase}-${optionIndexToLetters(optIdx)}` : rowBase);
         dimensionalDrawings.push(p?.dimensionalDrawing?.url || "-");
         illuminanceDrawings.push(p?.illuminanceDrawing?.url || "-");
 

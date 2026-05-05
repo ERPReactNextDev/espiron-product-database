@@ -2543,7 +2543,11 @@ useEffect(() => {
                                                   }
                                                   return s;
                                                 };
-                                                const itemCode = `${rowBase}-${optionIndexToLetters(i)}`;
+                                                const rowOffers = productOffers[index] || [];
+                                                const itemCode =
+                                                  rowOffers.length > 1
+                                                    ? `${rowBase}-${optionIndexToLetters(i)}`
+                                                    : rowBase;
                                                 setSelectedRowIndexForTDS(index);
                                                 setSelectedOptionIndexForTDS(i);
                                                 setSelectedProductForTDS({
