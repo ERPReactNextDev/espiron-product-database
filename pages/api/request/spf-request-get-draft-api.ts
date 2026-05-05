@@ -118,6 +118,7 @@ export default async function handler(
     const productRefIDs = parseCommaDelimited(draft.product_reference_id);
     const branches = parseCommaDelimited(draft.supplier_branch);
     const spfRemarksPD = parseCommaDelimited(draft.spf_remarks_pd);
+    const commercialTypes = parseCommaDelimited(draft.commercial_type);
     const tdsPdfUrls = parseCommaDelimited(draft.tds);
     const isExisting = parseCommaDelimited(draft.is_existing);
 
@@ -140,6 +141,7 @@ export default async function handler(
             packaging: packagingDetails[rowIdx]?.[optIdx] || "-",
             factoryAddress: factories[rowIdx]?.[optIdx] || "-",
             portOfDischarge: ports[rowIdx]?.[optIdx] || "-",
+            commercialType: commercialTypes[rowIdx]?.[optIdx] || "BASIC",
           },
           supplier: {
             supplierBrand: supplierBrands[rowIdx]?.[optIdx] || "-",

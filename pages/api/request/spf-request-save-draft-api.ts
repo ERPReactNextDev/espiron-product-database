@@ -129,6 +129,7 @@ export default async function handler(
     const rowProductRefIDs:      string[] = [];
     const rowBranches:          string[] = [];
     const rowSpfRemarksPD:      string[] = [];
+    const rowCommercialTypes:   string[] = [];
     const rowTdsPdfUrls:        string[] = [];
     const rowIsExisting:        string[] = [];
 
@@ -159,6 +160,7 @@ export default async function handler(
       const productRefIDs: string[] = [];
       const branches: string[] = [];
       const spfRemarksPD: string[] = [];
+      const commercialTypes: string[] = [];
       const tdsPdfUrls: string[] = [];
       const isExisting: string[] = [];
 
@@ -189,6 +191,9 @@ export default async function handler(
         const height = packagingData?.height || "-";
         const pcsPerCarton = String(p?.commercialDetails?.pcsPerCarton ?? "-");
         const packagingStr = `${length} x ${width} x ${height}`;
+
+        // Get commercial type for this product
+        const commercialType = p?.commercialDetails?.commercialType || "BASIC";
 
         // price_validity - preserve datetime-local format (YYYY-MM-DDTHH:mm)
         const rawPV = p?.__priceValidity || p?.price_validity;
@@ -221,6 +226,7 @@ export default async function handler(
         unitCosts.push(String(unitCost));
         pcsPerCartons.push(pcsPerCarton);
         packaging.push(packagingStr);
+        commercialTypes.push(commercialType);
         factories.push(factory);
         ports.push(port);
         subtotals.push(String(subtotal));
@@ -332,6 +338,7 @@ export default async function handler(
       rowProductRefIDs.push(productRefIDs.join(","));
       rowBranches.push(branches.join(","));
       rowSpfRemarksPD.push(spfRemarksPD.join(","));
+      rowCommercialTypes.push(commercialTypes.join(","));
       rowTdsPdfUrls.push(tdsPdfUrls.join(","));
       rowIsExisting.push(isExisting.join(","));
     }
@@ -375,6 +382,7 @@ export default async function handler(
     const finalProductRefIDs       = rowProductRefIDs.join(ROW_SEP);
     const finalBranches            = rowBranches.join(ROW_SEP);
     const finalSpfRemarksPD        = rowSpfRemarksPD.join(ROW_SEP);
+    const finalCommercialTypes     = rowCommercialTypes.join(ROW_SEP);
     const finalTdsPdfUrls          = rowTdsPdfUrls.join(ROW_SEP);
     const finalIsExisting          = rowIsExisting.join(ROW_SEP);
     const finalItemCode        = rowItemCodes.some((r) => r !== "-" && r !== "")
@@ -406,6 +414,7 @@ export default async function handler(
         product_reference_id: finalProductRefIDs,
         supplier_branch: finalBranches,
         spf_remarks_pd: finalSpfRemarksPD,
+        commercial_type: finalCommercialTypes,
         product_offer_unit_cost: finalUnitCosts,
         product_offer_pcs_per_carton: finalPcsPerCarton,
         product_offer_packaging_details: finalPackaging,

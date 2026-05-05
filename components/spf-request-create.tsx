@@ -1747,6 +1747,9 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                                   <th className="border px-0.5 py-0.5 text-center w-7.5">
                                     Qty/Ctn
                                   </th>
+                                  <th className="border px-0.5 py-0.5 text-center w-8">
+                                    Commercial Type
+                                  </th>
                                   <th className="border px-0.5 py-0.5 text-center w-11.25">
                                     Packaging
                                   </th>
@@ -1769,15 +1772,71 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                                   (prod: any, i: number) => {
                                     const unitCost =
                                       prod?.commercialDetails?.unitCost || "-";
+                                    const commercialType = prod?.commercialDetails?.commercialType || "BASIC";
+                                    const useArrayInput = prod?.commercialDetails?.useArrayInput || false;
+                                    const totalUnitCost = prod?.commercialDetails?.totalUnitCost || 0;
+                                    const multiRows = prod?.commercialDetails?.multiRows || [];
+                                    
                                     const packagingData = prod?.commercialDetails?.packaging;
                                     let packagingDisplay: React.ReactNode = "-";
                                     let qtyCtnDisplay: React.ReactNode = "-";
-                                    if (packagingData) {
-                                      const length = packagingData.length || "-";
-                                      const width = packagingData.width || "-";
-                                      const height = packagingData.height || "-";
-                                      packagingDisplay = `${length} × ${width} × ${height}`;
-                                      qtyCtnDisplay = prod?.commercialDetails?.pcsPerCarton || "-";
+                                    let commercialTypeDisplay: React.ReactNode = "-";
+                                    
+                                    // Determine commercial type display and packaging display based on type
+                                    if (commercialType === "BASIC") {
+                                      commercialTypeDisplay = "Basic";
+                                      if (packagingData) {
+                                        const length = packagingData.length || "-";
+                                        const width = packagingData.width || "-";
+                                        const height = packagingData.height || "-";
+                                        packagingDisplay = `${length} × ${width} × ${height}`;
+                                        qtyCtnDisplay = prod?.commercialDetails?.pcsPerCarton || "-";
+                                      }
+                                    } else if (commercialType === "LIGHT") {
+                                      if (useArrayInput) {
+                                        // Light Multiple Dimension
+                                        commercialTypeDisplay = "Light (Multiple)";
+                                        // Packaging: Show item name, dimensions, and cost per row for each array row
+                                        packagingDisplay = (
+                                          <div className="space-y-1">
+                                            {multiRows.map((row: any, idx: number) => (
+                                              <div key={idx} className="text-[8px] leading-tight">
+                                                <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
+                                                <div>{row.length || "-"} × {row.width || "-"} × {row.height || "-"}</div>
+                                                <div className="text-gray-500">{row.unitCost?.toFixed(2) || "0.00"} USD</div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        );
+                                        // Qty/Ctn: Show item name and qty/box for each row
+                                        qtyCtnDisplay = (
+                                          <div className="space-y-1">
+                                            {multiRows.map((row: any, idx: number) => (
+                                              <div key={idx} className="text-[8px] leading-tight">
+                                                <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
+                                                <div>Qty: {row.qtyPerCarton || "-"}</div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        );
+                                      } else {
+                                        // Light Single Dimension
+                                        commercialTypeDisplay = "Light (Single)";
+                                        // Packaging: Show length, width, height
+                                        if (packagingData) {
+                                          const length = packagingData.length || "-";
+                                          const width = packagingData.width || "-";
+                                          const height = packagingData.height || "-";
+                                          packagingDisplay = `${length} × ${width} × ${height}`;
+                                        }
+                                        // Qty/Ctn: Show qty/box
+                                        qtyCtnDisplay = prod?.commercialDetails?.pcsPerCarton || "-";
+                                      }
+                                    } else if (commercialType === "POLE") {
+                                      commercialTypeDisplay = "Pole";
+                                      // Pole: No packaging
+                                      packagingDisplay = "-";
+                                      qtyCtnDisplay = "-";
                                     }
                                     const factory =
                                       prod?.commercialDetails?.factoryAddress ||
@@ -2030,10 +2089,13 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                                             )}
                                         </td>
                                         <td className="border px-0.5 py-0.5 text-center align-middle text-[9px]">
-                                          {unitCost}
+                                          {commercialType === "LIGHT" && useArrayInput ? totalUnitCost : unitCost}
                                         </td>
                                         <td className="border px-0.5 py-0.5 text-center align-middle text-[9px] leading-tight">
                                           {qtyCtnDisplay}
+                                        </td>
+                                        <td className="border px-0.5 py-0.5 text-center align-middle text-[9px] leading-tight">
+                                          {commercialTypeDisplay}
                                         </td>
                                         <td className="border px-0.5 py-0.5 text-center align-middle text-[9px] leading-tight">
                                           {packagingDisplay}
