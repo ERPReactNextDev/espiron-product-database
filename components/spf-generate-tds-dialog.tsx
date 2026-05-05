@@ -30,7 +30,13 @@ type Props = {
     illuminanceDrawing?: { url: string };
     technicalSpecifications?: TechnicalSpecification[];
   } | null;
-  onTDSGenerated?: (cloudinaryUrl: string) => void;
+  onTDSGenerated?: (payload: {
+    tdsUrl: string;
+    productName: string;
+    tdsBrand: string;
+    dimensionalDrawingUrl: string;
+    illuminanceDrawingUrl: string;
+  }) => void;
 };
 
 const convertDriveToThumbnail = (url: string) => {
@@ -71,6 +77,24 @@ export default function SPFGenerateTDSDialog({
 
   const previewRef = useRef<HTMLDivElement>(null);
 
+  const uploadDrawing = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/request/spf-request-upload-drawing-api", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || error.error || "Drawing upload failed");
+    }
+
+    const result = await response.json();
+    return result.secure_url;
+  };
+
   useEffect(() => {
     if (open && product) {
       setSelectedBrand(product.__tdsBrand || "");
@@ -110,8 +134,21 @@ export default function SPFGenerateTDSDialog({
       const jsPDF = (await import("jspdf")).default;
       const autoTable = (await import("jspdf-autotable")).default;
 
-      const dimensionalSource = uploadedDimensionalDrawing || (dimensionalLink ? { url: dimensionalLink } : null) || product?.dimensionalDrawing;
-      const illuminanceSource = uploadedIlluminanceLevel || (illuminanceLink ? { url: illuminanceLink } : null) || product?.illuminanceDrawing;
+      const dimensionalSource =
+        uploadedDimensionalDrawing ||
+        (dimensionalLink ? { url: dimensionalLink } : null) ||
+        product?.dimensionalDrawing;
+      const illuminanceSource =
+        uploadedIlluminanceLevel ||
+        (illuminanceLink ? { url: illuminanceLink } : null) ||
+        product?.illuminanceDrawing;
+
+      const persistedDimensionalUrl = uploadedDimensionalDrawing
+        ? await uploadDrawing(uploadedDimensionalDrawing)
+        : (dimensionalLink || product?.dimensionalDrawing?.url || "");
+      const persistedIlluminanceUrl = uploadedIlluminanceLevel
+        ? await uploadDrawing(uploadedIlluminanceLevel)
+        : (illuminanceLink || product?.illuminanceDrawing?.url || "");
 
       // Generate PDF Blob
       const pdfBlob = await generateTDSPdfBlob({
@@ -151,7 +188,13 @@ export default function SPFGenerateTDSDialog({
       toast.success("TDS PDF uploaded successfully!");
       
       if (onTDSGenerated) {
-        onTDSGenerated(googleDocsUrl);
+        onTDSGenerated({
+          tdsUrl: googleDocsUrl,
+          productName: productName || "",
+          tdsBrand: selectedBrand || "",
+          dimensionalDrawingUrl: persistedDimensionalUrl,
+          illuminanceDrawingUrl: persistedIlluminanceUrl,
+        });
       }
     } catch (error: any) {
       console.error("Upload error:", error);

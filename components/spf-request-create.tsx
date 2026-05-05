@@ -1953,6 +1953,10 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                                                   setSelectedOptionIndexForTDS(i);
                                                   setSelectedProductForTDS({
                                                     ...prod,
+                                                    productName: prod.__tdsProductName ?? prod.productName,
+                                                    __tdsBrand: prod.__tdsBrand ?? "",
+                                                    dimensionalDrawing: prod.dimensionalDrawing ?? null,
+                                                    illuminanceDrawing: prod.illuminanceDrawing ?? null,
                                                     itemCode,
                                                   });
                                                   setTdsDialogOpen(true);
@@ -2511,23 +2515,29 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
           setSelectedOptionIndexForTDS(null);
         }}
         product={selectedProductForTDS}
-        onTDSGenerated={(googleDocsUrl) => {
-          // Store the Google Docs viewer link in the product
-          if (selectedRowIndexForTDS !== null && selectedOptionIndexForTDS !== null) {
-            setProductOffers((prev) => {
-              const copy = { ...prev };
-              const row = [...(copy[selectedRowIndexForTDS] || [])];
-              const product = row[selectedOptionIndexForTDS];
-              if (product) {
-                row[selectedOptionIndexForTDS] = {
-                  ...product,
-                  __tdsPdfUrl: googleDocsUrl,
-                };
-                copy[selectedRowIndexForTDS] = row;
-              }
-              return copy;
-            });
-          }
+        onTDSGenerated={(payload) => {
+          if (selectedRowIndexForTDS === null || selectedOptionIndexForTDS === null) return;
+          setProductOffers((prev) => {
+            const copy = { ...prev };
+            const row = [...(copy[selectedRowIndexForTDS] || [])];
+            const product = row[selectedOptionIndexForTDS];
+            if (!product) return prev;
+
+            row[selectedOptionIndexForTDS] = {
+              ...product,
+              __tdsPdfUrl: payload.tdsUrl,
+              __tdsBrand: payload.tdsBrand,
+              __tdsProductName: payload.productName,
+              dimensionalDrawing: payload.dimensionalDrawingUrl
+                ? { url: payload.dimensionalDrawingUrl }
+                : null,
+              illuminanceDrawing: payload.illuminanceDrawingUrl
+                ? { url: payload.illuminanceDrawingUrl }
+                : null,
+            };
+            copy[selectedRowIndexForTDS] = row;
+            return copy;
+          });
         }}
       />
     </>

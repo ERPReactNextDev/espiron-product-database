@@ -435,6 +435,7 @@ useEffect(() => {
   const [hasDraft, setHasDraft] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isLoadingDraft, setIsLoadingDraft] = useState(false);
+  const [draftAutoLoaded, setDraftAutoLoaded] = useState(false);
 
   /* ── TDS Dialog state ── */
   const [tdsDialogOpen, setTdsDialogOpen] = useState(false);
@@ -452,6 +453,7 @@ useEffect(() => {
     setSpfCreationStartTime(start);
     setSpfCreationEndTime(null);
     setTimerActive(true);
+    setDraftAutoLoaded(false);
   }, [open]);
 
   /* ── Check for existing draft and restore timer ── */
@@ -479,6 +481,15 @@ useEffect(() => {
 
     checkDraft();
   }, [open, spfNumber]);
+
+  useEffect(() => {
+    if (!open || !spfNumber) return;
+    if (!hasDraft) return;
+    if (draftAutoLoaded) return;
+
+    setDraftAutoLoaded(true);
+    handleLoadDraft();
+  }, [open, spfNumber, hasDraft, draftAutoLoaded]);
 
   /* ── Responsive ── */
   useEffect(() => {
@@ -4062,22 +4073,29 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
           setSelectedOptionIndexForTDS(null);
         }}
         product={selectedProductForTDS}
-        onTDSGenerated={(googleDocsUrl) => {
-          if (selectedRowIndexForTDS !== null && selectedOptionIndexForTDS !== null) {
-            setProductOffers((prev) => {
-              const copy = { ...prev };
-              const row = [...(copy[selectedRowIndexForTDS] || [])];
-              const product = row[selectedOptionIndexForTDS];
-              if (product) {
-                row[selectedOptionIndexForTDS] = {
-                  ...product,
-                  __tdsPdfUrl: googleDocsUrl,
-                };
-                copy[selectedRowIndexForTDS] = row;
-              }
-              return copy;
-            });
-          }
+        onTDSGenerated={(payload) => {
+          if (selectedRowIndexForTDS === null || selectedOptionIndexForTDS === null) return;
+          setProductOffers((prev) => {
+            const copy = { ...prev };
+            const row = [...(copy[selectedRowIndexForTDS] || [])];
+            const product = row[selectedOptionIndexForTDS];
+            if (!product) return prev;
+
+            row[selectedOptionIndexForTDS] = {
+              ...product,
+              __tdsPdfUrl: payload.tdsUrl,
+              __tdsBrand: payload.tdsBrand,
+              __tdsProductName: payload.productName,
+              dimensionalDrawing: payload.dimensionalDrawingUrl
+                ? { url: payload.dimensionalDrawingUrl }
+                : null,
+              illuminanceDrawing: payload.illuminanceDrawingUrl
+                ? { url: payload.illuminanceDrawingUrl }
+                : null,
+            };
+            copy[selectedRowIndexForTDS] = row;
+            return copy;
+          });
         }}
       />
     </>

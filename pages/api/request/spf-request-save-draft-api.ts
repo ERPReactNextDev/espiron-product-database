@@ -123,6 +123,8 @@ export default async function handler(
     const rowPriceValidities: string[] = [];
     const rowDimensionalDrawings: string[] = [];
     const rowIlluminanceDrawings: string[] = [];
+    const rowProductNames: string[] = [];
+    const rowTdsBrands: string[] = [];
     const rowOriginalSpecs:      string[] = [];
     const rowProductRefIDs:      string[] = [];
     const rowBranches:          string[] = [];
@@ -152,6 +154,8 @@ export default async function handler(
       const priceValidities: string[] = [];
       const dimensionalDrawings: string[] = [];
       const illuminanceDrawings: string[] = [];
+      const productNames: string[] = [];
+      const tdsBrands: string[] = [];
       const productRefIDs: string[] = [];
       const branches: string[] = [];
       const spfRemarksPD: string[] = [];
@@ -215,9 +219,16 @@ export default async function handler(
         leadTimes.push(p?.__leadTime ?? "-");
         itemCodes.push(`${rowBase}-OPT-${optIdx + 1}`);
         priceValidities.push(priceValidity);
-        dimensionalDrawings.push(p?.dimensionalDrawing?.url || "-");
-        illuminanceDrawings.push(p?.illuminanceDrawing?.url || "-");
+        const dimUrl = p?.dimensionalDrawing?.url;
+        const illuUrl = p?.illuminanceDrawing?.url;
+        dimensionalDrawings.push(dimUrl && dimUrl !== "-" ? dimUrl : "-");
+        illuminanceDrawings.push(illuUrl && illuUrl !== "-" ? illuUrl : "-");
         tdsPdfUrls.push(p?.__tdsPdfUrl ?? "");
+
+        const resolvedProductName = p?.__tdsProductName ?? p?.productName;
+        productNames.push(resolvedProductName && String(resolvedProductName).trim() !== "" ? String(resolvedProductName) : "-");
+        const resolvedBrand = p?.__tdsBrand;
+        tdsBrands.push(resolvedBrand && String(resolvedBrand).trim() !== "" ? String(resolvedBrand) : "-");
 
         const supplierId = String(p?.supplier?.supplierId || "");
         const cached     = supplierId ? supplierCache.get(supplierId) : undefined;
@@ -283,6 +294,8 @@ export default async function handler(
         priceValidities.push("-");
         dimensionalDrawings.push("-");
         illuminanceDrawings.push("-");
+        productNames.push("-");
+        tdsBrands.push("-");
       }
 
       rowImages.push(images.join(","));
@@ -304,6 +317,8 @@ export default async function handler(
       rowPriceValidities.push(priceValidities.join(","));
       rowDimensionalDrawings.push(dimensionalDrawings.join(","));
       rowIlluminanceDrawings.push(illuminanceDrawings.join(","));
+      rowProductNames.push(productNames.join(","));
+      rowTdsBrands.push(tdsBrands.join(","));
       rowProductRefIDs.push(productRefIDs.join(","));
       rowBranches.push(branches.join(","));
       rowSpfRemarksPD.push(spfRemarksPD.join(","));
@@ -315,6 +330,14 @@ export default async function handler(
     for (let i = rowOriginalSpecs.length; i < rowCount; i++) {
       rowOriginalSpecs.push("-");
       rowProductRefIDs.push("-");
+    }
+
+    for (let i = rowProductNames.length; i < rowCount; i++) {
+      rowProductNames.push("-");
+    }
+
+    for (let i = rowTdsBrands.length; i < rowCount; i++) {
+      rowTdsBrands.push("-");
     }
 
     /* ── Final strings ── */
@@ -336,6 +359,8 @@ export default async function handler(
     const finalPriceValidities = rowPriceValidities.join(ROW_SEP);
     const finalDimensionalDrawings = rowDimensionalDrawings.join(ROW_SEP);
     const finalIlluminanceDrawings = rowIlluminanceDrawings.join(ROW_SEP);
+    const finalProductNames = rowProductNames.join(ROW_SEP);
+    const finalTdsBrands = rowTdsBrands.join(ROW_SEP);
     const finalOriginalSpecs       = rowOriginalSpecs.join(ROW_SEP);
     const finalProductRefIDs       = rowProductRefIDs.join(ROW_SEP);
     const finalBranches            = rowBranches.join(ROW_SEP);
@@ -384,6 +409,8 @@ export default async function handler(
         tds: finalTdsPdfUrls,
         dimensional_drawing: finalDimensionalDrawings,
         illuminance_drawing: finalIlluminanceDrawings,
+        product_name: finalProductNames,
+        tds_brand: finalTdsBrands,
         is_existing: finalIsExisting,
 
         status: "Draft",

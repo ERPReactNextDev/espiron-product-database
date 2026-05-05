@@ -113,6 +113,8 @@ export default async function handler(
     const priceValidities = parseCommaDelimited(draft.price_validity);
     const dimensionalDrawings = parseCommaDelimited(draft.dimensional_drawing);
     const illuminanceDrawings = parseCommaDelimited(draft.illuminance_drawing);
+    const productNames = parseCommaDelimited((draft as any).product_name ?? null);
+    const tdsBrands = parseCommaDelimited((draft as any).tds_brand ?? null);
     const productRefIDs = parseCommaDelimited(draft.product_reference_id);
     const branches = parseCommaDelimited(draft.supplier_branch);
     const spfRemarksPD = parseCommaDelimited(draft.spf_remarks_pd);
@@ -129,6 +131,7 @@ export default async function handler(
         const product: any = {
           mainImage: { url: rowImageList[optIdx] },
           qty: Number(qtys[rowIdx]?.[optIdx] || 1),
+          productName: productNames[rowIdx]?.[optIdx] && productNames[rowIdx][optIdx] !== "-" ? productNames[rowIdx][optIdx] : "",
           technicalSpecifications: specs[rowIdx] || [],
           __originalTechnicalSpecifications: origSpecs[rowIdx] || [],
           commercialDetails: {
@@ -147,12 +150,20 @@ export default async function handler(
           __sellingCost: sellingCosts[rowIdx]?.[optIdx] || "-",
           __leadTime: leadTimes[rowIdx]?.[optIdx] || "-",
           __priceValidity: formatDateTimeLocal(priceValidities[rowIdx]?.[optIdx] || null),
-          dimensionalDrawing: { url: dimensionalDrawings[rowIdx]?.[optIdx] || "-" },
-          illuminanceDrawing: { url: illuminanceDrawings[rowIdx]?.[optIdx] || "-" },
+          dimensionalDrawing: (() => {
+            const u = dimensionalDrawings[rowIdx]?.[optIdx];
+            return u && u !== "-" ? { url: u } : null;
+          })(),
+          illuminanceDrawing: (() => {
+            const u = illuminanceDrawings[rowIdx]?.[optIdx];
+            return u && u !== "-" ? { url: u } : null;
+          })(),
           productReferenceID: productRefIDs[rowIdx]?.[optIdx] || null,
           __selectedBranch: branches[rowIdx]?.[optIdx] || "-",
           __spfRemarksPD: spfRemarksPD[rowIdx]?.[optIdx] || "-",
           __tdsPdfUrl: tdsPdfUrls[rowIdx]?.[optIdx] || "",
+          __tdsBrand: tdsBrands[rowIdx]?.[optIdx] && tdsBrands[rowIdx][optIdx] !== "-" ? tdsBrands[rowIdx][optIdx] : "",
+          __tdsProductName: productNames[rowIdx]?.[optIdx] && productNames[rowIdx][optIdx] !== "-" ? productNames[rowIdx][optIdx] : "",
           __isExisting: isExisting[rowIdx]?.[optIdx] === "true",
           __rowIndex: rowIdx,
         };
