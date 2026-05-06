@@ -3230,6 +3230,7 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
         const prodUnitCosts = rowUnitCosts[rowIndex] ?? [];
         const prodPcsPerCartons = rowPcsPerCartons[rowIndex] ?? [];
         const prodPackaging = rowPackaging[rowIndex] ?? [];
+        const prodWarranties = rowWarranties[rowIndex] ?? [];
         const prodFactories = rowFactories[rowIndex] ?? [];
         const prodPorts = rowPorts[rowIndex] ?? [];
         const prodSubtotals = rowSubtotals[rowIndex] ?? [];
