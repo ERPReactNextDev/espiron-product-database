@@ -1030,6 +1030,8 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                           }
                           const factory =
                             prod?.commercialDetails?.factoryAddress || "-";
+                          const warranty =
+                            prod?.commercialDetails?.warranty || "-";
                           const port =
                             prod?.commercialDetails?.portOfDischarge || "-";
                           const supplierBrand =
@@ -1132,6 +1134,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                                 </div>
                                 <div className="text-[10px] text-muted-foreground">
                                   <p>Pack: {packagingDisplay}</p>
+                                  <p>Warranty: {warranty}</p>
                                 </div>
                                 {factory !== "-" && (
                                   <p className="text-[10px] text-muted-foreground truncate">
@@ -1754,6 +1757,9 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                                     Packaging
                                   </th>
                                   <th className="border px-0.5 py-0.5 text-center w-11.25">
+                                    Warranty
+                                  </th>
+                                  <th className="border px-0.5 py-0.5 text-center w-11.25">
                                     Factory
                                   </th>
                                   <th className="border px-0.5 py-0.5 text-center w-8.75">
@@ -1841,6 +1847,8 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                                     const factory =
                                       prod?.commercialDetails?.factoryAddress ||
                                       "-";
+                                    const warranty =
+                                      prod?.commercialDetails?.warranty || "-";
                                     const port =
                                       prod?.commercialDetails
                                         ?.portOfDischarge || "-";
@@ -2099,6 +2107,9 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                                         </td>
                                         <td className="border px-0.5 py-0.5 text-center align-middle text-[9px] leading-tight">
                                           {packagingDisplay}
+                                        </td>
+                                        <td className="border px-0.5 py-0.5 text-center align-middle text-[9px] leading-tight">
+                                          {warranty}
                                         </td>
                                         <td className="border px-0.5 py-0.5 text-center align-middle text-[9px] leading-tight">
                                           {factory}

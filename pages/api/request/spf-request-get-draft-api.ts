@@ -100,6 +100,7 @@ export default async function handler(
     const unitCosts = parseCommaDelimited(draft.product_offer_unit_cost);
     const pcsPerCartons = parsePipeDelimited(draft.product_offer_pcs_per_carton);
     const packagingDetails = parseCommaDelimited(draft.product_offer_packaging_details);
+    const warranties = parseCommaDelimited((draft as any).warranty ?? null);
     const factories = parseCommaDelimited(draft.product_offer_factory_address);
     const ports = parseCommaDelimited(draft.product_offer_port_of_discharge);
     const subtotals = parseCommaDelimited(draft.product_offer_subtotal);
@@ -139,6 +140,7 @@ export default async function handler(
             unitCost: unitCosts[rowIdx]?.[optIdx] || "0",
             pcsPerCarton: pcsPerCartons[rowIdx]?.[optIdx] || "-",
             packaging: packagingDetails[rowIdx]?.[optIdx] || "-",
+            warranty: warranties[rowIdx]?.[optIdx] || "-",
             factoryAddress: factories[rowIdx]?.[optIdx] || "-",
             portOfDischarge: ports[rowIdx]?.[optIdx] || "-",
             commercialType: commercialTypes[rowIdx]?.[optIdx] || "BASIC",

@@ -109,6 +109,7 @@ export default async function handler(
     const rowUnitCosts:       string[] = [];
     const rowPcsPerCarton:    string[] = [];
     const rowPackaging:       string[] = [];
+    const rowWarranties:      string[] = [];
     const rowFactories:       string[] = [];
     const rowPorts:           string[] = [];
     const rowSubtotals:       string[] = [];
@@ -137,6 +138,7 @@ export default async function handler(
       const unitCosts:       string[] = [];
       const pcsPerCartons:   string[] = [];
       const packaging:       string[] = [];
+      const warranties:      string[] = [];
       const factories:       string[] = [];
       const ports:           string[] = [];
       const subtotals:       string[] = [];
@@ -182,6 +184,7 @@ export default async function handler(
         const height = packagingData?.height || "-";
         const pcsPerCarton = String(p?.commercialDetails?.pcsPerCarton ?? "-");
         const packagingStr = `${length} x ${width} x ${height}`;
+        const warranty = p?.commercialDetails?.warranty || "-";
 
         // Get commercial type for this product
         const commercialType = p?.commercialDetails?.commercialType || "BASIC";
@@ -203,6 +206,7 @@ export default async function handler(
         unitCosts.push(String(unitCost));
         pcsPerCartons.push(pcsPerCarton);
         packaging.push(packagingStr);
+        warranties.push(warranty);
         commercialTypes.push(commercialType);
         factories.push(factory);
         ports.push(port);
@@ -285,6 +289,7 @@ export default async function handler(
       rowUnitCosts.push(unitCosts.join(","));
       rowPcsPerCarton.push(pcsPerCartons.join(","));
       rowPackaging.push(packaging.join(","));
+      rowWarranties.push(warranties.join(","));
       rowFactories.push(factories.join(","));
       rowPorts.push(ports.join(","));
       rowSubtotals.push(subtotals.join(","));
@@ -317,6 +322,7 @@ export default async function handler(
     const finalUnitCosts       = rowUnitCosts.join(ROW_SEP);
     const finalPcsPerCarton    = rowPcsPerCarton.join(ROW_SEP);
     const finalPackaging       = rowPackaging.join(ROW_SEP);
+    const finalWarranties      = rowWarranties.join(ROW_SEP);
     const finalFactories       = rowFactories.join(ROW_SEP);
     const finalPorts           = rowPorts.join(ROW_SEP);
     const finalSubtotals       = rowSubtotals.join(ROW_SEP);
@@ -387,6 +393,7 @@ export default async function handler(
           product_offer_unit_cost:               finalUnitCosts,
           product_offer_pcs_per_carton:          finalPcsPerCarton,
           product_offer_packaging_details:       finalPackaging,
+          warranty:                              finalWarranties,
           product_offer_factory_address:         finalFactories,
           product_offer_port_of_discharge:       finalPorts,
           product_offer_subtotal:                finalSubtotals,
@@ -440,6 +447,7 @@ export default async function handler(
           product_offer_unit_cost:               finalUnitCosts,
           product_offer_pcs_per_carton:          finalPcsPerCarton,
           product_offer_packaging_details:       finalPackaging,
+          warranty:                              finalWarranties,
           product_offer_factory_address:         finalFactories,
           product_offer_port_of_discharge:       finalPorts,
           product_offer_subtotal:                finalSubtotals,
@@ -484,6 +492,7 @@ export default async function handler(
           date_updated: updateISO,
           original_technical_specification: finalOriginalSpecs,
           product_reference_id: finalProductRefIDs,
+          warranty: finalWarranties,
         })
         .eq("spf_number", spf_number);
 

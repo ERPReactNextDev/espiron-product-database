@@ -36,6 +36,7 @@ type VersionRecord = {
   product_offer_unit_cost?: string;
   product_offer_pcs_per_carton?: string;
   product_offer_packaging_details?: string;
+  warranty?: string;
   product_offer_factory_address?: string;
   product_offer_port_of_discharge?: string;
   product_offer_subtotal?: string;
@@ -316,6 +317,7 @@ function VersionDetail({
   const rowUnitCosts = splitByRow(record.product_offer_unit_cost);
   const rowPcsPerCartons = splitByRow(record.product_offer_pcs_per_carton);
   const rowPackaging = splitByRow(record.product_offer_packaging_details);
+  const rowWarranties = splitByRow(record.warranty);
   const rowFactories = splitByRow(record.product_offer_factory_address);
   const rowPorts = splitByRow(record.product_offer_port_of_discharge);
   const rowSubtotals = splitByRow(record.product_offer_subtotal);
@@ -340,6 +342,7 @@ function VersionDetail({
   const prevRowUnitCosts = splitByRow(prevRecord?.product_offer_unit_cost);
   const prevRowPcsPerCartons = splitByRow(prevRecord?.product_offer_pcs_per_carton);
   const prevRowPackaging = splitByRow(prevRecord?.product_offer_packaging_details);
+  const prevRowWarranties = splitByRow(prevRecord?.warranty);
   const prevRowFactories = splitByRow(prevRecord?.product_offer_factory_address);
   const prevRowPorts = splitByRow(prevRecord?.product_offer_port_of_discharge);
   const prevRowSubtotals = splitByRow(prevRecord?.product_offer_subtotal);
@@ -377,6 +380,7 @@ function VersionDetail({
         const prodUnitCosts = rowUnitCosts[rowIndex] ?? [];
         const prodPcsPerCartons = rowPcsPerCartons[rowIndex] ?? [];
         const prodPackaging = rowPackaging[rowIndex] ?? [];
+        const prodWarranties = rowWarranties[rowIndex] ?? [];
         const prodFactories = rowFactories[rowIndex] ?? [];
         const prodPorts = rowPorts[rowIndex] ?? [];
         const prodSubtotals = rowSubtotals[rowIndex] ?? [];
@@ -476,6 +480,7 @@ function VersionDetail({
                         <DiffValue label="Unit Cost" current={prodUnitCosts[i]} previous={getPrev(prevRowUnitCosts, rowIndex, i)} />
                         <DiffValue label="Qty/Per Carton" current={prodPcsPerCartons[i]} previous={getPrev(prevRowPcsPerCartons, rowIndex, i)} />
                         <DiffValue label="Packaging" current={prodPackaging[i]} previous={getPrev(prevRowPackaging, rowIndex, i)} />
+                        <DiffValue label="Warranty" current={prodWarranties[i]} previous={getPrev(prevRowWarranties, rowIndex, i)} />
                         <DiffValue
                           label="Price Validity"
                           current={(() => {
@@ -593,6 +598,7 @@ function VersionDetail({
                       <th className="border px-2 py-1 text-center whitespace-nowrap">Unit Cost</th>
                       <th className="border px-2 py-1 text-center whitespace-nowrap">Qty/Per Carton</th>
                       <th className="border px-2 py-1 text-center whitespace-nowrap">Packaging</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Warranty</th>
                       <th className="border px-2 py-1 text-center whitespace-nowrap">Factory</th>
                       <th className="border px-2 py-1 text-center whitespace-nowrap">Port</th>
                       <th className="border px-2 py-1 text-center whitespace-nowrap">Subtotal</th>
@@ -712,6 +718,9 @@ function VersionDetail({
                           </DiffCell>
                           <DiffCell current={prodPackaging[i]} previous={getPrev(prevRowPackaging, rowIndex, i)}>
                             {prodPackaging[i] || "-"}
+                          </DiffCell>
+                          <DiffCell current={prodWarranties[i]} previous={getPrev(prevRowWarranties, rowIndex, i)}>
+                            {prodWarranties[i] || "-"}
                           </DiffCell>
                           <DiffCell current={prodFactories[i]} previous={getPrev(prevRowFactories, rowIndex, i)}>
                             {prodFactories[i] || "-"}

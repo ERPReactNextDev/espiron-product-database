@@ -67,6 +67,7 @@ type SPFData = {
   product_offer_unit_cost: string;
   product_offer_pcs_per_carton?: string;
   product_offer_packaging_details: string;
+  warranty?: string;
   product_offer_factory_address: string;
   product_offer_port_of_discharge: string;
   product_offer_subtotal: string;
@@ -690,6 +691,7 @@ useEffect(() => {
     const rowUnitCosts = splitByRow(data.product_offer_unit_cost);
     const rowPcsPerCartons = splitByRow(data.product_offer_pcs_per_carton);
     const rowPackaging = splitByRow(data.product_offer_packaging_details);
+    const rowWarranties = splitByRow(data.warranty);
     const rowFactories = splitByRow(data.product_offer_factory_address);
     const rowPorts = splitByRow(data.product_offer_port_of_discharge);
     const rowSubtotals = splitByRow(data.product_offer_subtotal);
@@ -723,6 +725,7 @@ useEffect(() => {
       const costs = rowUnitCosts[rowIndex] ?? [];
       const pcsPerCartons = rowPcsPerCartons[rowIndex] ?? [];
       const packs = rowPackaging[rowIndex] ?? [];
+      const warranties = rowWarranties[rowIndex] ?? [];
       const facts = rowFactories[rowIndex] ?? [];
       const ports = rowPorts[rowIndex] ?? [];
       const brands = rowBrands[rowIndex] ?? [];
@@ -766,6 +769,7 @@ useEffect(() => {
             factoryAddress: facts[i] || "-",
             portOfDischarge: ports[i] || "-",
             packaging: packagingData,
+            warranty: warranties[i] || "-",
             commercialType: commercialTypes[i] || "BASIC",
           },
           technicalSpecifications: (rowSpecs[rowIndex]?.[i] ?? []).map(
@@ -1327,6 +1331,7 @@ useEffect(() => {
   const rowUnitCosts = splitByRow(data?.product_offer_unit_cost);
   const rowPcsPerCartons = splitByRow(data?.product_offer_pcs_per_carton);
   const rowPackaging = splitByRow(data?.product_offer_packaging_details);
+  const rowWarranties = splitByRow(data?.warranty);
   const rowFactories = splitByRow(data?.product_offer_factory_address);
   const rowPorts = splitByRow(data?.product_offer_port_of_discharge);
   const rowSubtotals = splitByRow(data?.product_offer_subtotal);
@@ -1659,6 +1664,8 @@ useEffect(() => {
                         
                         const factory =
                           prod?.commercialDetails?.factoryAddress || "-";
+                              const warranty =
+                                prod?.commercialDetails?.warranty || "-";
                         const port =
                           prod?.commercialDetails?.portOfDischarge || "-";
                         const supplierBrand =
@@ -1799,6 +1806,11 @@ useEffect(() => {
                                 <div className="text-[10px] text-muted-foreground mt-1">
                                   {packagingDisplay}
                                 </div>
+                                {warranty !== "-" && (
+                                  <p className="text-[10px] text-muted-foreground truncate">
+                                    Warranty: {warranty}
+                                  </p>
+                                )}
                               {factory !== "-" && (
                                 <p className="text-[10px] text-muted-foreground truncate">
                                   Factory: {factory}
@@ -2421,6 +2433,9 @@ useEffect(() => {
                                     Packaging
                                   </th>
                                   <th className="border px-0.5 py-0.5 text-center w-11.25">
+                                    Warranty
+                                  </th>
+                                  <th className="border px-0.5 py-0.5 text-center w-11.25">
                                     Factory
                                   </th>
                                   <th className="border px-0.5 py-0.5 text-center w-8.75">
@@ -2538,6 +2553,8 @@ useEffect(() => {
                                     const factory =
                                       prod?.commercialDetails?.factoryAddress ||
                                       "-";
+                                    const warranty =
+                                      prod?.commercialDetails?.warranty || "-";
                                     const port =
                                       prod?.commercialDetails
                                         ?.portOfDischarge || "-";
@@ -2825,6 +2842,9 @@ useEffect(() => {
                                         </td>
                                         <td className="border px-2 py-1 text-center align-middle">
                                           {packagingDisplay}
+                                        </td>
+                                        <td className="border px-2 py-1 text-center align-middle">
+                                          {warranty}
                                         </td>
                                         <td className="border px-2 py-1 text-center align-middle">
                                           {factory}
@@ -3374,6 +3394,12 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                               {prodFactories[i]}
                             </p>
                           )}
+                          {prodWarranties[i] && prodWarranties[i] !== "-" && (
+                            <p className="text-[10px] text-gray-500 truncate">
+                              <span className="text-gray-400">Warranty: </span>
+                              {prodWarranties[i]}
+                            </p>
+                          )}
                           {prodPorts[i] && prodPorts[i] !== "-" && (
                             <p className="text-[10px] text-gray-500 truncate">
                               <span className="text-gray-400">Port: </span>
@@ -3511,6 +3537,7 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
             const prodUnitCosts = rowUnitCosts[rowIndex] ?? [];
             const prodPcsPerCartons = rowPcsPerCartons[rowIndex] ?? [];
             const prodPackaging = rowPackaging[rowIndex] ?? [];
+            const prodWarranties = rowWarranties[rowIndex] ?? [];
             const prodFactories = rowFactories[rowIndex] ?? [];
             const prodPorts = rowPorts[rowIndex] ?? [];
             const prodSubtotals = rowSubtotals[rowIndex] ?? [];
@@ -3588,7 +3615,7 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                               <table className="w-full border text-xs">
                                 <thead>
                                   <tr>
-                                    <th colSpan={isApproved ? (showProcurementRemarks ? 22 : 21) : (showProcurementRemarks ? 15 : 14)} className="border px-2 py-1 text-center text-xs font-bold bg-orange-100 text-orange-700">
+                                    <th colSpan={isApproved ? (showProcurementRemarks ? 23 : 22) : (showProcurementRemarks ? 16 : 15)} className="border px-2 py-1 text-center text-xs font-bold bg-orange-100 text-orange-700">
                                       Product Offer
                                     </th>
                                   </tr>
@@ -3622,6 +3649,9 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                                     </th>
                                     <th className="border px-2 py-1 text-center whitespace-nowrap">
                                       Packaging
+                                    </th>
+                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
+                                      Warranty
                                     </th>
                                     <th className="border px-2 py-1 text-center whitespace-nowrap">
                                       Factory
@@ -3759,6 +3789,9 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                                         </>
                                       );
                                     })()}
+                                    <td className="border px-2 py-2 text-center align-middle">
+                                      {prodWarranties[i] || "-"}
+                                    </td>
                                     <td className="border px-2 py-2 text-center align-middle">
                                       {prodFactories[i] || "-"}
                                     </td>
