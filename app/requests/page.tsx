@@ -535,10 +535,10 @@ export default function RequestsPage() {
         isEngineer && !wallpaper ? "engineer-blueprint-bg" : ""
       }`}>
         <table className="w-full text-sm border-collapse">
-          <thead className="bg-red-50/80 backdrop-blur-sm sticky top-0 z-10">
+          <thead className="bg-red-50/80 backdrop-blur-sm sticky top-0 z-30">
             <tr>
-              {["SPF Number", "Customer Name", "Special Instructions", "Prepared By", "Approved By", "Approval Status", "Date Received", "Date Updated", "Action"].map((h) => (
-                <th key={h} className="px-4 py-3 text-left font-bold border-b whitespace-nowrap">{h}</th>
+              {["SPF Number", "Customer Name", "Special Instructions", "Prepared By", "Approved By", "Approval Status", "Date Received", "Date Updated", "Action"].map((h, index) => (
+                <th key={h} className={`px-4 py-3 text-left font-bold border-b whitespace-nowrap ${index === 0 ? 'sticky left-0 bg-red-50/80 backdrop-blur-sm z-20' : ''}`}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -567,7 +567,7 @@ export default function RequestsPage() {
 
                 return (
                   <tr key={req.id} className={`border-b hover:bg-white/60 align-middle ${isUnreadRow ? "bg-red-50/40 shadow-[inset_0_0_0_1px_rgba(239,68,68,0.20)]" : ""}`}>
-                    <td className="px-4 py-3 font-medium uppercase">
+                    <td className="px-4 py-3 font-medium uppercase sticky left-0 bg-white/60 backdrop-blur-sm z-20">
                       <div className="inline-flex items-center gap-2">
                         <span>{req.spf_number}</span>
                         {isUnreadRow && (
