@@ -426,6 +426,25 @@ currentSignatureMap.set(
 
     void syncUnreadState();
 
+    // Cross-tab synchronization: Listen for storage events from other tabs
+    const handleStorageChange = (event: StorageEvent) => {
+      if (!userId) return;
+      
+      const storageKey = getStorageKey(userId);
+      const knownKey = getKnownSignatureKey(userId);
+      const unreadCountKey = getUnreadCountKey(userId);
+      const lastSeenCreationKey = getLastSeenCreationKey(userId);
+
+      // Only handle events related to this user's notification storage
+      if (event.key === storageKey || event.key === knownKey || 
+          event.key === unreadCountKey || event.key === lastSeenCreationKey) {
+        // Re-sync notification state when another tab updates storage
+        void syncUnreadState();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
     const channel = supabase
       .channel("spf_request_changes")
       .on(
@@ -459,6 +478,7 @@ currentSignatureMap.set(
         audioRef.current.currentTime = 0;
       }
       supabase.removeChannel(channel);
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, [
     userId,
@@ -478,6 +498,7 @@ currentSignatureMap.set(
     setLastUpdated,
   ]);
 
+  
   const markSPFRequestAsRead = useCallback((spfNumber: string) => {
     if (!userId) return;
     const normalizedSPF = normalizeSPFNumber(spfNumber);
