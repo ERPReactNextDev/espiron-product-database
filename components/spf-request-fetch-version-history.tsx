@@ -260,7 +260,7 @@ function SpecsBlock({ groups }: { groups: SpecGroup[] }) {
                 </p>
               )}
               {group.specs.map((spec, si) => (
-                <p key={si} className="text-[10px] text-gray-500 leading-snug">
+                <p key={`${gi}-${si}-${spec.slice(0, 20)}`} className="text-[10px] text-gray-500 leading-snug">
                   {spec}
                 </p>
               ))}
@@ -284,7 +284,7 @@ function renderHistoryTechnicalSpecs(groups: SpecGroup[]) {
             <div className="font-semibold text-gray-800">{group.title}</div>
           )}
           {group.specs.map((spec, si) => (
-            <div key={si} className="leading-tight">
+            <div key={`${gi}-${si}-${spec.slice(0, 20)}`} className="leading-tight">
               {spec}
             </div>
           ))}
@@ -568,7 +568,7 @@ function VersionDetail({
                           <p className="text-gray-500">-</p>
                         ) : (
                           groups.map((group, gi) => (
-                            <p key={gi} className="text-gray-500">
+                            <p key={`${gi}-${group.title || 'no-title'}`} className="text-gray-500">
                               {group.title ? `${group.title}: ` : ""}
                               {group.specs.join(", ")}
                             </p>
