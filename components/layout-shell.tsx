@@ -2,7 +2,7 @@
 
 // sidebar-bottom.tsx is deleted — SidebarLeft now handles both mobile and desktop.
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useUser } from "@/contexts/UserContext";
 import { useWallpaper } from "@/contexts/WallpaperContext";
 import { NotificationProvider, useNotifications } from "@/contexts/NotificationContext";
@@ -77,6 +77,38 @@ export default function LayoutShell({
   const { wallpaper, opacity } = useWallpaper();
   const pathname = usePathname();
   const { state, isMobile } = useSidebar();
+  const [isNavVisible, setIsNavVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  // Handle scroll behavior for mobile navigation (sync with sidebar)
+  useEffect(() => {
+    if (!isMobile) return;
+
+    let scrollTimeout: NodeJS.Timeout;
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+      
+      scrollTimeout = setTimeout(() => {
+        if (currentScrollY > lastScrollY && currentScrollY > 100) {
+          setIsNavVisible(false);
+        } else if (currentScrollY < lastScrollY) {
+          setIsNavVisible(true);
+        }
+        
+        setLastScrollY(currentScrollY);
+      }, 10);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+    };
+  }, [isMobile, lastScrollY]);
 
   const isLogin = pathname === "/login";
 
@@ -113,9 +145,15 @@ export default function LayoutShell({
       <ApprovalToastListener />
       <div className="relative flex min-h-svh w-full">
         {/* SidebarLeft handles both desktop (left sidebar) and mobile (bottom nav) */}
-        {userId && !isLogin && <SidebarLeft />}
+        {userId && !isLogin && <SidebarLeft isNavVisible={isNavVisible} setIsNavVisible={setIsNavVisible} />}
 
-        <main className="relative flex-1 overflow-y-auto overscroll-contain pb-[calc(144px+env(safe-area-inset-bottom))] md:pb-0">
+        <main className={`relative flex-1 overflow-y-auto overscroll-contain transition-all duration-300 ${
+        isMobile 
+          ? isNavVisible 
+            ? 'pb-[calc(62px+env(safe-area-inset-bottom))]' 
+            : 'pb-[env(safe-area-inset-bottom)]'
+          : 'md:pb-0'
+      }`}>
           {/* Wallpaper layer — sits behind content, opacity-controlled */}
           {wallpaper && (
             <div

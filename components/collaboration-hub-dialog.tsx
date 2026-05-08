@@ -445,7 +445,10 @@ export function CollaborationHubDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-2xl h-[600px] p-0 border-none shadow-2xl rounded-[24px] overflow-hidden">
+<DialogContent 
+  className="p-0 border-none shadow-2xl rounded-[24px] overflow-hidden"
+  style={{ width: '95vw', maxWidth: '95vw', height: 'calc(100vh - 2rem)' }}
+>
         <DialogTitle className="sr-only">{title} - Collaboration Hub</DialogTitle>
         <div className="flex flex-col h-full bg-[#f8fafc] relative overflow-hidden">
           
