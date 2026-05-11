@@ -13,6 +13,7 @@ import LayoutShell from "@/components/layout-shell";
 import { ThemeBody } from "@/components/theme-body";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { GlobalNotificationsInit } from "@/components/global-notifications-init";
+import { FCMTokenManager } from "@/components/fcm-token-manager";
 
 export const viewport = {
   width: "device-width",
@@ -44,6 +45,7 @@ export default function RootLayout({
               <WallpaperProvider>
                 <SidebarProvider>
                   <GlobalNotificationsInit />
+                  <FCMTokenManager />
                   <LayoutShell>{children}</LayoutShell>
                 </SidebarProvider>
 

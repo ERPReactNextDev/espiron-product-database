@@ -13,9 +13,19 @@ export function requestNotificationPermission(): Promise<NotificationPermission>
 }
 
 export function showBrowserNotification(payload: NotificationPayload): Notification | null {
-  if (!("Notification" in window) || Notification.permission !== "granted") {
+  console.log("🔔 showBrowserNotification called:", payload);
+  
+  if (!("Notification" in window)) {
+    console.log("❌ Notification not supported");
     return null;
   }
+  
+  if (Notification.permission !== "granted") {
+    console.log("❌ Notification permission not granted:", Notification.permission);
+    return null;
+  }
+
+  console.log("✅ Creating notification with payload:", payload);
 
   const options: NotificationOptions = {
     body: payload.body,
@@ -26,7 +36,10 @@ export function showBrowserNotification(payload: NotificationPayload): Notificat
     data: payload.data || {},
   };
 
+  console.log("🎯 Notification options:", options);
+
   const notification = new Notification(payload.title, options);
+  console.log("🎉 Notification created successfully!");
 
   if (options.requireInteraction === false) {
     setTimeout(() => {
