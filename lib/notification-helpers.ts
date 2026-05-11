@@ -1,7 +1,5 @@
 import { NotificationPayload, NotificationType, NotificationTriggerData } from "@/types/notifications";
 import { showBrowserNotification, vibrateDevice, playNotificationSound } from "./browser-notifications";
-import { collection, addDoc, serverTimestamp, query, orderBy, limit, onSnapshot } from "firebase/firestore";
-import { db } from "./firebase";
 
 export function createProductAddedNotification(data: NotificationTriggerData): NotificationPayload {
   return {
@@ -201,33 +199,6 @@ export function createSPFRejectedNotification(data: NotificationTriggerData): No
   };
 }
 
-// Store notification in Firebase for global broadcasting
-export async function storeGlobalNotification(
-  type: NotificationType,
-  data: NotificationTriggerData,
-  payload: NotificationPayload
-): Promise<void> {
-  try {
-    const notificationsRef = collection(db, "global_notifications");
-    await addDoc(notificationsRef, {
-      type,
-      title: payload.title,
-      body: payload.body,
-      icon: payload.icon,
-      badge: payload.badge,
-      tag: payload.tag,
-      requireInteraction: payload.requireInteraction,
-      data: payload.data,
-      actions: payload.actions,
-      triggerData: data,
-      createdAt: serverTimestamp(),
-      isActive: true,
-    });
-  } catch (error) {
-    console.error("Failed to store global notification in Firebase:", error);
-  }
-}
-
 export async function triggerNotification(
   type: NotificationType,
   data: NotificationTriggerData,
@@ -267,10 +238,6 @@ export async function triggerNotification(
       throw new Error(`Unknown notification type: ${type}`);
   }
 
-  // Store notification in Firebase for global broadcasting
-  await storeGlobalNotification(type, data, payload);
-
-  // Show notification locally for the current user
   showBrowserNotification(payload);
 
   if (settings.vibrationEnabled) {
@@ -280,41 +247,4 @@ export async function triggerNotification(
   if (settings.soundEnabled) {
     playNotificationSound();
   }
-}
-
-// Real-time listener for global notifications
-export function subscribeToGlobalNotifications(
-  onNotification: (payload: NotificationPayload) => void
-): () => void {
-  const notificationsRef = collection(db, "global_notifications");
-  const q = query(
-    notificationsRef,
-    orderBy("createdAt", "desc"),
-    limit(50)
-  );
-
-  const unsubscribe = onSnapshot(q, (snapshot) => {
-    snapshot.docChanges().forEach((change) => {
-      if (change.type === "added") {
-        const notificationData = change.doc.data();
-        const payload: NotificationPayload = {
-          type: notificationData.type,
-          title: notificationData.title,
-          body: notificationData.body,
-          icon: notificationData.icon,
-          badge: notificationData.badge,
-          tag: notificationData.tag,
-          requireInteraction: notificationData.requireInteraction,
-          data: notificationData.data,
-          actions: notificationData.actions,
-        };
-        
-        // Show the notification to all connected users
-        showBrowserNotification(payload);
-        onNotification(payload);
-      }
-    });
-  });
-
-  return unsubscribe;
 }
