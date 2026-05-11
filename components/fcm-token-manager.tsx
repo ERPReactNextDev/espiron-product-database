@@ -19,7 +19,7 @@ export function FCMTokenManager() {
         }
 
         // Get FCM token
-        const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_PUBLIC_KEY_ESPIRON;
+        const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_PUBLIC_KEY;
         
         if (!vapidKey) {
           console.error("❌ VAPID key is missing");
