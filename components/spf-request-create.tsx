@@ -222,7 +222,7 @@ export default function SPFRequestCreate({
     item_photo: [],
   });
   const { userId } = useUser();
-  const { onSPFCreated, broadcastSPFCreated } = useNotificationTriggers();
+  const { onSPFCreated } = useNotificationTriggers();
   // ── ACCESS CONTROL ──
 // ── ACCESS CONTROL ──
 const { hasAccess, subscribeToUserAccess } = useRoleAccess();
@@ -746,9 +746,9 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
       if (data?.success) {
         toast.success("SPF created successfully");
         
-        // Broadcast notification for SPF creation to all users including the one who performed the action
+        // Trigger notification for SPF creation
         if (userId) {
-          broadcastSPFCreated({
+          onSPFCreated({
             userId,
             spfNumber: formData.spf_number || "Unknown SPF",
             spfId: data.spfId || formData.id,

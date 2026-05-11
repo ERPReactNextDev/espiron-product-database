@@ -10,6 +10,9 @@ import React, {
 } from "react";
 import { supabase } from "@/utils/supabase";
 import { useUser } from "@/contexts/UserContext";
+import { subscribeToGlobalNotifications } from "@/lib/notification-helpers";
+import { NotificationPayload } from "@/types/notifications";
+import { showBrowserNotification, playNotificationSound } from "@/lib/browser-notifications";
 
 /** Raw `spf_creation.status` values that map to actionable badges on the requests list. */
 const CREATION_NOTIFICATION_STATUSES = new Set([
@@ -445,13 +448,20 @@ currentSignatureMap.set(
 
     window.addEventListener('storage', handleStorageChange);
 
+    // Subscribe to global Firebase notifications
+    const globalNotificationUnsubscribe = subscribeToGlobalNotifications((payload: NotificationPayload) => {
+      // Trigger local notification for all users
+      showBrowserNotification(payload);
+      playNotificationSound();
+    });
+
     const channel = supabase
       .channel("spf_request_changes")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "spf_request" },
         async (payload: any) => {
-          // Only notify if the record has a status that appears in the UI
+          // Only notify if record has a status that appears in UI
           if (payload.new && typeof payload.new === 'object' && 'status' in payload.new && payload.new.status) {
             const normalizedStatus = String(payload.new.status).trim().toLowerCase();
             if (ALLOWED_REQUEST_STATUSES.has(normalizedStatus)) {
@@ -471,7 +481,7 @@ currentSignatureMap.set(
         "postgres_changes",
         { event: "*", schema: "public", table: "spf_creation" },
         async (payload: any) => {
-          // Only notify if the record has a status that appears in the UI
+          // Only notify if record has a status that appears in UI
           if (payload.new && typeof payload.new === 'object' && 'status' in payload.new && payload.new.status) {
             const normalizedStatus = String(payload.new.status).trim().toLowerCase();
             if (CREATION_NOTIFICATION_STATUSES.has(normalizedStatus)) {
@@ -502,6 +512,7 @@ currentSignatureMap.set(
         audioRef.current.currentTime = 0;
       }
       supabase.removeChannel(channel);
+      globalNotificationUnsubscribe?.();
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [

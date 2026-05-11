@@ -1,6 +1,6 @@
 import { NotificationPayload, NotificationType, NotificationTriggerData } from "@/types/notifications";
 import { showBrowserNotification, vibrateDevice, playNotificationSound } from "./browser-notifications";
-import { collection, addDoc, serverTimestamp, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase";
 
 export function createProductAddedNotification(data: NotificationTriggerData): NotificationPayload {
@@ -201,50 +201,16 @@ export function createSPFRejectedNotification(data: NotificationTriggerData): No
   };
 }
 
-// Broadcast notification to all users via Firebase
-export async function broadcastNotification(
+// Store notification in Firebase for global broadcasting
+export async function storeGlobalNotification(
   type: NotificationType,
   data: NotificationTriggerData,
-  settings: {
-    soundEnabled: boolean;
-    vibrationEnabled: boolean;
-  } = { soundEnabled: true, vibrationEnabled: true }
+  payload: NotificationPayload
 ): Promise<void> {
-  let payload: NotificationPayload;
-
-  switch (type) {
-    case "product_added":
-      payload = createProductAddedNotification(data);
-      break;
-    case "product_updated":
-      payload = createProductUpdatedNotification(data);
-      break;
-    case "supplier_added":
-      payload = createSupplierAddedNotification(data);
-      break;
-    case "supplier_updated":
-      payload = createSupplierUpdatedNotification(data);
-      break;
-    case "spf_created":
-      payload = createSPFCreatedNotification(data);
-      break;
-    case "spf_updated":
-      payload = createSPFUpdatedNotification(data);
-      break;
-    case "spf_approved":
-      payload = createSPFApprovedNotification(data);
-      break;
-    case "spf_rejected":
-      payload = createSPFRejectedNotification(data);
-      break;
-    default:
-      throw new Error(`Unknown notification type: ${type}`);
-  }
-
   try {
-    // Store notification in Firebase for all users to receive
-    const notificationRef = await addDoc(collection(db, "broadcastNotifications"), {
-      type: payload.type,
+    const notificationsRef = collection(db, "global_notifications");
+    await addDoc(notificationsRef, {
+      type,
       title: payload.title,
       body: payload.body,
       icon: payload.icon,
@@ -252,94 +218,14 @@ export async function broadcastNotification(
       tag: payload.tag,
       requireInteraction: payload.requireInteraction,
       data: payload.data,
-      actions: payload.actions || [],
-      createdBy: data.userId,
+      actions: payload.actions,
+      triggerData: data,
       createdAt: serverTimestamp(),
       isActive: true,
-      soundEnabled: settings.soundEnabled,
-      vibrationEnabled: settings.vibrationEnabled,
     });
-
-    // Show immediate notification to current user
-    showBrowserNotification(payload);
-
-    if (settings.vibrationEnabled) {
-      vibrateDevice();
-    }
-
-    if (settings.soundEnabled) {
-      playNotificationSound();
-    }
-
-    console.log("Broadcast notification sent:", notificationRef.id);
   } catch (error) {
-    console.error("Error broadcasting notification:", error);
-    // Fallback to local notification if Firebase fails
-    showBrowserNotification(payload);
-    
-    if (settings.vibrationEnabled) {
-      vibrateDevice();
-    }
-
-    if (settings.soundEnabled) {
-      playNotificationSound();
-    }
+    console.error("Failed to store global notification in Firebase:", error);
   }
-}
-
-// Listen for broadcast notifications
-export function listenForBroadcastNotifications(
-  onNotification: (payload: NotificationPayload) => void,
-  settings: {
-    soundEnabled: boolean;
-    vibrationEnabled: boolean;
-  } = { soundEnabled: true, vibrationEnabled: true }
-) {
-  const q = query(
-    collection(db, "broadcastNotifications"),
-    where("isActive", "==", true),
-    orderBy("createdAt", "desc"),
-    limit(50)
-  );
-
-  const unsubscribe = onSnapshot(q, (snapshot) => {
-    snapshot.docChanges().forEach((change) => {
-      if (change.type === "added") {
-        const notification = change.doc.data();
-        
-        // Don't show notification to the user who created it (they already see it)
-        const currentUserId = typeof window !== 'undefined' ? localStorage.getItem("userId") : null;
-        if (notification.createdBy !== currentUserId) {
-          const payload: NotificationPayload = {
-            type: notification.type,
-            title: notification.title,
-            body: notification.body,
-            icon: notification.icon,
-            badge: notification.badge,
-            tag: notification.tag,
-            requireInteraction: notification.requireInteraction,
-            data: notification.data,
-            actions: notification.actions,
-          };
-
-          onNotification(payload);
-          showBrowserNotification(payload);
-
-          if (settings.vibrationEnabled) {
-            vibrateDevice();
-          }
-
-          if (settings.soundEnabled) {
-            playNotificationSound();
-          }
-        }
-      }
-    });
-  }, (error) => {
-    console.error("Error listening for broadcast notifications:", error);
-  });
-
-  return unsubscribe;
 }
 
 export async function triggerNotification(
@@ -381,6 +267,10 @@ export async function triggerNotification(
       throw new Error(`Unknown notification type: ${type}`);
   }
 
+  // Store notification in Firebase for global broadcasting
+  await storeGlobalNotification(type, data, payload);
+
+  // Show notification locally for the current user
   showBrowserNotification(payload);
 
   if (settings.vibrationEnabled) {
@@ -390,4 +280,41 @@ export async function triggerNotification(
   if (settings.soundEnabled) {
     playNotificationSound();
   }
+}
+
+// Real-time listener for global notifications
+export function subscribeToGlobalNotifications(
+  onNotification: (payload: NotificationPayload) => void
+): () => void {
+  const notificationsRef = collection(db, "global_notifications");
+  const q = query(
+    notificationsRef,
+    orderBy("createdAt", "desc"),
+    limit(50)
+  );
+
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      if (change.type === "added") {
+        const notificationData = change.doc.data();
+        const payload: NotificationPayload = {
+          type: notificationData.type,
+          title: notificationData.title,
+          body: notificationData.body,
+          icon: notificationData.icon,
+          badge: notificationData.badge,
+          tag: notificationData.tag,
+          requireInteraction: notificationData.requireInteraction,
+          data: notificationData.data,
+          actions: notificationData.actions,
+        };
+        
+        // Show the notification to all connected users
+        showBrowserNotification(payload);
+        onNotification(payload);
+      }
+    });
+  });
+
+  return unsubscribe;
 }
