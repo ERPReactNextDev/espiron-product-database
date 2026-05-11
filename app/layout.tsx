@@ -12,6 +12,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import LayoutShell from "@/components/layout-shell";
 import { ThemeBody } from "@/components/theme-body";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
+import { GlobalNotificationsInit } from "@/components/global-notifications-init";
 
 export const viewport = {
   width: "device-width",
@@ -42,6 +43,7 @@ export default function RootLayout({
             <RoleAccessProvider>
               <WallpaperProvider>
                 <SidebarProvider>
+                  <GlobalNotificationsInit />
                   <LayoutShell>{children}</LayoutShell>
                 </SidebarProvider>
 

@@ -1,5 +1,7 @@
 import { NotificationPayload, NotificationType, NotificationTriggerData } from "@/types/notifications";
 import { showBrowserNotification, vibrateDevice, playNotificationSound } from "./browser-notifications";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "./firebase";
 
 export function createProductAddedNotification(data: NotificationTriggerData): NotificationPayload {
   return {
@@ -199,6 +201,33 @@ export function createSPFRejectedNotification(data: NotificationTriggerData): No
   };
 }
 
+// Store notification in Firebase for global broadcasting
+async function storeNotificationInFirebase(
+  type: NotificationType,
+  payload: NotificationPayload,
+  data: NotificationTriggerData
+): Promise<void> {
+  try {
+    await addDoc(collection(db, "global_notifications"), {
+      type,
+      title: payload.title,
+      body: payload.body,
+      icon: payload.icon,
+      badge: payload.badge,
+      tag: payload.tag,
+      requireInteraction: payload.requireInteraction,
+      data: payload.data,
+      actions: payload.actions,
+      triggerData: data,
+      createdAt: serverTimestamp(),
+      isActive: true,
+      broadcastToAll: true,
+    });
+  } catch (error) {
+    console.error("Failed to store notification in Firebase:", error);
+  }
+}
+
 export async function triggerNotification(
   type: NotificationType,
   data: NotificationTriggerData,
@@ -238,6 +267,10 @@ export async function triggerNotification(
       throw new Error(`Unknown notification type: ${type}`);
   }
 
+  // Store in Firebase for global broadcasting
+  await storeNotificationInFirebase(type, payload, data);
+
+  // Show local notification
   showBrowserNotification(payload);
 
   if (settings.vibrationEnabled) {
