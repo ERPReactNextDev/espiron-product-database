@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { triggerNotification, broadcastNotificationToAllUsers } from "@/lib/notification-helpers";
+import { triggerNotification, triggerBroadcastNotification } from "@/lib/notification-helpers";
 import { NotificationType, NotificationTriggerData } from "@/types/notifications";
 
 export function useNotificationTriggers() {
@@ -68,59 +68,59 @@ export function useNotificationTriggers() {
     []
   );
 
-  // Broadcast to all users (excluding the one who performed the action)
-  const broadcastProductAdded = useCallback(
-    async (data: NotificationTriggerData, excludeUserId?: string) => {
-      await broadcastNotificationToAllUsers("product_added", data, excludeUserId);
+  // Broadcast notification functions (send to all users including creator)
+  const onProductAddedBroadcast = useCallback(
+    async (data: NotificationTriggerData) => {
+      await triggerBroadcastNotification("product_added", data);
     },
     []
   );
 
-  const broadcastProductUpdated = useCallback(
-    async (data: NotificationTriggerData, excludeUserId?: string) => {
-      await broadcastNotificationToAllUsers("product_updated", data, excludeUserId);
+  const onProductUpdatedBroadcast = useCallback(
+    async (data: NotificationTriggerData) => {
+      await triggerBroadcastNotification("product_updated", data);
     },
     []
   );
 
-  const broadcastSupplierAdded = useCallback(
-    async (data: NotificationTriggerData, excludeUserId?: string) => {
-      await broadcastNotificationToAllUsers("supplier_added", data, excludeUserId);
+  const onSupplierAddedBroadcast = useCallback(
+    async (data: NotificationTriggerData) => {
+      await triggerBroadcastNotification("supplier_added", data);
     },
     []
   );
 
-  const broadcastSupplierUpdated = useCallback(
-    async (data: NotificationTriggerData, excludeUserId?: string) => {
-      await broadcastNotificationToAllUsers("supplier_updated", data, excludeUserId);
+  const onSupplierUpdatedBroadcast = useCallback(
+    async (data: NotificationTriggerData) => {
+      await triggerBroadcastNotification("supplier_updated", data);
     },
     []
   );
 
-  const broadcastSPFCreated = useCallback(
-    async (data: NotificationTriggerData, excludeUserId?: string) => {
-      await broadcastNotificationToAllUsers("spf_created", data, excludeUserId);
+  const onSPFCreatedBroadcast = useCallback(
+    async (data: NotificationTriggerData) => {
+      await triggerBroadcastNotification("spf_created", data);
     },
     []
   );
 
-  const broadcastSPFUpdated = useCallback(
-    async (data: NotificationTriggerData, excludeUserId?: string) => {
-      await broadcastNotificationToAllUsers("spf_updated", data, excludeUserId);
+  const onSPFUpdatedBroadcast = useCallback(
+    async (data: NotificationTriggerData) => {
+      await triggerBroadcastNotification("spf_updated", data);
     },
     []
   );
 
-  const broadcastSPFApproved = useCallback(
-    async (data: NotificationTriggerData, excludeUserId?: string) => {
-      await broadcastNotificationToAllUsers("spf_approved", data, excludeUserId);
+  const onSPFApprovedBroadcast = useCallback(
+    async (data: NotificationTriggerData) => {
+      await triggerBroadcastNotification("spf_approved", data);
     },
     []
   );
 
-  const broadcastSPFRejected = useCallback(
-    async (data: NotificationTriggerData, excludeUserId?: string) => {
-      await broadcastNotificationToAllUsers("spf_rejected", data, excludeUserId);
+  const onSPFRejectedBroadcast = useCallback(
+    async (data: NotificationTriggerData) => {
+      await triggerBroadcastNotification("spf_rejected", data);
     },
     []
   );
@@ -135,14 +135,14 @@ export function useNotificationTriggers() {
     onSPFApproved,
     onSPFRejected,
     triggerCustomNotification,
-    // Broadcast functions
-    broadcastProductAdded,
-    broadcastProductUpdated,
-    broadcastSupplierAdded,
-    broadcastSupplierUpdated,
-    broadcastSPFCreated,
-    broadcastSPFUpdated,
-    broadcastSPFApproved,
-    broadcastSPFRejected,
+    // Broadcast versions
+    onProductAddedBroadcast,
+    onProductUpdatedBroadcast,
+    onSupplierAddedBroadcast,
+    onSupplierUpdatedBroadcast,
+    onSPFCreatedBroadcast,
+    onSPFUpdatedBroadcast,
+    onSPFApprovedBroadcast,
+    onSPFRejectedBroadcast,
   };
 }

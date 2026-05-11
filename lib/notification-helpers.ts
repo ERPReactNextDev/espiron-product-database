@@ -199,31 +199,6 @@ export function createSPFRejectedNotification(data: NotificationTriggerData): No
   };
 }
 
-export async function broadcastNotificationToAllUsers(
-  type: NotificationType,
-  data: NotificationTriggerData,
-  excludeUserId?: string
-): Promise<void> {
-  try {
-    // Fetch all FCM tokens from all users (optionally exclude the current user)
-    const response = await fetch(`/api/notifications/send-to-all`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type,
-        data,
-        excludeUserId, // Exclude the user who performed the action
-      }),
-    });
-
-    if (!response.ok) {
-      console.error("Failed to broadcast notification:", await response.text());
-    }
-  } catch (error) {
-    console.error("Error broadcasting notification:", error);
-  }
-}
-
 export async function triggerNotification(
   type: NotificationType,
   data: NotificationTriggerData,
@@ -271,5 +246,57 @@ export async function triggerNotification(
 
   if (settings.soundEnabled) {
     playNotificationSound();
+  }
+}
+
+export async function triggerBroadcastNotification(
+  type: NotificationType,
+  data: NotificationTriggerData
+): Promise<void> {
+  let payload: NotificationPayload;
+
+  switch (type) {
+    case "product_added":
+      payload = createProductAddedNotification(data);
+      break;
+    case "product_updated":
+      payload = createProductUpdatedNotification(data);
+      break;
+    case "supplier_added":
+      payload = createSupplierAddedNotification(data);
+      break;
+    case "supplier_updated":
+      payload = createSupplierUpdatedNotification(data);
+      break;
+    case "spf_created":
+      payload = createSPFCreatedNotification(data);
+      break;
+    case "spf_updated":
+      payload = createSPFUpdatedNotification(data);
+      break;
+    case "spf_approved":
+      payload = createSPFApprovedNotification(data);
+      break;
+    case "spf_rejected":
+      payload = createSPFRejectedNotification(data);
+      break;
+    default:
+      throw new Error(`Unknown notification type: ${type}`);
+  }
+
+  try {
+    const response = await fetch("/api/notifications/send-to-all", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        payload,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("Failed to send broadcast notification:", await response.text());
+    }
+  } catch (error) {
+    console.error("Error sending broadcast notification:", error);
   }
 }

@@ -252,7 +252,7 @@ type BranchData = {
 /* ---------------- Component ---------------- */
 function EditSupplier({ open, onOpenChange, supplier }: EditSupplierProps) {
   const { userId } = useUser();
-  const { onSupplierUpdated } = useNotificationTriggers();
+  const { onSupplierUpdatedBroadcast } = useNotificationTriggers();
   const [user, setUser] = useState<UserDetails | null>(null);
 
   const [companyError, setCompanyError] = useState("");
@@ -658,7 +658,7 @@ function EditSupplier({ open, onOpenChange, supplier }: EditSupplierProps) {
       toast.success("Supplier updated everywhere", { description: company });
 
       if (userId && supplier?.supplierId) {
-        onSupplierUpdated({
+        onSupplierUpdatedBroadcast({
           userId,
           supplierName: company,
           supplierId: supplier.supplierId,

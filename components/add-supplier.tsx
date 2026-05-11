@@ -253,7 +253,7 @@ type BranchData = {
 ───────────────────────────────────────────── */
 function AddSupplier({ open, onOpenChange }: AddSupplierProps) {
   const { userId } = useUser();
-  const { onSupplierAdded } = useNotificationTriggers();
+  const { onSupplierAddedBroadcast } = useNotificationTriggers();
   const [user, setUser] = useState<UserDetails | null>(null);
 
   const [companyError, setCompanyError] = useState("");
@@ -625,7 +625,7 @@ function AddSupplier({ open, onOpenChange }: AddSupplierProps) {
       toast.success("Supplier saved successfully", { description: company });
 
       if (userId) {
-        onSupplierAdded({
+        onSupplierAddedBroadcast({
           userId,
           supplierName: company,
           supplierId: docRef.id,

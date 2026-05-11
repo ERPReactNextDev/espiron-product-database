@@ -252,7 +252,7 @@ const emptySpecRow = (): SpecRow => ({
 export default function EditProductPage() {
   const router = useRouter();
   const { userId } = useUser();
-  const { broadcastProductUpdated } = useNotificationTriggers();
+  const { onProductUpdated } = useNotificationTriggers();
 
   const searchParams = new URLSearchParams(
     typeof window !== "undefined" ? window.location.search : "",
@@ -903,12 +903,12 @@ const handleSaveProduct = async () => {
       toast.success("Product saved successfully");
 
       if (userId) {
-        broadcastProductUpdated({
+        onProductUpdated({
           userId,
           productName: productReferenceID || "Unknown Product",
           productId: productId!,
           url: "/products",
-        }, userId); // Exclude current user from receiving their own notification
+        });
       }
 
       router.push("/products");
