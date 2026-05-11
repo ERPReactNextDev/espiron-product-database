@@ -199,6 +199,31 @@ export function createSPFRejectedNotification(data: NotificationTriggerData): No
   };
 }
 
+export async function broadcastNotificationToAllUsers(
+  type: NotificationType,
+  data: NotificationTriggerData,
+  excludeUserId?: string
+): Promise<void> {
+  try {
+    // Fetch all FCM tokens from all users (optionally exclude the current user)
+    const response = await fetch(`/api/notifications/send-to-all`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type,
+        data,
+        excludeUserId, // Exclude the user who performed the action
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("Failed to broadcast notification:", await response.text());
+    }
+  } catch (error) {
+    console.error("Error broadcasting notification:", error);
+  }
+}
+
 export async function triggerNotification(
   type: NotificationType,
   data: NotificationTriggerData,

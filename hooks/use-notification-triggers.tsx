@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { triggerNotification } from "@/lib/notification-helpers";
+import { triggerNotification, broadcastNotificationToAllUsers } from "@/lib/notification-helpers";
 import { NotificationType, NotificationTriggerData } from "@/types/notifications";
 
 export function useNotificationTriggers() {
@@ -68,6 +68,63 @@ export function useNotificationTriggers() {
     []
   );
 
+  // Broadcast to all users (excluding the one who performed the action)
+  const broadcastProductAdded = useCallback(
+    async (data: NotificationTriggerData, excludeUserId?: string) => {
+      await broadcastNotificationToAllUsers("product_added", data, excludeUserId);
+    },
+    []
+  );
+
+  const broadcastProductUpdated = useCallback(
+    async (data: NotificationTriggerData, excludeUserId?: string) => {
+      await broadcastNotificationToAllUsers("product_updated", data, excludeUserId);
+    },
+    []
+  );
+
+  const broadcastSupplierAdded = useCallback(
+    async (data: NotificationTriggerData, excludeUserId?: string) => {
+      await broadcastNotificationToAllUsers("supplier_added", data, excludeUserId);
+    },
+    []
+  );
+
+  const broadcastSupplierUpdated = useCallback(
+    async (data: NotificationTriggerData, excludeUserId?: string) => {
+      await broadcastNotificationToAllUsers("supplier_updated", data, excludeUserId);
+    },
+    []
+  );
+
+  const broadcastSPFCreated = useCallback(
+    async (data: NotificationTriggerData, excludeUserId?: string) => {
+      await broadcastNotificationToAllUsers("spf_created", data, excludeUserId);
+    },
+    []
+  );
+
+  const broadcastSPFUpdated = useCallback(
+    async (data: NotificationTriggerData, excludeUserId?: string) => {
+      await broadcastNotificationToAllUsers("spf_updated", data, excludeUserId);
+    },
+    []
+  );
+
+  const broadcastSPFApproved = useCallback(
+    async (data: NotificationTriggerData, excludeUserId?: string) => {
+      await broadcastNotificationToAllUsers("spf_approved", data, excludeUserId);
+    },
+    []
+  );
+
+  const broadcastSPFRejected = useCallback(
+    async (data: NotificationTriggerData, excludeUserId?: string) => {
+      await broadcastNotificationToAllUsers("spf_rejected", data, excludeUserId);
+    },
+    []
+  );
+
   return {
     onProductAdded,
     onProductUpdated,
@@ -78,5 +135,14 @@ export function useNotificationTriggers() {
     onSPFApproved,
     onSPFRejected,
     triggerCustomNotification,
+    // Broadcast functions
+    broadcastProductAdded,
+    broadcastProductUpdated,
+    broadcastSupplierAdded,
+    broadcastSupplierUpdated,
+    broadcastSPFCreated,
+    broadcastSPFUpdated,
+    broadcastSPFApproved,
+    broadcastSPFRejected,
   };
 }
