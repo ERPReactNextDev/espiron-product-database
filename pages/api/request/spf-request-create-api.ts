@@ -6,6 +6,64 @@ import { doc, getDoc } from "firebase/firestore";
 
 const ROW_SEP = "|ROW|";
 
+const encodeBase64Json = (value: any): string =>
+  Buffer.from(JSON.stringify(value), "utf8").toString("base64");
+
+type StoredCommercial = {
+  commercialType: string;
+  pcsPerCarton: string;
+  packaging: string;
+};
+
+const buildStoredCommercial = (commercialDetails: any): StoredCommercial => {
+  const commercialType = String(commercialDetails?.commercialType || "BASIC").toUpperCase();
+
+  if (commercialType === "POLE") {
+    return { commercialType, pcsPerCarton: "-", packaging: "-" };
+  }
+
+  if (commercialType === "LIGHT") {
+    const useArrayInput = Boolean(commercialDetails?.useArrayInput);
+    const multiRows = Array.isArray(commercialDetails?.multiRows)
+      ? commercialDetails.multiRows
+      : [];
+
+    if (useArrayInput && multiRows.length) {
+      const payload = {
+        v: 1,
+        type: "LIGHT_MULTIPLE",
+        rows: multiRows.map((r: any) => ({
+          itemName: r?.itemName ?? "",
+          unitCost: Number(r?.unitCost ?? 0) || 0,
+          length: r?.length ?? "-",
+          width: r?.width ?? "-",
+          height: r?.height ?? "-",
+          qtyPerCarton: Number(r?.qtyPerCarton ?? 0) || 0,
+        })),
+      };
+      return {
+        commercialType,
+        pcsPerCarton: "-",
+        packaging: `MULTI:${encodeBase64Json(payload)}`,
+      };
+    }
+  }
+
+  const packagingData = commercialDetails?.packaging;
+  let packagingStr = "-";
+  if (typeof packagingData === "string") {
+    packagingStr = packagingData.trim() || "-";
+  } else if (packagingData && typeof packagingData === "object") {
+    const length = packagingData.length || "-";
+    const width = packagingData.width || "-";
+    const height = packagingData.height || "-";
+    packagingStr = `${length} x ${width} x ${height}`;
+  }
+
+  const pcsPerCarton = String(commercialDetails?.pcsPerCarton ?? "-");
+  return { commercialType, pcsPerCarton, packaging: packagingStr };
+};
+
 const supplierCache = new Map<
   string,
   { company: string; contactNames: string; contactNumbers: string }
@@ -177,17 +235,8 @@ export default async function handler(
         const factory      = p?.commercialDetails?.factoryAddress    || "-";
         const port         = p?.commercialDetails?.portOfDischarge   || "-";
         const subtotal     = qty * unitCost;
-
-        const packagingData = p?.commercialDetails?.packaging;
-        const length = packagingData?.length || "-";
-        const width  = packagingData?.width  || "-";
-        const height = packagingData?.height || "-";
-        const pcsPerCarton = String(p?.commercialDetails?.pcsPerCarton ?? "-");
-        const packagingStr = `${length} x ${width} x ${height}`;
         const warranty = p?.commercialDetails?.warranty || "-";
-
-        // Get commercial type for this product
-        const commercialType = p?.commercialDetails?.commercialType || "BASIC";
+        const storedCommercial = buildStoredCommercial(p?.commercialDetails);
 
 // price_validity: store as-is (text column, delimited string)
         const rawPV = p?.price_validity;
@@ -204,10 +253,10 @@ export default async function handler(
         images.push(p?.mainImage?.url || "-");
         qtys.push(String(qty));
         unitCosts.push(String(unitCost));
-        pcsPerCartons.push(pcsPerCarton);
-        packaging.push(packagingStr);
+        pcsPerCartons.push(storedCommercial.pcsPerCarton);
+        packaging.push(storedCommercial.packaging);
         warranties.push(warranty);
-        commercialTypes.push(commercialType);
+        commercialTypes.push(storedCommercial.commercialType);
         factories.push(factory);
         ports.push(port);
         subtotals.push(String(subtotal));

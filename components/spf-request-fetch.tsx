@@ -204,12 +204,99 @@ function splitSpecsByRow(value: string | undefined): SpecGroup[][][] {
     .map((rowStr) => rowStr.split(" || ").map(parseTechSpec));
 }
 
-/* Helper to format packaging display */
-function formatPackagingWithLabels(packagingStr: string, pcsPerCartonStr: string): { qtyCtn: React.ReactNode, packaging: React.ReactNode } {
-  return { 
-    qtyCtn: pcsPerCartonStr || "-", 
-    packaging: packagingStr || "-" 
-  };
+type LightMultipleRow = {
+  itemName?: string;
+  unitCost?: number;
+  length?: number | string;
+  width?: number | string;
+  height?: number | string;
+  qtyPerCarton?: number;
+};
+
+type MultiPackagingPayloadV1 = {
+  v: 1;
+  type: "LIGHT_MULTIPLE";
+  rows: LightMultipleRow[];
+};
+
+function decodeBase64ToString(base64: string): string | null {
+  try {
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    return new TextDecoder("utf-8").decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+function decodeMultiPackaging(packagingStr: string | undefined): MultiPackagingPayloadV1 | null {
+  const raw = (packagingStr ?? "").trim();
+  if (!raw.startsWith("MULTI:")) return null;
+  const b64 = raw.slice("MULTI:".length);
+  const decoded = decodeBase64ToString(b64);
+  if (!decoded) return null;
+  try {
+    const parsed = JSON.parse(decoded);
+    if (parsed?.v !== 1 || parsed?.type !== "LIGHT_MULTIPLE" || !Array.isArray(parsed?.rows)) {
+      return null;
+    }
+    return parsed as MultiPackagingPayloadV1;
+  } catch {
+    return null;
+  }
+}
+
+function formatCommercialDetailsForView(
+  commercialTypeRaw: string | undefined,
+  packagingStr: string | undefined,
+  pcsPerCartonStr: string | undefined,
+): { qtyCtn: React.ReactNode; commercialType: React.ReactNode; packaging: React.ReactNode } {
+  const ct = (commercialTypeRaw || "BASIC").toUpperCase();
+  const pack = packagingStr && packagingStr !== "" ? packagingStr : "-";
+  const pcs = pcsPerCartonStr && pcsPerCartonStr !== "" ? pcsPerCartonStr : "-";
+
+  if (ct === "POLE") {
+    return { qtyCtn: "-", commercialType: "Pole", packaging: "-" };
+  }
+
+  if (ct === "LIGHT") {
+    const multi = decodeMultiPackaging(pack);
+    if (multi?.rows?.length) {
+      const rows = multi.rows;
+      return {
+        qtyCtn: (
+          <div className="space-y-1">
+            {rows.map((row, idx) => (
+              <div key={idx} className="text-[11px] leading-tight">
+                <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
+                <div>Qty: {row.qtyPerCarton ?? "-"}</div>
+              </div>
+            ))}
+          </div>
+        ),
+        commercialType: "Light (Multiple)",
+        packaging: (
+          <div className="space-y-1">
+            {rows.map((row, idx) => (
+              <div key={idx} className="text-[11px] leading-tight">
+                <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
+                <div>
+                  {(row.length ?? "-").toString()} × {(row.width ?? "-").toString()} × {(row.height ?? "-").toString()}
+                </div>
+                <div className="text-gray-500">
+                  {(Number(row.unitCost ?? 0) || 0).toFixed(2)} USD
+                </div>
+              </div>
+            ))}
+          </div>
+        ),
+      };
+    }
+
+    return { qtyCtn: pcs, commercialType: "Light (Single)", packaging: pack };
+  }
+
+  return { qtyCtn: pcs, commercialType: "Basic", packaging: pack };
 }
 
 /* ─────────────────────────────────────────────────────────────── */
@@ -745,11 +832,43 @@ useEffect(() => {
       }
 
       initialOffers[rowIndex] = imgs.map((img: string, i: number) => {
-        // Single dimension: "L x W x H"
-        const [length, width, height] = (packs[i] || "- x - x -")
-          .split(" x ")
-          .map((v) => v.trim());
-        const packagingData = { length, width, height };
+        const commercialTypeRaw = (commercialTypes[i] || "BASIC").toUpperCase();
+        const rawPackaging = packs[i] || "-";
+        const rawPcsPerCarton = pcsPerCartons[i] || "-";
+
+        let packagingData = { length: "-", width: "-", height: "-" };
+        let useArrayInput = false;
+        let multiRows: any[] = [];
+        let totalUnitCost: number | undefined;
+
+        if (commercialTypeRaw === "LIGHT") {
+          const decodedMulti = decodeMultiPackaging(rawPackaging);
+          if (decodedMulti?.rows?.length) {
+            useArrayInput = true;
+            multiRows = decodedMulti.rows.map((r) => ({
+              itemName: r.itemName ?? "",
+              unitCost: Number(r.unitCost ?? 0) || 0,
+              length: Number(r.length ?? 0) || (r.length ?? "-"),
+              width: Number(r.width ?? 0) || (r.width ?? "-"),
+              height: Number(r.height ?? 0) || (r.height ?? "-"),
+              qtyPerCarton: Number(r.qtyPerCarton ?? 0) || 0,
+            }));
+            totalUnitCost = multiRows.reduce(
+              (sum: number, r: any) => sum + (Number(r.unitCost) || 0),
+              0,
+            );
+          } else {
+            const [length, width, height] = (rawPackaging || "- x - x -")
+              .split(" x ")
+              .map((v) => v.trim());
+            packagingData = { length, width, height };
+          }
+        } else {
+          const [length, width, height] = (rawPackaging || "- x - x -")
+            .split(" x ")
+            .map((v) => v.trim());
+          packagingData = { length, width, height };
+        }
 
         const originalQty = Number(qtys[i] || 1);
         // Store original quantity with key format "rowIndex_optionIndex"
@@ -767,12 +886,15 @@ useEffect(() => {
           },
           commercialDetails: {
             unitCost: costs[i] || "0",
-            pcsPerCarton: pcsPerCartons[i] || "-",
+            pcsPerCarton: rawPcsPerCarton,
             factoryAddress: facts[i] || "-",
             portOfDischarge: ports[i] || "-",
             packaging: packagingData,
             warranty: warranties[i] || "-",
             commercialType: commercialTypes[i] || "BASIC",
+            useArrayInput,
+            multiRows,
+            ...(typeof totalUnitCost === "number" ? { totalUnitCost } : {}),
           },
           technicalSpecifications: (rowSpecs[rowIndex]?.[i] ?? []).map(
             (group) => ({
@@ -1343,6 +1465,7 @@ useEffect(() => {
   const rowUnitCosts = splitByRow(data?.product_offer_unit_cost);
   const rowPcsPerCartons = splitByRow(data?.product_offer_pcs_per_carton);
   const rowPackaging = splitByRow(data?.product_offer_packaging_details);
+  const rowCommercialTypes = splitByRow(data?.commercial_type);
   const rowWarranties = splitByRow(data?.warranty);
   const rowFactories = splitByRow(data?.product_offer_factory_address);
   const rowPorts = splitByRow(data?.product_offer_port_of_discharge);
@@ -3340,7 +3463,12 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                               </span>
                             </div>
                             {(() => {
-                              const { qtyCtn, packaging } = formatPackagingWithLabels(prodPackaging[i], prodPcsPerCartons[i]);
+                              const commercialTypeRaw = (rowCommercialTypes[rowIndex] ?? [])[i];
+                              const { qtyCtn, commercialType, packaging } = formatCommercialDetailsForView(
+                                commercialTypeRaw,
+                                prodPackaging[i],
+                                prodPcsPerCartons[i],
+                              );
                               return (
                                 <>
                                   <div>
@@ -3349,6 +3477,14 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                                     </span>
                                     <span className="font-medium">
                                       {qtyCtn}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-400 block">
+                                      Commercial Type
+                                    </span>
+                                    <span className="font-medium">
+                                      {commercialType}
                                     </span>
                                   </div>
                                   <div>
@@ -3628,7 +3764,7 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                               <table className="w-full border text-xs">
                                 <thead>
                                   <tr>
-                                    <th colSpan={isApproved ? (showProcurementRemarks ? 23 : 22) : (showProcurementRemarks ? 16 : 15)} className="border px-2 py-1 text-center text-xs font-bold bg-orange-100 text-orange-700">
+                                    <th colSpan={isApproved ? (showProcurementRemarks ? 24 : 23) : (showProcurementRemarks ? 17 : 16)} className="border px-2 py-1 text-center text-xs font-bold bg-orange-100 text-orange-700">
                                       Product Offer
                                     </th>
                                   </tr>
@@ -3659,6 +3795,9 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                                     </th>
                                     <th className="border px-2 py-1 text-center whitespace-nowrap">
                                       Qty/Per Carton
+                                    </th>
+                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
+                                      Commercial Type
                                     </th>
                                     <th className="border px-2 py-1 text-center whitespace-nowrap">
                                       Packaging
@@ -3790,11 +3929,19 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                                       {prodUnitCosts[i] || "-"}
                                     </td>
                                     {(() => {
-                                      const { qtyCtn, packaging } = formatPackagingWithLabels(prodPackaging[i], prodPcsPerCartons[i]);
+                                      const commercialTypeRaw = (rowCommercialTypes[rowIndex] ?? [])[i];
+                                      const { qtyCtn, commercialType, packaging } = formatCommercialDetailsForView(
+                                        commercialTypeRaw,
+                                        prodPackaging[i],
+                                        prodPcsPerCartons[i],
+                                      );
                                       return (
                                         <>
                                           <td className="border px-2 py-2 text-center align-middle">
                                             {qtyCtn}
+                                          </td>
+                                          <td className="border px-2 py-2 text-center align-middle">
+                                            {commercialType}
                                           </td>
                                           <td className="border px-2 py-2 text-center align-middle">
                                             {packaging}
