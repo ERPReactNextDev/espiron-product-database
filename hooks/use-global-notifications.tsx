@@ -5,6 +5,7 @@ import { collection, query, orderBy, onSnapshot, limit } from "firebase/firestor
 import { db, dbLogs, dbCollab } from "@/lib/firebase";
 import { showBrowserNotification, vibrateDevice, playNotificationSound } from "@/lib/browser-notifications";
 import { useNotificationSettings } from "@/hooks/use-notification-settings";
+import { useUser } from "@/contexts/UserContext";
 
 interface GlobalNotification {
   id: string;
@@ -30,8 +31,15 @@ interface GlobalNotification {
 export function useGlobalNotifications() {
   const [notifications, setNotifications] = useState<GlobalNotification[]>([]);
   const { settings } = useNotificationSettings();
+  const { userId } = useUser();
 
   useEffect(() => {
+    // Only listen for notifications if user is logged in
+    if (!userId) {
+      console.log("🔒 User not logged in, skipping notification listener");
+      return;
+    }
+
     // Try all three Firebase databases to find global notifications
     const databases = [
       { name: "main", db: db },
@@ -111,7 +119,7 @@ export function useGlobalNotifications() {
     return () => {
       unsubscribes.forEach(unsubscribe => unsubscribe());
     };
-  }, [settings]);
+  }, [settings, userId]);
 
   const clearNotifications = () => {
     setNotifications([]);

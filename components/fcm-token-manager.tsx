@@ -4,11 +4,19 @@ import { useEffect, useState } from "react";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { db, messaging } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { useUser } from "@/contexts/UserContext";
 
 export function FCMTokenManager() {
   const [token, setToken] = useState<string | null>(null);
+  const { userId } = useUser();
 
   useEffect(() => {
+    // Only register FCM token if user is logged in
+    if (!userId) {
+      console.log("🔒 User not logged in, skipping FCM token registration");
+      return;
+    }
+
     const registerFCMToken = async () => {
       try {
         // Request notification permission first
@@ -37,7 +45,7 @@ export function FCMTokenManager() {
           // Store token in Firestore
           await addDoc(collection(db, "fcm_tokens"), {
             token: currentToken,
-            userId: "global", // For global notifications
+            userId: userId, // Use actual user ID instead of "global"
             createdAt: serverTimestamp(),
             isActive: true
           });
@@ -55,11 +63,11 @@ export function FCMTokenManager() {
 
     // Listen for foreground messages
     const messaging = getMessaging();
-    const unsubscribe = onMessage(messaging, (payload) => {
+    const unsubscribe = onMessage(messaging, (payload: any) => {
       console.log("📨 Foreground FCM message:", payload);
       
-      // Show notification for foreground messages
-      if (payload.notification?.title) {
+      // Show notification for foreground messages only if user is logged in
+      if (payload.notification?.title && userId) {
         // Use a unique tag for foreground notifications to avoid conflicts
         const uniqueTag = `foreground-${payload.data?.tag || Date.now()}`;
         
@@ -76,7 +84,7 @@ export function FCMTokenManager() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [userId]);
 
   return (
     <div className="hidden">
