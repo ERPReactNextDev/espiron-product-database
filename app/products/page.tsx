@@ -332,10 +332,7 @@ export default function ProductsPage() {
                         </div>
 
                         <div className="p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <h2 className="text-sm font-semibold line-clamp-2 text-gray-900 leading-snug flex-1">{p.productName}</h2>
-                            <span className="text-xs font-medium text-gray-500 whitespace-nowrap">{p.productReferenceID || ""}</span>
-                          </div>
+                          <h2 className="text-sm font-semibold line-clamp-2 text-gray-900 leading-snug">{p.productName}</h2>
                           <p className="text-xs font-medium text-blue-600 mt-0.5 line-clamp-1">{p.supplier?.supplierBrand || "—"}</p>
                         </div>
                       </div>
