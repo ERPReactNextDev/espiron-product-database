@@ -29,22 +29,23 @@ const buildStoredCommercial = (commercialDetails: any): StoredCommercial => {
       : [];
 
     if (useArrayInput && multiRows.length) {
-      const payload = {
-        v: 1,
-        type: "LIGHT_MULTIPLE",
-        rows: multiRows.map((r: any) => ({
-          itemName: r?.itemName ?? "",
-          unitCost: Number(r?.unitCost ?? 0) || 0,
-          length: r?.length ?? "-",
-          width: r?.width ?? "-",
-          height: r?.height ?? "-",
-          qtyPerCarton: Number(r?.qtyPerCarton ?? 0) || 0,
-        })),
-      };
+      const packagingLines: string[] = [];
+      for (const row of multiRows) {
+        const itemName = row?.itemName ?? "";
+        const qtyPerCarton = Number(row?.qtyPerCarton ?? 0) || 0;
+        const length = row?.length ?? "-";
+        const width = row?.width ?? "-";
+        const height = row?.height ?? "-";
+        const unitCost = Number(row?.unitCost ?? 0) || 0;
+        packagingLines.push(itemName);
+        packagingLines.push(`Qty: ${qtyPerCarton}`);
+        packagingLines.push(`${length} × ${width} × ${height}`);
+        packagingLines.push(`${unitCost.toFixed(2)} USD`);
+      }
       return {
         commercialType,
         pcsPerCarton: "-",
-        packaging: `MULTI:${encodeBase64Json(payload)}`,
+        packaging: packagingLines.join("\n"),
       };
     }
   }
@@ -129,18 +130,25 @@ export default async function handler(
 
     /* ── Fetch current status ── */
     let currentStatus: string = "Pending For Procurement";
+    let currentReferenceId: string | null = null;
     try {
       const { data: currentCreation } = await supabase
         .from("spf_creation")
-        .select("status")
+        .select("status, referenceid")
         .eq("spf_number", spf_number)
         .maybeSingle();
       if (currentCreation?.status) {
         currentStatus = currentCreation.status;
       }
+      if (currentCreation?.referenceid) {
+        currentReferenceId = currentCreation.referenceid;
+      }
     } catch (err) {
       console.error("Failed to fetch current status:", err);
     }
+
+    // Preserve existing referenceid during edit - never change it
+    const effectiveReferenceId = currentReferenceId ?? null;
 
     /* ── Pre-fetch all unique supplier contacts ── */
     const uniqueSupplierIds = [
@@ -452,7 +460,7 @@ export default async function handler(
       spf_creation_start_time: spf_creation_start_time ?? null,
       spf_creation_end_time:   spf_creation_end_time   ?? null,
 
-      referenceid: referenceid ?? null,
+      referenceid: effectiveReferenceId,
       tsm:         tsm         ?? null,
       manager:     manager     ?? null,
       item_code:   finalItemCode || item_code || null,
@@ -462,7 +470,7 @@ export default async function handler(
     await supabase
       .from("spf_creation")
       .update({
-        referenceid: referenceid ?? null,
+        referenceid: effectiveReferenceId,
         tsm:         tsm         ?? null,
         manager:     manager     ?? null,
 
@@ -517,7 +525,7 @@ export default async function handler(
         spf_number,
         version_label:  `${spf_number}_v${nextVersion}`,
         version_number: nextVersion,
-        referenceID:    resolvedEditedBy ?? undefined,
+        referenceID:    effectiveReferenceId ?? undefined,
         userId:         userId           ?? undefined,
       });
     } catch (auditErr) {

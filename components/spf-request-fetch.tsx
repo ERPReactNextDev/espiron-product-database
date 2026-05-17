@@ -246,6 +246,80 @@ function decodeMultiPackaging(packagingStr: string | undefined): MultiPackagingP
   }
 }
 
+function parseHumanReadableMultiPackaging(packagingStr: string | undefined): MultiPackagingPayloadV1 | null {
+  const raw = (packagingStr ?? "").trim();
+  if (!raw || raw === "-") return null;
+  
+  // Check if it's the old base64 format
+  if (raw.startsWith("MULTI:")) {
+    return decodeMultiPackaging(raw);
+  }
+  
+  // Parse new human-readable format (4 lines per item: name, qty, dimensions, unitCost)
+  const lines = raw.split("\n").map(l => l.trim()).filter(l => l);
+  if (lines.length === 0) return null;
+  
+  // Check if it's the old 3-line format (name, dimensions, unitCost) or new 4-line format
+  const isOldFormat = lines.length % 3 === 0;
+  const isNewFormat = lines.length % 4 === 0;
+  
+  if (!isOldFormat && !isNewFormat) return null;
+  
+  const rows: LightMultipleRow[] = [];
+  const linesPerItem = isNewFormat ? 4 : 3;
+  
+  for (let i = 0; i < lines.length; i += linesPerItem) {
+    const itemName = lines[i] || "";
+    
+    let qtyPerCarton = 0;
+    let dimensions = "";
+    let unitCostStr = "";
+    
+    if (isNewFormat) {
+      // New format: name, qty, dimensions, unitCost
+      const qtyLine = lines[i + 1] || "";
+      dimensions = lines[i + 2] || "";
+      unitCostStr = lines[i + 3] || "";
+      
+      // Parse qty (e.g., "Qty: 552")
+      const qtyMatch = qtyLine.match(/^Qty:\s*(\d+)/);
+      qtyPerCarton = qtyMatch ? parseInt(qtyMatch[1], 10) : 0;
+    } else {
+      // Old format: name, dimensions, unitCost (qty not stored)
+      dimensions = lines[i + 1] || "";
+      unitCostStr = lines[i + 2] || "";
+      qtyPerCarton = 0;
+    }
+    
+    // Parse dimensions (e.g., "2222333 × 33 × 44334")
+    const dimParts = dimensions.split("×").map(p => p.trim());
+    const length = dimParts[0] || "-";
+    const width = dimParts[1] || "-";
+    const height = dimParts[2] || "-";
+    
+    // Parse unit cost (e.g., "230.67 USD")
+    const costMatch = unitCostStr.match(/^([\d.]+)/);
+    const unitCost = costMatch ? parseFloat(costMatch[1]) : 0;
+    
+    rows.push({
+      itemName,
+      length,
+      width,
+      height,
+      unitCost,
+      qtyPerCarton,
+    });
+  }
+  
+  if (rows.length === 0) return null;
+  
+  return {
+    v: 1,
+    type: "LIGHT_MULTIPLE",
+    rows,
+  };
+}
+
 function formatCommercialDetailsForView(
   commercialTypeRaw: string | undefined,
   packagingStr: string | undefined,
@@ -260,7 +334,7 @@ function formatCommercialDetailsForView(
   }
 
   if (ct === "LIGHT") {
-    const multi = decodeMultiPackaging(pack);
+    const multi = parseHumanReadableMultiPackaging(pack);
     if (multi?.rows?.length) {
       const rows = multi.rows;
       return {
@@ -842,7 +916,7 @@ useEffect(() => {
         let totalUnitCost: number | undefined;
 
         if (commercialTypeRaw === "LIGHT") {
-          const decodedMulti = decodeMultiPackaging(rawPackaging);
+          const decodedMulti = parseHumanReadableMultiPackaging(rawPackaging);
           if (decodedMulti?.rows?.length) {
             useArrayInput = true;
             multiRows = decodedMulti.rows.map((r) => ({
@@ -1405,9 +1479,6 @@ useEffect(() => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           spf_number: spfNumber,
-          referenceid: userId ?? null,
-          edited_by: userId ?? null,
-          author: userId ?? null,
           tsm: data?.tsm ?? null,
           manager: data?.manager ?? null,
           item_code: data?.item_code ?? null,
