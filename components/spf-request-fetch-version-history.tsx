@@ -51,6 +51,7 @@ type VersionRecord = {
   tds?: string;
   dimensional_drawing?: string;
   illuminance_drawing?: string;
+  commercial_type?: string;
 };
 
 type Props = {
@@ -61,6 +62,151 @@ type Props = {
 const ROW_SEP = "|ROW|";
 
 type SpecGroup = { title: string; specs: string[] };
+
+type LightMultipleRow = {
+  itemName?: string;
+  unitCost?: number;
+  length?: number | string;
+  width?: number | string;
+  height?: number | string;
+  qtyPerCarton?: number;
+};
+
+type MultiPackagingPayloadV1 = {
+  v: 1;
+  type: "LIGHT_MULTIPLE";
+  rows: LightMultipleRow[];
+};
+
+function decodeBase64ToString(base64: string): string | null {
+  try {
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    return new TextDecoder("utf-8").decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+function decodeMultiPackaging(packagingStr: string | undefined): MultiPackagingPayloadV1 | null {
+  const raw = (packagingStr ?? "").trim();
+  if (!raw.startsWith("MULTI:")) return null;
+  const b64 = raw.slice("MULTI:".length);
+  const decoded = decodeBase64ToString(b64);
+  if (!decoded) return null;
+  try {
+    const parsed = JSON.parse(decoded);
+    if (parsed?.v !== 1 || parsed?.type !== "LIGHT_MULTIPLE" || !Array.isArray(parsed?.rows)) {
+      return null;
+    }
+    return parsed as MultiPackagingPayloadV1;
+  } catch {
+    return null;
+  }
+}
+
+function parseHumanReadableMultiPackaging(packagingStr: string | undefined): MultiPackagingPayloadV1 | null {
+  const raw = (packagingStr ?? "").trim();
+  if (!raw || raw === "-") return null;
+  
+  // Check if it's the old base64 format
+  if (raw.startsWith("MULTI:")) {
+    return decodeMultiPackaging(raw);
+  }
+  
+  // Parse new human-readable format (4 lines per item: name, qty, dimensions, unitCost)
+  const lines = raw.split("\n").map(l => l.trim()).filter(l => l);
+  if (lines.length === 0) return null;
+  
+  // Check if it's the old 3-line format (name, dimensions, unitCost) or new 4-line format
+  const isOldFormat = lines.length % 3 === 0;
+  const isNewFormat = lines.length % 4 === 0;
+  
+  if (!isOldFormat && !isNewFormat) return null;
+  
+  const rows: LightMultipleRow[] = [];
+  const linesPerItem = isNewFormat ? 4 : 3;
+  
+  for (let i = 0; i < lines.length; i += linesPerItem) {
+    const itemName = lines[i] || "";
+    
+    let qtyPerCarton = 0;
+    let dimensions = "";
+    let unitCostStr = "";
+    
+    if (isNewFormat) {
+      // New format: name, qty, dimensions, unitCost
+      const qtyLine = lines[i + 1] || "";
+      dimensions = lines[i + 2] || "";
+      unitCostStr = lines[i + 3] || "";
+      
+      // Parse qty (e.g., "Qty: 552")
+      const qtyMatch = qtyLine.match(/^Qty:\s*(\d+)/);
+      qtyPerCarton = qtyMatch ? parseInt(qtyMatch[1], 10) : 0;
+    } else {
+      // Old format: name, dimensions, unitCost (qty not stored)
+      dimensions = lines[i + 1] || "";
+      unitCostStr = lines[i + 2] || "";
+      qtyPerCarton = 0;
+    }
+    
+    // Parse dimensions (e.g., "2222333 × 33 × 44334")
+    const dimParts = dimensions.split("×").map(p => p.trim());
+    const length = dimParts[0] || "-";
+    const width = dimParts[1] || "-";
+    const height = dimParts[2] || "-";
+    
+    // Parse unit cost (e.g., "230.67 USD")
+    const costMatch = unitCostStr.match(/^([\d.]+)/);
+    const unitCost = costMatch ? parseFloat(costMatch[1]) : 0;
+    
+    rows.push({
+      itemName,
+      length,
+      width,
+      height,
+      unitCost,
+      qtyPerCarton,
+    });
+  }
+  
+  if (rows.length === 0) return null;
+  
+  return {
+    v: 1,
+    type: "LIGHT_MULTIPLE",
+    rows,
+  };
+}
+
+function formatPackagingForDisplay(packagingStr: string | undefined, commercialTypeRaw: string | undefined): React.ReactNode {
+  const ct = (commercialTypeRaw || "BASIC").toUpperCase();
+  const pack = packagingStr && packagingStr !== "" ? packagingStr : "-";
+
+  if (ct === "LIGHT") {
+    const multi = parseHumanReadableMultiPackaging(pack);
+    if (multi?.rows?.length) {
+      return (
+        <div className="space-y-1">
+          {multi.rows.map((row, idx) => (
+            <div key={idx} className="text-[11px] leading-tight">
+              <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
+              <div>Qty: {row.qtyPerCarton ?? "-"}</div>
+              <div>
+                {(row.length ?? "-").toString()} × {(row.width ?? "-").toString()} × {(row.height ?? "-").toString()}
+              </div>
+              <div className="text-gray-500">
+                {(Number(row.unitCost ?? 0) || 0).toFixed(2)} USD
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+  }
+
+  return pack;
+}
 
 /* ─────────────────────────────────────────────────────────────── */
 /* NAME CACHE                                                      */
@@ -335,6 +481,7 @@ function VersionDetail({
   const rowTdsBrands = splitByRow(record.tds);
   const rowDimensionalDrawings = splitByRow(record.dimensional_drawing);
   const rowIlluminanceDrawings = splitByRow(record.illuminance_drawing);
+  const rowCommercialTypes = splitByRow(record.commercial_type);
 
   // Previous version parsed values (for diff)
   const prevRowImages = splitByRow(prevRecord?.product_offer_image);
@@ -358,6 +505,7 @@ function VersionDetail({
   const prevRowItemCodes = splitByRow(prevRecord?.item_code);
   const prevRowPriceValidities = splitByRow(prevRecord?.price_validity);
   const prevRowTdsBrands = splitByRow(prevRecord?.tds);
+  const prevRowCommercialTypes = splitByRow(prevRecord?.commercial_type);
 
 
   // Helper to get prev value safely (undefined = no prev = no highlight)
@@ -398,6 +546,7 @@ function VersionDetail({
         const prodTdsBrands = rowTdsBrands[rowIndex] ?? [];
         const prodDimensionalDrawings = rowDimensionalDrawings[rowIndex] ?? [];
         const prodIlluminanceDrawings = rowIlluminanceDrawings[rowIndex] ?? [];
+        const prodCommercialTypes = rowCommercialTypes[rowIndex] ?? [];
 
         const hasProducts =
           prodImages.length > 0 &&
@@ -479,7 +628,23 @@ function VersionDetail({
                         <DiffValue label="Qty" current={prodQtys[i]} previous={getPrev(prevRowQtys, rowIndex, i)} />
                         <DiffValue label="Unit Cost" current={prodUnitCosts[i]} previous={getPrev(prevRowUnitCosts, rowIndex, i)} />
                         <DiffValue label="Qty/Per Carton" current={prodPcsPerCartons[i]} previous={getPrev(prevRowPcsPerCartons, rowIndex, i)} />
-                        <DiffValue label="Packaging" current={prodPackaging[i]} previous={getPrev(prevRowPackaging, rowIndex, i)} />
+                        <div className={`${(() => { const c = prodPackaging[i]; const p = getPrev(prevRowPackaging, rowIndex, i); const changed = (c ?? "").trim() !== (p ?? "").trim(); return changed ? "bg-yellow-50 rounded px-1 py-0.5 border border-yellow-200" : ""; })()}`}>
+                          <span className="text-gray-400 block text-[10px]">Packaging</span>
+                          {(() => {
+                            const c = prodPackaging[i];
+                            const p = getPrev(prevRowPackaging, rowIndex, i);
+                            const changed = (c ?? "").trim() !== (p ?? "").trim();
+                            if (changed && p !== undefined) {
+                              return (
+                                <div>
+                                  <span className="text-[9px] text-yellow-700 font-semibold block leading-none mb-0.5">✎ changed</span>
+                                  {formatPackagingForDisplay(c, prodCommercialTypes[i])}
+                                </div>
+                              );
+                            }
+                            return formatPackagingForDisplay(c, prodCommercialTypes[i]);
+                          })()}
+                        </div>
                         <DiffValue label="Warranty" current={prodWarranties[i]} previous={getPrev(prevRowWarranties, rowIndex, i)} />
                         <DiffValue
                           label="Price Validity"
@@ -717,7 +882,7 @@ function VersionDetail({
                             {prodPcsPerCartons[i] || "-"}
                           </DiffCell>
                           <DiffCell current={prodPackaging[i]} previous={getPrev(prevRowPackaging, rowIndex, i)}>
-                            {prodPackaging[i] || "-"}
+                            {formatPackagingForDisplay(prodPackaging[i], prodCommercialTypes[i])}
                           </DiffCell>
                           <DiffCell current={prodWarranties[i]} previous={getPrev(prevRowWarranties, rowIndex, i)}>
                             {prodWarranties[i] || "-"}

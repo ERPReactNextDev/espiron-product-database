@@ -29,22 +29,23 @@ const buildStoredCommercial = (commercialDetails: any): StoredCommercial => {
       : [];
 
     if (useArrayInput && multiRows.length) {
-      const payload = {
-        v: 1,
-        type: "LIGHT_MULTIPLE",
-        rows: multiRows.map((r: any) => ({
-          itemName: r?.itemName ?? "",
-          unitCost: Number(r?.unitCost ?? 0) || 0,
-          length: r?.length ?? "-",
-          width: r?.width ?? "-",
-          height: r?.height ?? "-",
-          qtyPerCarton: Number(r?.qtyPerCarton ?? 0) || 0,
-        })),
-      };
+      const packagingLines: string[] = [];
+      for (const row of multiRows) {
+        const itemName = row?.itemName ?? "";
+        const qtyPerCarton = Number(row?.qtyPerCarton ?? 0) || 0;
+        const length = row?.length ?? "-";
+        const width = row?.width ?? "-";
+        const height = row?.height ?? "-";
+        const unitCost = Number(row?.unitCost ?? 0) || 0;
+        packagingLines.push(itemName);
+        packagingLines.push(`Qty: ${qtyPerCarton}`);
+        packagingLines.push(`${length} × ${width} × ${height}`);
+        packagingLines.push(`${unitCost.toFixed(2)} USD`);
+      }
       return {
         commercialType,
         pcsPerCarton: "-",
-        packaging: `MULTI:${encodeBase64Json(payload)}`,
+        packaging: packagingLines.join("\n"),
       };
     }
   }
