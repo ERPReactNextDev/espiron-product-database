@@ -30,6 +30,7 @@ type VersionRecord = {
   price_validity?: string;
 
   supplier_brand?: string;
+  product_name?: string;
   product_offer_image?: string;
   product_offer_qty?: string;
   product_offer_technical_specification?: string;
@@ -52,6 +53,7 @@ type VersionRecord = {
   dimensional_drawing?: string;
   illuminance_drawing?: string;
   commercial_type?: string;
+  deleted_offers?: string;
 };
 
 type Props = {
@@ -479,9 +481,21 @@ function VersionDetail({
   const rowItemCodes = splitByRow(record.item_code);
   const rowPriceValidities = splitByRow(record.price_validity);
   const rowTdsBrands = splitByRow(record.tds);
+  const rowProductNames = splitByRow(record.product_name);
   const rowDimensionalDrawings = splitByRow(record.dimensional_drawing);
   const rowIlluminanceDrawings = splitByRow(record.illuminance_drawing);
   const rowCommercialTypes = splitByRow(record.commercial_type);
+
+  // Parse deleted offers
+  const deletedOffersData = record.deleted_offers ? JSON.parse(record.deleted_offers) : [];
+  const deletedOffersByRow: Record<number, any[]> = {};
+  deletedOffersData.forEach((offer: any) => {
+    const rowIndex = offer.__rowIndex ?? 0;
+    if (!deletedOffersByRow[rowIndex]) {
+      deletedOffersByRow[rowIndex] = [];
+    }
+    deletedOffersByRow[rowIndex].push(offer);
+  });
 
   // Previous version parsed values (for diff)
   const prevRowImages = splitByRow(prevRecord?.product_offer_image);
@@ -505,6 +519,7 @@ function VersionDetail({
   const prevRowItemCodes = splitByRow(prevRecord?.item_code);
   const prevRowPriceValidities = splitByRow(prevRecord?.price_validity);
   const prevRowTdsBrands = splitByRow(prevRecord?.tds);
+  const prevRowProductNames = splitByRow(prevRecord?.product_name);
   const prevRowCommercialTypes = splitByRow(prevRecord?.commercial_type);
 
 
@@ -544,6 +559,7 @@ function VersionDetail({
         const prodItemCodes = rowItemCodes[rowIndex] ?? [];
         const prodPriceValidities = rowPriceValidities[rowIndex] ?? [];
         const prodTdsBrands = rowTdsBrands[rowIndex] ?? [];
+        const prodProductNames = rowProductNames[rowIndex] ?? [];
         const prodDimensionalDrawings = rowDimensionalDrawings[rowIndex] ?? [];
         const prodIlluminanceDrawings = rowIlluminanceDrawings[rowIndex] ?? [];
         const prodCommercialTypes = rowCommercialTypes[rowIndex] ?? [];
@@ -581,7 +597,7 @@ function VersionDetail({
               </p>
             </div>
 
-            {!hasProducts ? (
+            {!hasProducts && !deletedOffersByRow[rowIndex] ? (
               <p className="text-xs text-muted-foreground px-3 py-2">
                 No products
               </p>
@@ -625,6 +641,7 @@ function VersionDetail({
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-[10px] mb-2">
+                        <DiffValue label="Product Name" current={prodProductNames[i]} previous={getPrev(prevRowProductNames, rowIndex, i)} />
                         <DiffValue label="Qty" current={prodQtys[i]} previous={getPrev(prevRowQtys, rowIndex, i)} />
                         <DiffValue label="Unit Cost" current={prodUnitCosts[i]} previous={getPrev(prevRowUnitCosts, rowIndex, i)} />
                         <DiffValue label="Qty/Per Carton" current={prodPcsPerCartons[i]} previous={getPrev(prevRowPcsPerCartons, rowIndex, i)} />
@@ -748,6 +765,33 @@ function VersionDetail({
                     </div>
                   );
                 })}
+                {/* Display deleted offers in red */}
+                {deletedOffersByRow[rowIndex]?.map((deletedOffer: any, i: number) => (
+                  <div key={`deleted-${i}`} className="border rounded-lg p-3 bg-red-50 border-red-300">
+                    <span className="text-[9px] font-bold text-red-700 bg-red-200 px-1.5 py-0.5 rounded block mb-2 w-fit">
+                      DELETED
+                    </span>
+                    <div className="flex items-center gap-2 mb-2">
+                      {deletedOffer.mainImage?.url && deletedOffer.mainImage.url !== "-" ? (
+                        <img
+                          src={deletedOffer.mainImage.url}
+                          className="w-12 h-12 object-contain rounded border"
+                          alt=""
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-gray-100 rounded border flex items-center justify-center text-[9px] text-gray-400">
+                          No img
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold truncate text-red-800">
+                          {deletedOffer.productName || `Deleted Option ${i + 1}`}
+                          {deletedOffer.supplier?.supplierBrand ? ` · ${deletedOffer.supplier.supplierBrand}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="overflow-x-auto px-4 py-3">
@@ -755,6 +799,7 @@ function VersionDetail({
                   <thead>
                     <tr className="bg-gray-50">
                       <th className="border px-2 py-1 text-center whitespace-nowrap">Supplier Brand</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Product Name</th>
                       <th className="border px-2 py-1 text-center whitespace-nowrap">Image</th>
                       <th className="border px-2 py-1 text-center whitespace-nowrap">Qty</th>
                       <th className="border px-2 py-1 text-center whitespace-nowrap">Price Validity</th>
@@ -787,6 +832,9 @@ function VersionDetail({
                         <tr key={i} className={`align-top ${optIsNew ? "bg-yellow-50" : ""}`}>
                           <DiffCell current={prodBrands[i]} previous={getPrev(prevRowBrands, rowIndex, i)}>
                             {prodBrands[i] || "-"}
+                          </DiffCell>
+                          <DiffCell current={prodProductNames[i]} previous={getPrev(prevRowProductNames, rowIndex, i)}>
+                            {prodProductNames[i] || "-"}
                           </DiffCell>
                           <td className={`border px-2 py-1 text-center ${optIsNew ? "bg-yellow-50" : ""}`}>
                             {optIsNew && (
@@ -920,6 +968,68 @@ function VersionDetail({
                         </tr>
                       );
                     })}
+                    {/* Display deleted offers in red for desktop */}
+                    {deletedOffersByRow[rowIndex]?.map((deletedOffer: any, i: number) => (
+                      <tr key={`deleted-${i}`} className="align-top bg-red-50">
+                        <td className="border px-2 py-1 text-center align-middle text-red-800" colSpan={3}>
+                          <span className="text-[9px] font-bold text-red-700 bg-red-200 px-1.5 py-0.5 rounded">
+                            DELETED
+                          </span>
+                          <span className="ml-2 text-xs">{deletedOffer.productName || `Deleted Option ${i + 1}`}</span>
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          {deletedOffer.qty || "-"}
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          {deletedOffer.supplier?.supplierBrand || "-"}
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

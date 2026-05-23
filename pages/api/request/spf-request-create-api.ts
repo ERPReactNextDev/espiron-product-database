@@ -182,6 +182,7 @@ export default async function handler(
     const rowPriceValidities: string[] = [];
     const rowDimensionalDrawings: string[] = [];
     const rowIlluminanceDrawings: string[] = [];
+    const rowProductNames:       string[] = [];
     const rowOriginalSpecs:      string[] = [];
     const rowProductRefIDs:      string[] = [];
     const rowBranches:          string[] = [];
@@ -211,6 +212,7 @@ export default async function handler(
       const priceValidities: string[] = [];
       const dimensionalDrawings: string[] = [];
       const illuminanceDrawings: string[] = [];
+      const productNames: string[] = [];
       const productRefIDs: string[] = [];
       const branches: string[] = [];
       const spfRemarksPD: string[] = [];
@@ -268,6 +270,13 @@ export default async function handler(
         priceValidities.push(priceValidity);
         dimensionalDrawings.push(p?.dimensionalDrawing?.url || "-");
         illuminanceDrawings.push(p?.illuminanceDrawing?.url || "-");
+
+        const resolvedProductName = p?.__tdsProductName ?? p?.productName;
+        productNames.push(
+          resolvedProductName && String(resolvedProductName).trim() !== ""
+            ? String(resolvedProductName)
+            : "-"
+        );
 
         const supplierId = String(p?.supplier?.supplierId || "");
         const cached     = supplierId ? supplierCache.get(supplierId) : undefined;
@@ -331,6 +340,7 @@ export default async function handler(
         priceValidities.push("-");
         dimensionalDrawings.push("-");
         illuminanceDrawings.push("-");
+        productNames.push("-");
       }
 
       rowImages.push(images.join(","));
@@ -353,6 +363,7 @@ export default async function handler(
       rowPriceValidities.push(priceValidities.join(","));
       rowDimensionalDrawings.push(dimensionalDrawings.join(","));
       rowIlluminanceDrawings.push(illuminanceDrawings.join(","));
+      rowProductNames.push(productNames.join(","));
       rowProductRefIDs.push(productRefIDs.join(","));
       rowBranches.push(branches.join(","));
       rowSpfRemarksPD.push(spfRemarksPD.join(","));
@@ -363,6 +374,10 @@ export default async function handler(
     for (let i = rowOriginalSpecs.length; i < rowCount; i++) {
       rowOriginalSpecs.push("-");
       rowProductRefIDs.push("-");
+    }
+
+    for (let i = rowProductNames.length; i < rowCount; i++) {
+      rowProductNames.push("-");
     }
 
     /* ── Final strings ── */
@@ -385,6 +400,7 @@ export default async function handler(
     const finalPriceValidities = rowPriceValidities.join(ROW_SEP);
     const finalDimensionalDrawings = rowDimensionalDrawings.join(ROW_SEP);
     const finalIlluminanceDrawings = rowIlluminanceDrawings.join(ROW_SEP);
+    const finalProductNames        = rowProductNames.join(ROW_SEP);
     const finalOriginalSpecs       = rowOriginalSpecs.join(ROW_SEP);
     const finalProductRefIDs       = rowProductRefIDs.join(ROW_SEP);
     const finalBranches            = rowBranches.join(ROW_SEP);
@@ -440,6 +456,7 @@ export default async function handler(
           supplier_branch:                         finalBranches,
           spf_remarks_pd:                          finalSpfRemarksPD,
           commercial_type:                       finalCommercialTypes,
+          product_name:                          finalProductNames,
           product_offer_unit_cost:               finalUnitCosts,
           product_offer_pcs_per_carton:          finalPcsPerCarton,
           product_offer_packaging_details:       finalPackaging,
@@ -494,6 +511,7 @@ export default async function handler(
           supplier_branch:                         finalBranches,
           spf_remarks_pd:                          finalSpfRemarksPD,
           commercial_type:                         finalCommercialTypes,
+          product_name:                            finalProductNames,
           product_offer_unit_cost:               finalUnitCosts,
           product_offer_pcs_per_carton:          finalPcsPerCarton,
           product_offer_packaging_details:       finalPackaging,
@@ -543,6 +561,7 @@ export default async function handler(
           original_technical_specification: finalOriginalSpecs,
           product_reference_id: finalProductRefIDs,
           warranty: finalWarranties,
+          product_name: finalProductNames,
         })
         .eq("spf_number", spf_number);
 

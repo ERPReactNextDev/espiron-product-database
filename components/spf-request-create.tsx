@@ -3,6 +3,7 @@ import { useUser } from "@/contexts/UserContext";
 import React, { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -445,6 +446,12 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
 
   /* ── Helpers ── */
   const freezeSpecs = (product: any) => {
+    // If the product has already been filtered by the MultipleSpecsDetected modal, skip processing
+    // to preserve the user's single value selections
+    if (product.__specsFiltered) {
+      return product;
+    }
+    
     const activeFilters = (window as any).__ACTIVE_FILTERS__ || [];
     if (!product.technicalSpecifications) return product;
     const frozenSpecs = product.technicalSpecifications.map((group: any) => ({
@@ -456,6 +463,14 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
           .map((v: string) => v.trim())
           .filter(Boolean);
         const unique = Array.from(new Set(values)) as string[];
+        
+        // If the value is already a single value (not pipe-separated), keep it as-is
+        // This preserves the user's selection from the MultipleSpecsDetected modal
+        // Check both the raw value and the split values to ensure we don't rejoin single selections
+        if (!raw.includes("|") || values.length === 1) {
+          return { ...spec, value: values[0] || raw };
+        }
+        
         if (!activeFilters.length)
           return { ...spec, value: unique.join(" | ") };
         const filtered = unique.filter((v) => activeFilters.includes(v));
@@ -483,6 +498,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
         { 
           ...product, 
           qty: product.qty ?? 1,
+          __tdsProductName: product.__tdsProductName ?? product.productName ?? "",
           // Store original specs for editing later
           __originalTechnicalSpecifications: product.__originalTechnicalSpecifications || product.technicalSpecifications,
         },
@@ -556,7 +572,8 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const handlePipeConfirm = (filteredProduct: any) => {
     if (pendingPipeRowIndex === null) return;
     // For mobile flow: after pipe modal, we skip the confirm sheet and add directly
-    addProductToRow(pendingPipeRowIndex, { ...filteredProduct, qty: 1 });
+    // Mark the product as already filtered to prevent freezeSpecs from rejoining values
+    addProductToRow(pendingPipeRowIndex, { ...filteredProduct, qty: 1, __specsFiltered: true });
     toast.success("Product added!");
     setPendingPipeProduct(null);
     setPendingPipeRowIndex(null);
@@ -1726,7 +1743,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                               <table className="w-full table-fixed text-[9px]">
                               <thead className="bg-muted sticky top-0 z-10">
                                 <tr>
-                                  <th colSpan={16} className="border px-0.5 py-0.5 text-center text-[9px] font-bold bg-orange-100 text-orange-700">
+                                  <th colSpan={19} className="border px-0.5 py-0.5 text-center text-[9px] font-bold bg-orange-100 text-orange-700">
                                     Product Offer
                                   </th>
                                 </tr>
@@ -1736,6 +1753,9 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                                   </th>
                                   <th className="border px-0.5 py-0.5 text-center w-10">
                                     Opt
+                                  </th>
+                                  <th className="border px-0.5 py-0.5 text-center w-32">
+                                    Product Name
                                   </th>
                                   <th className="border px-0.5 py-0.5 text-center w-12.5">
                                     Brand
@@ -1914,6 +1934,28 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                                           <span className="inline-flex items-center text-[9px] font-semibold px-1 py-0 rounded-full bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
                                             {i + 1}
                                           </span>
+                                        </td>
+                                        <td className="border px-0.5 py-0.5 align-middle">
+                                          {viewMode ? (
+                                            <span className="text-[9px]">{prod.__tdsProductName ?? prod.productName ?? "-"}</span>
+                                          ) : (
+                                            <Input
+                                              disabled
+                                              value={prod.__tdsProductName ?? prod.productName ?? ""}
+                                              onChange={(e) => {
+                                                const name = e.target.value;
+                                                setProductOffers((prev) => {
+                                                  const copy = { ...prev };
+                                                  const row = [...(copy[index] || [])];
+                                                  row[i] = { ...row[i], __tdsProductName: name };
+                                                  copy[index] = row;
+                                                  return copy;
+                                                });
+                                              }}
+                                              className="h-6 text-[9px] px-1"
+                                              placeholder="Product name"
+                                            />
+                                          )}
                                         </td>
                                         <td className="border px-0.5 py-0.5 text-center align-middle font-medium text-[9px]">
                                           {brand}

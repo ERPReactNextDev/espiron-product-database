@@ -599,7 +599,7 @@ export default function RequestsPage() {
         <table className="w-full text-sm border-collapse">
           <thead className="bg-red-50/80 backdrop-blur-sm sticky top-0 z-30">
             <tr>
-              {["SPF Number", "Customer Name", "Special Instructions", "Prepared By", "Approved By", "Approval Status", "Date Received", "Date Updated", "Action"].map((h, index) => (
+              {["SPF Number", "Customer Name", "Special Instructions", "Prepared By", "Approved By", "Date Received", "Date Updated", "Action"].map((h, index) => (
                 <th key={h} className={`px-4 py-3 text-left font-bold border-b whitespace-nowrap ${index === 0 ? 'sticky left-0 bg-red-50/80 backdrop-blur-sm z-20' : ''}`}>{h}</th>
               ))}
             </tr>
@@ -607,11 +607,11 @@ export default function RequestsPage() {
           <tbody>
             {isRefreshing ? (
               <tr>
-                <td colSpan={9} className="text-center py-10 text-muted-foreground">Loading...</td>
+                <td colSpan={8} className="text-center py-10 text-muted-foreground">Loading...</td>
               </tr>
             ) : filteredRequests.length === 0 ? (
               <tr>
-                <td colSpan={9} className="text-center py-10 text-muted-foreground">No SPF requests yet.</td>
+                <td colSpan={8} className="text-center py-10 text-muted-foreground">No SPF requests yet.</td>
               </tr>
             ) : (
               paginatedRequests.map((req) => {
@@ -699,9 +699,6 @@ export default function RequestsPage() {
                     </td>
                     <td className="px-4 py-3 uppercase">{req.prepared_by || "-"}</td>
                     <td className="px-4 py-3 uppercase">{req.approved_by || "-"}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={req.status} />
-                    </td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formattedDateApprovedSalesHead}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formattedDate}</td>
                     <td className="px-4 py-3">
