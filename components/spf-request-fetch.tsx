@@ -102,6 +102,7 @@ type SPFRequestData = {
 };
 
 const ROW_SEP = "|ROW|";
+const ITEM_ROW_SEP = "||";
 
 type SpecGroup = { title: string; specs: string[] };
 
@@ -193,15 +194,15 @@ function parseTechSpec(raw: string): SpecGroup[] {
 function splitByRow(value: string | undefined): string[][] {
   if (!value) return [];
   return value
-    .split(ROW_SEP)
-    .map((rowStr) => rowStr.split(",").map((v) => v.trim()));
+    .split(ITEM_ROW_SEP)
+    .map((rowStr) => rowStr.split(ROW_SEP).map((v) => v.trim()));
 }
 
 function splitSpecsByRow(value: string | undefined): SpecGroup[][][] {
   if (!value) return [];
   return value
-    .split(ROW_SEP)
-    .map((rowStr) => rowStr.split(" || ").map(parseTechSpec));
+    .split(ITEM_ROW_SEP)
+    .map((rowStr) => rowStr.split(ROW_SEP).map(parseTechSpec));
 }
 
 type LightMultipleRow = {
@@ -1126,12 +1127,6 @@ useEffect(() => {
 
   /* ── Helpers (edit mode) ── */
   const freezeSpecs = (product: any) => {
-    // If the product has already been filtered by the MultipleSpecsDetected modal, skip processing
-    // to preserve the user's single value selections
-    if (product.__specsFiltered) {
-      return product;
-    }
-    
     const activeFilters = (window as any).__ACTIVE_FILTERS__ || [];
     if (!product.technicalSpecifications) return product;
     const frozenSpecs = product.technicalSpecifications.map((group: any) => ({
@@ -1143,14 +1138,6 @@ useEffect(() => {
           .map((v: string) => v.trim())
           .filter(Boolean);
         const unique = Array.from(new Set(values)) as string[];
-        
-        // If the value is already a single value (not pipe-separated), keep it as-is
-        // This preserves the user's selection from the MultipleSpecsDetected modal
-        // Check both the raw value and the split values to ensure we don't rejoin single selections
-        if (!raw.includes("|") || values.length === 1) {
-          return { ...spec, value: values[0] || raw };
-        }
-        
         if (!activeFilters.length)
           return { ...spec, value: unique.join(" | ") };
         const filtered = unique.filter((v) => activeFilters.includes(v));
@@ -1287,8 +1274,7 @@ useEffect(() => {
   /* ── MultipleSpecsDetected confirm ── */
   const handlePipeConfirm = (filteredProduct: any) => {
     if (pendingPipeRowIndex === null) return;
-    // Mark the product as already filtered to prevent freezeSpecs from rejoining values
-    addProductToRow(pendingPipeRowIndex, { ...filteredProduct, qty: 1, __specsFiltered: true });
+    addProductToRow(pendingPipeRowIndex, { ...filteredProduct, qty: 1 });
     toast.success("Product added!");
     setPendingPipeProduct(null);
     setPendingPipeRowIndex(null);

@@ -5,6 +5,7 @@ import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
 const ROW_SEP = "|ROW|";
+const ITEM_ROW_SEP = "||";
 
 const encodeBase64Json = (value: any): string =>
   Buffer.from(JSON.stringify(value), "utf8").toString("base64");
@@ -343,31 +344,31 @@ export default async function handler(
         productNames.push("-");
       }
 
-      rowImages.push(images.join(","));
-      rowQtys.push(qtys.join(","));
-      rowSpecs.push(specs.join(" || "));
-      rowUnitCosts.push(unitCosts.join(","));
-      rowPcsPerCarton.push(pcsPerCartons.join(","));
-      rowPackaging.push(packaging.join(","));
-      rowWarranties.push(warranties.join(","));
-      rowFactories.push(factories.join(","));
-      rowPorts.push(ports.join(","));
-      rowSubtotals.push(subtotals.join(","));
-      rowSupplierBrands.push(supplierBrands.join(","));
-      rowCompanyNames.push(companyNames.join(","));
-      rowContactNames.push(contactNames.join(","));
-      rowContactNumbers.push(contactNumbers.join(","));
-      rowSellingCosts.push(sellingCosts.join(","));
-      rowLeadTimes.push(leadTimes.join(","));
-      rowItemCodes.push(itemCodes.join(","));
-      rowPriceValidities.push(priceValidities.join(","));
-      rowDimensionalDrawings.push(dimensionalDrawings.join(","));
-      rowIlluminanceDrawings.push(illuminanceDrawings.join(","));
-      rowProductNames.push(productNames.join(","));
-      rowProductRefIDs.push(productRefIDs.join(","));
-      rowBranches.push(branches.join(","));
-      rowSpfRemarksPD.push(spfRemarksPD.join(","));
-      rowCommercialTypes.push(commercialTypes.join(","));
+      rowImages.push(images.join(ROW_SEP));
+      rowQtys.push(qtys.join(ROW_SEP));
+      rowSpecs.push(specs.join(ROW_SEP));
+      rowUnitCosts.push(unitCosts.join(ROW_SEP));
+      rowPcsPerCarton.push(pcsPerCartons.join(ROW_SEP));
+      rowPackaging.push(packaging.join(ROW_SEP));
+      rowWarranties.push(warranties.join(ROW_SEP));
+      rowFactories.push(factories.join(ROW_SEP));
+      rowPorts.push(ports.join(ROW_SEP));
+      rowSubtotals.push(subtotals.join(ROW_SEP));
+      rowSupplierBrands.push(supplierBrands.join(ROW_SEP));
+      rowCompanyNames.push(companyNames.join(ROW_SEP));
+      rowContactNames.push(contactNames.join(ROW_SEP));
+      rowContactNumbers.push(contactNumbers.join(ROW_SEP));
+      rowSellingCosts.push(sellingCosts.join(ROW_SEP));
+      rowLeadTimes.push(leadTimes.join(ROW_SEP));
+      rowItemCodes.push(itemCodes.join(ROW_SEP));
+      rowPriceValidities.push(priceValidities.join(ROW_SEP));
+      rowDimensionalDrawings.push(dimensionalDrawings.join(ROW_SEP));
+      rowIlluminanceDrawings.push(illuminanceDrawings.join(ROW_SEP));
+      rowProductNames.push(productNames.join(ROW_SEP));
+      rowProductRefIDs.push(productRefIDs.join(ROW_SEP));
+      rowBranches.push(branches.join(ROW_SEP));
+      rowSpfRemarksPD.push(spfRemarksPD.join(ROW_SEP));
+      rowCommercialTypes.push(commercialTypes.join(ROW_SEP));
     }
 
     // Fill arrays for empty rows
@@ -381,33 +382,33 @@ export default async function handler(
     }
 
     /* ── Final strings ── */
-    const finalImages          = rowImages.join(ROW_SEP);
-    const finalQtys            = rowQtys.join(ROW_SEP);
-    const finalSpecs           = rowSpecs.join(ROW_SEP);
-    const finalUnitCosts       = rowUnitCosts.join(ROW_SEP);
-    const finalPcsPerCarton    = rowPcsPerCarton.join(ROW_SEP);
-    const finalPackaging       = rowPackaging.join(ROW_SEP);
-    const finalWarranties      = rowWarranties.join(ROW_SEP);
-    const finalFactories       = rowFactories.join(ROW_SEP);
-    const finalPorts           = rowPorts.join(ROW_SEP);
-    const finalSubtotals       = rowSubtotals.join(ROW_SEP);
-    const finalSupplierBrands  = rowSupplierBrands.join(ROW_SEP);
-    const finalCompanyNames    = rowCompanyNames.join(ROW_SEP);
-    const finalContactNames    = rowContactNames.join(ROW_SEP);
-    const finalContactNumbers  = rowContactNumbers.join(ROW_SEP);
-    const finalSellingCosts    = rowSellingCosts.join(ROW_SEP);
-    const finalLeadTimes       = rowLeadTimes.join(ROW_SEP);
-    const finalPriceValidities = rowPriceValidities.join(ROW_SEP);
-    const finalDimensionalDrawings = rowDimensionalDrawings.join(ROW_SEP);
-    const finalIlluminanceDrawings = rowIlluminanceDrawings.join(ROW_SEP);
-    const finalProductNames        = rowProductNames.join(ROW_SEP);
-    const finalOriginalSpecs       = rowOriginalSpecs.join(ROW_SEP);
-    const finalProductRefIDs       = rowProductRefIDs.join(ROW_SEP);
-    const finalBranches            = rowBranches.join(ROW_SEP);
-    const finalSpfRemarksPD        = rowSpfRemarksPD.join(ROW_SEP);
-    const finalCommercialTypes     = rowCommercialTypes.join(ROW_SEP);
+    const finalImages          = rowImages.join(ITEM_ROW_SEP);
+    const finalQtys            = rowQtys.join(ITEM_ROW_SEP);
+    const finalSpecs           = rowSpecs.join(ITEM_ROW_SEP);
+    const finalUnitCosts       = rowUnitCosts.join(ITEM_ROW_SEP);
+    const finalPcsPerCarton    = rowPcsPerCarton.join(ITEM_ROW_SEP);
+    const finalPackaging       = rowPackaging.join(ITEM_ROW_SEP);
+    const finalWarranties      = rowWarranties.join(ITEM_ROW_SEP);
+    const finalFactories       = rowFactories.join(ITEM_ROW_SEP);
+    const finalPorts           = rowPorts.join(ITEM_ROW_SEP);
+    const finalSubtotals       = rowSubtotals.join(ITEM_ROW_SEP);
+    const finalSupplierBrands  = rowSupplierBrands.join(ITEM_ROW_SEP);
+    const finalCompanyNames    = rowCompanyNames.join(ITEM_ROW_SEP);
+    const finalContactNames    = rowContactNames.join(ITEM_ROW_SEP);
+    const finalContactNumbers  = rowContactNumbers.join(ITEM_ROW_SEP);
+    const finalSellingCosts    = rowSellingCosts.join(ITEM_ROW_SEP);
+    const finalLeadTimes       = rowLeadTimes.join(ITEM_ROW_SEP);
+    const finalPriceValidities = rowPriceValidities.join(ITEM_ROW_SEP);
+    const finalDimensionalDrawings = rowDimensionalDrawings.join(ITEM_ROW_SEP);
+    const finalIlluminanceDrawings = rowIlluminanceDrawings.join(ITEM_ROW_SEP);
+    const finalProductNames        = rowProductNames.join(ITEM_ROW_SEP);
+    const finalOriginalSpecs       = rowOriginalSpecs.join(ITEM_ROW_SEP);
+    const finalProductRefIDs       = rowProductRefIDs.join(ITEM_ROW_SEP);
+    const finalBranches            = rowBranches.join(ITEM_ROW_SEP);
+    const finalSpfRemarksPD        = rowSpfRemarksPD.join(ITEM_ROW_SEP);
+    const finalCommercialTypes     = rowCommercialTypes.join(ITEM_ROW_SEP);
     const finalItemCode        = rowItemCodes.some((r) => r !== "-" && r !== "")
-      ? rowItemCodes.join(ROW_SEP)
+      ? rowItemCodes.join(ITEM_ROW_SEP)
       : (item_code ?? null);
 
     const initialStatus = "Pending For Procurement";

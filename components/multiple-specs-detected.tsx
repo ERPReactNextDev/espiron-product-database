@@ -93,9 +93,30 @@ export default function MultipleSpecsDetected({
           ...group,
           specs: group.specs.map((spec: any) => {
             if (selectedSpecs[spec.specId]) {
+              const selectedValue = selectedSpecs[spec.specId];
+              
+              // If Cutout is selected, filter out "Ceiling Recessed" from the value
+              if (selectedValue.toLowerCase().includes("cutout") || 
+                  selectedValue.toLowerCase().includes("cut-out")) {
+                const values = (spec.value || "")
+                  .split("|")
+                  .map((v: string) => v.trim())
+                  .filter(Boolean);
+                
+                // Filter out "Ceiling Recessed" and keep only the selected cutout value
+                const filteredValues = values.filter((v: string) => 
+                  !v.toLowerCase().includes("ceiling recessed")
+                );
+                
+                return {
+                  ...spec,
+                  value: selectedValue,
+                };
+              }
+              
               return {
                 ...spec,
-                value: selectedSpecs[spec.specId],
+                value: selectedValue,
               };
             }
             return spec;

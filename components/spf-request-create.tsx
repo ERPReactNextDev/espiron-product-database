@@ -446,12 +446,6 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
 
   /* ── Helpers ── */
   const freezeSpecs = (product: any) => {
-    // If the product has already been filtered by the MultipleSpecsDetected modal, skip processing
-    // to preserve the user's single value selections
-    if (product.__specsFiltered) {
-      return product;
-    }
-    
     const activeFilters = (window as any).__ACTIVE_FILTERS__ || [];
     if (!product.technicalSpecifications) return product;
     const frozenSpecs = product.technicalSpecifications.map((group: any) => ({
@@ -463,14 +457,6 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
           .map((v: string) => v.trim())
           .filter(Boolean);
         const unique = Array.from(new Set(values)) as string[];
-        
-        // If the value is already a single value (not pipe-separated), keep it as-is
-        // This preserves the user's selection from the MultipleSpecsDetected modal
-        // Check both the raw value and the split values to ensure we don't rejoin single selections
-        if (!raw.includes("|") || values.length === 1) {
-          return { ...spec, value: values[0] || raw };
-        }
-        
         if (!activeFilters.length)
           return { ...spec, value: unique.join(" | ") };
         const filtered = unique.filter((v) => activeFilters.includes(v));
@@ -572,8 +558,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const handlePipeConfirm = (filteredProduct: any) => {
     if (pendingPipeRowIndex === null) return;
     // For mobile flow: after pipe modal, we skip the confirm sheet and add directly
-    // Mark the product as already filtered to prevent freezeSpecs from rejoining values
-    addProductToRow(pendingPipeRowIndex, { ...filteredProduct, qty: 1, __specsFiltered: true });
+    addProductToRow(pendingPipeRowIndex, { ...filteredProduct, qty: 1 });
     toast.success("Product added!");
     setPendingPipeProduct(null);
     setPendingPipeRowIndex(null);
