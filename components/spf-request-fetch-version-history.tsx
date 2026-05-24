@@ -62,7 +62,6 @@ type Props = {
 };
 
 const ROW_SEP = "|ROW|";
-const ITEM_ROW_SEP = "||";
 
 type SpecGroup = { title: string; specs: string[] };
 
@@ -289,15 +288,15 @@ function parseTechSpec(raw: string): SpecGroup[] {
 function splitByRow(value: string | undefined): string[][] {
   if (!value) return [];
   return value
-    .split(ITEM_ROW_SEP)
-    .map((rowStr) => rowStr.split(ROW_SEP).map((v) => v.trim()));
+    .split(ROW_SEP)
+    .map((rowStr) => rowStr.split(",").map((v) => v.trim()));
 }
 
 function splitSpecsByRow(value: string | undefined): SpecGroup[][][] {
   if (!value) return [];
   return value
-    .split(ITEM_ROW_SEP)
-    .map((rowStr) => rowStr.split(ROW_SEP).map(parseTechSpec));
+    .split(ROW_SEP)
+    .map((rowStr) => rowStr.split(" || ").map(parseTechSpec));
 }
 
 function formatDateTime(iso: string): string {
