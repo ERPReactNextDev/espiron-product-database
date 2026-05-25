@@ -118,9 +118,15 @@ export default function ProductsPage() {
     if (!userId) { router.push("/login"); return; }
     const q = query(collection(db, "products"), where("isActive", "==", true));
     const unsub = onSnapshot(q, (snap) => {
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setProducts(list);
-      setFilteredProducts(list);
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+      // Sort by latest createdAt date, fallback to updatedAt if createdAt doesn't exist
+      const sortedList = list.sort((a: any, b: any) => {
+        const dateA = a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || a.updatedAt?.toMillis?.() || new Date(a.updatedAt).getTime() || 0;
+        const dateB = b.createdAt?.toMillis?.() || new Date(b.createdAt).getTime() || b.updatedAt?.toMillis?.() || new Date(b.updatedAt).getTime() || 0;
+        return dateB - dateA;
+      });
+      setProducts(sortedList);
+      setFilteredProducts(sortedList);
       setLoading(false);
     });
     return () => unsub();

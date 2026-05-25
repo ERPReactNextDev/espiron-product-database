@@ -1,159 +1,218 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { useUser } from "@/contexts/UserContext";
-import { useTheme } from "@/contexts/ThemeContext";
-import { useWallpaper } from "@/contexts/WallpaperContext";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Input } from "@/components/ui/input";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  Search, RefreshCw, Eye, Building2, Package,
-  ChevronLeft, ChevronRight, Layers, Tag, Filter,
-} from "lucide-react";
-import { db } from "@/lib/firebase";
-import {
-  collection,
-  query,
-  orderBy,
-  limit,
-  getDocs,
-  startAfter,
-  QueryDocumentSnapshot,
-  DocumentData,
-  where,
-  Timestamp,
-} from "firebase/firestore";
-import { cn } from "@/lib/utils";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Card } from "@/components/ui/card";
+import { supabase } from "@/utils/supabase";
+import { History, ChevronDown, ChevronUp, Clock, User } from "lucide-react";
+import { generateTDSPdf } from "@/lib/generateTDSPdf";
 
-/* ─────────────────────────────────────────────
-   Types
-───────────────────────────────────────────── */
-type UserData = { Firstname: string; Lastname: string; Role: string };
+/* ─────────────────────────────────────────────────────────────── */
+/* TYPES                                                           */
+/* ─────────────────────────────────────────────────────────────── */
+type VersionRecord = {
+  id?: number;
+  spf_number: string;
+  version_number: number;
+  version_label: string;
+  created_at: string;
+  edited_by?: string;
+  item_added_author?: string;
+  status?: string;
+  spf_creation_start_time?: string;
+  spf_creation_end_time?: string;
+  price_validity?: string;
 
-type AuditLog = {
-  id: string;
-  whatHappened: string;
-  performedBy?: string;
-  performedByName?: string;
-  referenceID?: string;
-  supplierId?: string;
-  supplierbrandId?: string;
-  company?: string;
-  supplierBrand?: string;
-  productId?: string;
-  productReferenceID?: string;
-  productClass?: string;
-  pricePoint?: string;
-  supplier?: { company?: string; supplierBrand?: string };
-  productFamilyId?: string;
-  productFamilyName?: string;
-  productUsageId?: string;
-  productUsageName?: string;
-  mainImage?: { url?: string } | null;
-  dimensionalDrawing?: { url?: string } | null;
-  illuminanceDrawing?: { url?: string } | null;
-  technicalSpecifications?: { title: string; specs: { specId: string; value: string }[] }[];
-  inserted?: number;
-  reactivated?: number;
-  skipped?: number;
-  overwritten?: number;
-  date_updated?: Timestamp;
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
-  _raw?: Record<string, any>;
+  supplier_brand?: string;
+  product_name?: string;
+  product_offer_image?: string;
+  product_offer_qty?: string;
+  product_offer_technical_specification?: string;
+  product_offer_unit_cost?: string;
+  product_offer_pcs_per_carton?: string;
+  product_offer_packaging_details?: string;
+  warranty?: string;
+  product_offer_factory_address?: string;
+  product_offer_port_of_discharge?: string;
+  product_offer_subtotal?: string;
+  company_name?: string;
+  contact_name?: string;
+  contact_number?: string;
+  proj_lead_time?: string;
+  final_selling_cost?: string;
+  final_unit_cost?: string;
+  final_subtotal?: string;
+  item_code?: string;
+  tds?: string;
+  dimensional_drawing?: string;
+  illuminance_drawing?: string;
+  commercial_type?: string;
+  deleted_offers?: string;
 };
 
-type CollectionTab = "suppliers" | "products" | "productFamilies" | "productUsages" | "spfVersions"; 
-
-const PAGE_SIZE = 20;
-
-const COL_MAP: Record<CollectionTab, string> = {
-  suppliers      : "auditLogs_suppliers",
-  products       : "auditLogs_products",
-  productFamilies: "auditLogs_productFamilies",
-  productUsages  : "auditLogs_productUsages",
-
-  // ADD THIS
-  spfVersions    : "auditLogs_spfVersions",
+type Props = {
+  spfNumber: string;
+  isMobile?: boolean;
 };
 
-const ACTION_COLORS: Record<string, string> = {
-  "Supplier Added"         : "bg-emerald-100 text-emerald-700 border-emerald-200",
-  "Supplier Edited"        : "bg-blue-100 text-blue-700 border-blue-200",
-  "Supplier Deleted"       : "bg-red-100 text-red-700 border-red-200",
-  "Supplier Reactivated"   : "bg-amber-100 text-amber-700 border-amber-200",
-  "Supplier Bulk Upload"   : "bg-orange-100 text-orange-700 border-orange-200",
-  "Product Added"          : "bg-violet-100 text-violet-700 border-violet-200",
-  "Product Edited"         : "bg-sky-100 text-sky-700 border-sky-200",
-  "Product Deleted"        : "bg-rose-100 text-rose-700 border-rose-200",
-  "Product Bulk Upload"    : "bg-purple-100 text-purple-700 border-purple-200",
-  "Product Family Added"   : "bg-teal-100 text-teal-700 border-teal-200",
-  "Product Family Edited"  : "bg-cyan-100 text-cyan-700 border-cyan-200",
-  "Product Family Deleted" : "bg-pink-100 text-pink-700 border-pink-200",
-  "Product Usage Added"    : "bg-lime-100 text-lime-700 border-lime-200",
-  "Product Usage Edited"   : "bg-yellow-100 text-yellow-700 border-yellow-200",
-  "Product Usage Deleted"  : "bg-red-100 text-red-700 border-red-200",
+const ROW_SEP = "|ROW|";
+
+type SpecGroup = { title: string; specs: string[] };
+
+type LightMultipleRow = {
+  itemName?: string;
+  unitCost?: number;
+  length?: number | string;
+  width?: number | string;
+  height?: number | string;
+  qtyPerCarton?: number;
 };
 
-const ACTION_OPTIONS: Record<CollectionTab, string[]> = {
-  suppliers      : ["Supplier Added", "Supplier Edited", "Supplier Deleted", "Supplier Reactivated", "Supplier Bulk Upload"],
-  products       : ["Product Added", "Product Edited", "Product Deleted", "Product Bulk Upload"],
-  productFamilies: ["Product Family Added", "Product Family Edited", "Product Family Deleted"],
-  productUsages  : ["Product Usage Added", "Product Usage Edited", "Product Usage Deleted"],
-
-  // ADD THIS
-  spfVersions: ["SPF Created", "SPF Version Created", "SPF Updated"],
+type MultiPackagingPayloadV1 = {
+  v: 1;
+  type: "LIGHT_MULTIPLE";
+  rows: LightMultipleRow[];
 };
 
-/* ─────────────────────────────────────────────
-   Helpers
-───────────────────────────────────────────── */
-const formatTimestamp = (ts?: Timestamp): string => {
-  if (!ts) return "—";
+function decodeBase64ToString(base64: string): string | null {
   try {
-    return ts.toDate().toLocaleString("en-PH", {
-      year: "numeric", month: "short", day: "2-digit",
-      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    return new TextDecoder("utf-8").decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+function decodeMultiPackaging(packagingStr: string | undefined): MultiPackagingPayloadV1 | null {
+  const raw = (packagingStr ?? "").trim();
+  if (!raw.startsWith("MULTI:")) return null;
+  const b64 = raw.slice("MULTI:".length);
+  const decoded = decodeBase64ToString(b64);
+  if (!decoded) return null;
+  try {
+    const parsed = JSON.parse(decoded);
+    if (parsed?.v !== 1 || parsed?.type !== "LIGHT_MULTIPLE" || !Array.isArray(parsed?.rows)) {
+      return null;
+    }
+    return parsed as MultiPackagingPayloadV1;
+  } catch {
+    return null;
+  }
+}
+
+function parseHumanReadableMultiPackaging(packagingStr: string | undefined): MultiPackagingPayloadV1 | null {
+  const raw = (packagingStr ?? "").trim();
+  if (!raw || raw === "-") return null;
+  
+  // Check if it's the old base64 format
+  if (raw.startsWith("MULTI:")) {
+    return decodeMultiPackaging(raw);
+  }
+  
+  // Parse new human-readable format (4 lines per item: name, qty, dimensions, unitCost)
+  const lines = raw.split("\n").map(l => l.trim()).filter(l => l);
+  if (lines.length === 0) return null;
+  
+  // Check if it's the old 3-line format (name, dimensions, unitCost) or new 4-line format
+  const isOldFormat = lines.length % 3 === 0;
+  const isNewFormat = lines.length % 4 === 0;
+  
+  if (!isOldFormat && !isNewFormat) return null;
+  
+  const rows: LightMultipleRow[] = [];
+  const linesPerItem = isNewFormat ? 4 : 3;
+  
+  for (let i = 0; i < lines.length; i += linesPerItem) {
+    const itemName = lines[i] || "";
+    
+    let qtyPerCarton = 0;
+    let dimensions = "";
+    let unitCostStr = "";
+    
+    if (isNewFormat) {
+      // New format: name, qty, dimensions, unitCost
+      const qtyLine = lines[i + 1] || "";
+      dimensions = lines[i + 2] || "";
+      unitCostStr = lines[i + 3] || "";
+      
+      // Parse qty (e.g., "Qty: 552")
+      const qtyMatch = qtyLine.match(/^Qty:\s*(\d+)/);
+      qtyPerCarton = qtyMatch ? parseInt(qtyMatch[1], 10) : 0;
+    } else {
+      // Old format: name, dimensions, unitCost (qty not stored)
+      dimensions = lines[i + 1] || "";
+      unitCostStr = lines[i + 2] || "";
+      qtyPerCarton = 0;
+    }
+    
+    // Parse dimensions (e.g., "2222333 × 33 × 44334")
+    const dimParts = dimensions.split("×").map(p => p.trim());
+    const length = dimParts[0] || "-";
+    const width = dimParts[1] || "-";
+    const height = dimParts[2] || "-";
+    
+    // Parse unit cost (e.g., "230.67 USD")
+    const costMatch = unitCostStr.match(/^([\d.]+)/);
+    const unitCost = costMatch ? parseFloat(costMatch[1]) : 0;
+    
+    rows.push({
+      itemName,
+      length,
+      width,
+      height,
+      unitCost,
+      qtyPerCarton,
     });
-  } catch { return "—"; }
-};
+  }
+  
+  if (rows.length === 0) return null;
+  
+  return {
+    v: 1,
+    type: "LIGHT_MULTIPLE",
+    rows,
+  };
+}
 
-const getDisplayTime = (log: AuditLog): Timestamp | undefined =>
-  log.date_updated ?? log.updatedAt ?? log.createdAt;
+function formatPackagingForDisplay(packagingStr: string | undefined, commercialTypeRaw: string | undefined): React.ReactNode {
+  const ct = (commercialTypeRaw || "BASIC").toUpperCase();
+  const pack = packagingStr && packagingStr !== "" ? packagingStr : "-";
 
-/* ─────────────────────────────────────────────
-   Name cache
-───────────────────────────────────────────── */
+  if (ct === "LIGHT") {
+    const multi = parseHumanReadableMultiPackaging(pack);
+    if (multi?.rows?.length) {
+      return (
+        <div className="space-y-1">
+          {multi.rows.map((row, idx) => (
+            <div key={idx} className="text-[11px] leading-tight">
+              <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
+              <div>Qty: {row.qtyPerCarton ?? "-"}</div>
+              <div>
+                {(row.length ?? "-").toString()} × {(row.width ?? "-").toString()} × {(row.height ?? "-").toString()}
+              </div>
+              <div className="text-gray-500">
+                {(Number(row.unitCost ?? 0) || 0).toFixed(2)} USD
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+  }
+
+  return pack;
+}
+
+/* ─────────────────────────────────────────────────────────────── */
+/* NAME CACHE                                                      */
+/* ─────────────────────────────────────────────────────────────── */
 const nameCache = new Map<string, string>();
 
 async function resolveNames(referenceIDs: string[]): Promise<void> {
@@ -162,860 +221,1086 @@ async function resolveNames(referenceIDs: string[]): Promise<void> {
   await Promise.allSettled(
     unresolved.map(async (refId) => {
       try {
-        let user: any = null;
-        const r1 = await fetch(`/api/users?referenceID=${encodeURIComponent(refId)}`);
-        if (r1.ok) {
-          const d1 = await r1.json();
-          const c1 = Array.isArray(d1) ? d1[0] : d1;
-          if (c1?.Firstname) user = c1;
+        const response = await fetch(
+          `/api/users?referenceID=${encodeURIComponent(refId)}`,
+        );
+        if (response.ok) {
+          const user = await response.json();
+          nameCache.set(
+            refId,
+            user?.Firstname
+              ? `${user.Firstname} ${user.Lastname ?? ""}`.trim()
+              : refId,
+          );
+        } else {
+          nameCache.set(refId, refId);
         }
-        if (!user) {
-          const r2 = await fetch(`/api/users?ReferenceID=${encodeURIComponent(refId)}`);
-          if (r2.ok) {
-            const d2 = await r2.json();
-            const c2 = Array.isArray(d2) ? d2[0] : d2;
-            if (c2?.Firstname) user = c2;
-          }
-        }
-        nameCache.set(refId, user?.Firstname ? `${user.Firstname} ${user.Lastname ?? ""}`.trim() : refId);
-      } catch { nameCache.set(refId, refId); }
+      } catch {
+        nameCache.set(refId, refId);
+      }
     }),
   );
 }
 
-/* ─────────────────────────────────────────────
-   Detail Sheet
-───────────────────────────────────────────── */
-function LogDetailSheet({ log, open, onClose }: { log: AuditLog | null; open: boolean; onClose: () => void }) {
-  if (!log) return null;
-  const raw = log._raw ?? {};
+function getResolvedName(referenceID: string | undefined): string {
+  if (!referenceID) return "";
+  return nameCache.get(referenceID) ?? referenceID;
+}
+
+/* ─────────────────────────────────────────────────────────────── */
+/* STATUS LABEL                                                    */
+/* ─────────────────────────────────────────────────────────────── */
+function getStatusLabel(status: string | undefined): string {
+  if (status === "Pending For Procurement") return "For Procurement Costing";
+  if (status === "Approved By Procurement") return "Ready For Quotation";
+  if (status === "For Revision") return "FOR REVISION";
+  return status ?? "";
+}
+
+function getStatusClass(status: string | undefined): string {
+  if (status === "Approved By Procurement") return "bg-green-100 text-green-700 border-green-200";
+  if (status === "For Revision") return "bg-orange-100 text-orange-700 border-orange-200";
+  return "bg-yellow-100 text-yellow-700 border-yellow-200";
+}
+
+/* ─────────────────────────────────────────────────────────────── */
+/* PARSERS                                                         */
+/* ─────────────────────────────────────────────────────────────── */
+function parseTechSpec(raw: string): SpecGroup[] {
+  if (!raw || raw === "-") return [];
+  if (raw.includes("~~")) {
+    return raw.split("@@").map((chunk) => {
+      const [titlePart, rest = ""] = chunk.split("~~");
+      const specs = rest
+        .split(";;")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      return { title: titlePart.trim(), specs };
+    });
+  }
+  const specs = raw
+    .split(" | ")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return specs.length ? [{ title: "", specs }] : [];
+}
+
+function splitByRow(value: string | undefined): string[][] {
+  if (!value) return [];
+  return value
+    .split(ROW_SEP)
+    .map((rowStr) => rowStr.split(",").map((v) => v.trim()));
+}
+
+function splitSpecsByRow(value: string | undefined): SpecGroup[][][] {
+  if (!value) return [];
+  return value
+    .split(ROW_SEP)
+    .map((rowStr) => rowStr.split(" || ").map(parseTechSpec));
+}
+
+function formatDateTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString("en-US", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────── */
+/* DIFF HELPERS                                                     */
+/* ─────────────────────────────────────────────────────────────── */
+
+/**
+ * Returns true if the value differs from the previous version's
+ * equivalent value (or if there was no previous version = it's new).
+ */
+function isDifferent(current: string | undefined, previous: string | undefined): boolean {
+  const c = (current ?? "").trim();
+  const p = (previous ?? "").trim();
+  return c !== p;
+}
+
+/** Wrapper: highlights cell yellow if changed vs previous version */
+function DiffCell({
+  current,
+  previous,
+  children,
+  className = "",
+}: {
+  current: string | undefined;
+  previous: string | undefined;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const changed = isDifferent(current, previous);
   return (
-    <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>Audit Log Detail</SheetTitle>
-          <SheetDescription>Full snapshot of this event</SheetDescription>
-        </SheetHeader>
-        <Separator className="my-4" />
-        <div className="space-y-3 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="font-medium w-36 shrink-0 text-muted-foreground">Action</span>
-            <Badge variant="outline" className={cn("text-xs", ACTION_COLORS[log.whatHappened] ?? "bg-gray-100 text-gray-700")}>
-              {log.whatHappened}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-medium w-36 shrink-0 text-muted-foreground">Timestamp</span>
-            <span>{formatTimestamp(getDisplayTime(log))}</span>
-          </div>
-          {log.performedBy && (
-            <div className="flex items-center gap-2">
-              <span className="font-medium w-36 shrink-0 text-muted-foreground">Performed By</span>
-              <span>{log.performedByName || log.performedBy}</span>
-            </div>
-          )}
-          <Separator />
-          {Object.entries(raw)
-            .filter(([k]) => k !== "_raw" && k !== "whatHappened" && k !== "date_updated" && k !== "createdAt" && k !== "updatedAt")
-            .map(([k, v]) => (
-              <div key={k} className="flex gap-2">
-                <span className="font-medium w-36 shrink-0 text-muted-foreground capitalize">
-                  {k.replace(/([A-Z])/g, " $1").trim()}
-                </span>
-                <span className="break-all text-xs text-gray-700">
-                  {typeof v === "object" ? JSON.stringify(v, null, 2) : String(v ?? "—")}
-                </span>
-              </div>
-            ))}
-        </div>
-      </SheetContent>
-    </Sheet>
+    <td
+      className={`border px-2 py-1 text-center align-middle ${changed ? "bg-yellow-100" : ""} ${className}`}
+      title={changed && previous !== undefined ? `Was: ${previous || "-"}` : undefined}
+    >
+      {changed && previous !== undefined && (
+        <span className="block text-[9px] text-yellow-700 font-semibold mb-0.5 leading-none">
+          ✎ changed
+        </span>
+      )}
+      {children}
+    </td>
   );
 }
 
-/* ─────────────────────────────────────────────
-   Tab state
-───────────────────────────────────────────── */
-type TabState = {
-  logs: AuditLog[];
-  cursor: QueryDocumentSnapshot<DocumentData> | null;
-  hasMore: boolean;
-  page: number;
-  search: string;
-  actionFilter: string;
-};
-
-const initTabState = (): TabState => ({
-  logs: [], cursor: null, hasMore: true, page: 1, search: "", actionFilter: "all",
-});
-
-/* ─────────────────────────────────────────────
-   Mobile Card
-───────────────────────────────────────────── */
-function MobileCard({
-  log, primaryLabel, primaryValue, secondaryLabel, secondaryValue, onEye, extraRows, mediaButtons,
+/** Mobile diff wrapper */
+function DiffValue({
+  label,
+  current,
+  previous,
 }: {
-  log: AuditLog; primaryLabel: string; primaryValue?: string;
-  secondaryLabel?: string; secondaryValue?: string; onEye: () => void;
-  extraRows?: { label: string; value: React.ReactNode }[];
-  mediaButtons?: React.ReactNode;
+  label: string;
+  current: string | undefined;
+  previous: string | undefined;
 }) {
+  const changed = isDifferent(current, previous);
   return (
-    <div className="border border-gray-200 rounded-2xl bg-white/80 backdrop-blur-sm shadow-sm p-4 space-y-2">
-      <div className="flex items-start justify-between gap-2">
-        <Badge variant="outline" className={cn("text-xs whitespace-nowrap shrink-0", ACTION_COLORS[log.whatHappened] ?? "bg-gray-100 text-gray-700 border-gray-200")}>
-          {log.whatHappened}
-        </Badge>
-        <button onClick={onEye} className="h-7 w-7 rounded-lg border border-gray-200 bg-white/80 flex items-center justify-center shrink-0">
-          <Eye className="h-3.5 w-3.5 text-gray-500" />
-        </button>
-      </div>
+    <div className={`${changed ? "bg-yellow-50 rounded px-1 py-0.5 border border-yellow-200" : ""}`}>
+      <span className="text-gray-400 block text-[10px]">{label}</span>
+      {changed && previous !== undefined && (
+        <span className="text-[9px] text-yellow-700 font-semibold block leading-none mb-0.5">
+          ✎ changed
+        </span>
+      )}
+      <p className="text-[10px]">{current || "-"}</p>
+    </div>
+  );
+}
 
-      {primaryValue && (
-        <div className="flex items-center gap-1.5 text-xs">
-          <span className="text-gray-500 shrink-0">{primaryLabel}:</span>
-          <span className="font-semibold text-gray-800 truncate">{primaryValue}</span>
+/* ─────────────────────────────────────────────────────────────── */
+/* SPEC BLOCK                                                      */
+/* ─────────────────────────────────────────────────────────────── */
+function SpecsBlock({ groups }: { groups: SpecGroup[] }) {
+  const [open, setOpen] = useState(false);
+  if (!groups.length)
+    return <span className="text-xs text-muted-foreground">-</span>;
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((p) => !p)}
+        className="flex items-center gap-1 text-xs text-blue-600 font-medium"
+      >
+        {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        {open ? "Hide" : "View specs"}
+      </button>
+      {open && (
+        <div className="mt-1 space-y-1.5">
+          {groups.map((group, gi) => (
+            <div key={gi}>
+              {group.title && (
+                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-700">
+                  {group.title}
+                </p>
+              )}
+              {group.specs.map((spec, si) => (
+                <p key={`${gi}-${si}-${spec.slice(0, 20)}`} className="text-[10px] text-gray-500 leading-snug">
+                  {spec}
+                </p>
+              ))}
+            </div>
+          ))}
         </div>
       )}
-      {secondaryValue && (
-        <div className="flex items-center gap-1.5 text-xs">
-          <span className="text-gray-500 shrink-0">{secondaryLabel}:</span>
-          <span className="text-gray-600 truncate">{secondaryValue}</span>
-        </div>
-      )}
+    </div>
+  );
+}
 
-      {extraRows?.map((row, i) => (
-        <div key={i} className="flex items-center gap-1.5 text-xs">
-          <span className="text-gray-500 shrink-0">{row.label}:</span>
-          <span className="text-gray-700">{row.value}</span>
+function renderHistoryTechnicalSpecs(groups: SpecGroup[]) {
+  if (!groups || groups.length === 0) {
+    return <span className="text-[10px] text-muted-foreground">-</span>;
+  }
+  return (
+    <div className="space-y-1 text-[10px] text-gray-700">
+      {groups.map((group, gi) => (
+        <div key={gi}>
+          {group.title && (
+            <div className="font-semibold text-gray-800">{group.title}</div>
+          )}
+          {group.specs.map((spec, si) => (
+            <div key={`${gi}-${si}-${spec.slice(0, 20)}`} className="leading-tight">
+              {spec}
+            </div>
+          ))}
         </div>
       ))}
-
-      {mediaButtons && (
-        <div className="flex flex-wrap gap-2 pt-1">
-          {mediaButtons}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-        <span className="text-xs text-gray-500">{log.performedByName || log.performedBy || "—"}</span>
-        <span className="text-xs text-gray-400">{formatTimestamp(getDisplayTime(log))}</span>
-      </div>
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────
-   TabLayout Component (outside HistoryPage to prevent focus loss)
-───────────────────────────────────────────── */
-interface TabLayoutProps {
-  tab: CollectionTab;
-  searchPlaceholder: string;
-  mobileCards: React.ReactNode;
-  tableHeaders: React.ReactNode;
-  tableRows: React.ReactNode;
-  tabState: TabState;
-  filteredCount: number;
-  fetching: boolean;
-  onSearchChange: (value: string) => void;
-  onActionFilterChange: (value: string) => void;
-  onFirstPage: () => void;
-  onNextPage: () => void;
-  actionOptions: string[];
-}
+/* ─────────────────────────────────────────────────────────────── */
+/* VERSION DETAIL VIEW                                             */
+/* ─────────────────────────────────────────────────────────────── */
+function VersionDetail({
+  record,
+  prevRecord,
+  itemDescriptions,
+  itemImages,
+  isMobile,
+  isFirst,
+}: {
+  record: VersionRecord;
+  prevRecord: VersionRecord | null; // the older version for diffing (next in array since sorted desc)
+  itemDescriptions: string[];
+  itemImages: string[];
+  isMobile?: boolean;
+  isFirst: boolean; // v1 = no previous, no highlighting
+}) {
+  const rowImages = splitByRow(record.product_offer_image);
+  const rowQtys = splitByRow(record.product_offer_qty);
+  const rowUnitCosts = splitByRow(record.product_offer_unit_cost);
+  const rowPcsPerCartons = splitByRow(record.product_offer_pcs_per_carton);
+  const rowPackaging = splitByRow(record.product_offer_packaging_details);
+  const rowWarranties = splitByRow(record.warranty);
+  const rowFactories = splitByRow(record.product_offer_factory_address);
+  const rowPorts = splitByRow(record.product_offer_port_of_discharge);
+  const rowSubtotals = splitByRow(record.product_offer_subtotal);
+  const rowSupplierBrands = splitByRow(record.supplier_brand);
+  const rowSpecs = splitSpecsByRow(record.product_offer_technical_specification);
+  const rowCompanyNames = splitByRow(record.company_name);
+  const rowContactNames = splitByRow(record.contact_name);
+  const rowContactNumbers = splitByRow(record.contact_number);
+  const rowLeadTimes = splitByRow(record.proj_lead_time);
+  const rowSellingCosts = splitByRow(record.final_selling_cost);
+  const rowFinalUnitCosts = splitByRow(record.final_unit_cost);
+  const rowFinalSubtotals = splitByRow(record.final_subtotal);
+  const rowItemCodes = splitByRow(record.item_code);
+  const rowPriceValidities = splitByRow(record.price_validity);
+  const rowTdsBrands = splitByRow(record.tds);
+  const rowProductNames = splitByRow(record.product_name);
+  const rowDimensionalDrawings = splitByRow(record.dimensional_drawing);
+  const rowIlluminanceDrawings = splitByRow(record.illuminance_drawing);
+  const rowCommercialTypes = splitByRow(record.commercial_type);
 
-function TabLayout({
-  tab,
-  searchPlaceholder,
-  mobileCards,
-  tableHeaders,
-  tableRows,
-  tabState,
-  filteredCount,
-  fetching,
-  onSearchChange,
-  onActionFilterChange,
-  onFirstPage,
-  onNextPage,
-  actionOptions,
-}: TabLayoutProps) {
-  const { search, actionFilter, page, hasMore } = tabState;
-  
+  // Parse deleted offers
+  const deletedOffersData = record.deleted_offers ? JSON.parse(record.deleted_offers) : [];
+  const deletedOffersByRow: Record<number, any[]> = {};
+  deletedOffersData.forEach((offer: any) => {
+    const rowIndex = offer.__rowIndex ?? 0;
+    if (!deletedOffersByRow[rowIndex]) {
+      deletedOffersByRow[rowIndex] = [];
+    }
+    deletedOffersByRow[rowIndex].push(offer);
+  });
+
+  // Previous version parsed values (for diff)
+  const prevRowImages = splitByRow(prevRecord?.product_offer_image);
+  const prevRowQtys = splitByRow(prevRecord?.product_offer_qty);
+  const prevRowUnitCosts = splitByRow(prevRecord?.product_offer_unit_cost);
+  const prevRowPcsPerCartons = splitByRow(prevRecord?.product_offer_pcs_per_carton);
+  const prevRowPackaging = splitByRow(prevRecord?.product_offer_packaging_details);
+  const prevRowWarranties = splitByRow(prevRecord?.warranty);
+  const prevRowFactories = splitByRow(prevRecord?.product_offer_factory_address);
+  const prevRowPorts = splitByRow(prevRecord?.product_offer_port_of_discharge);
+  const prevRowSubtotals = splitByRow(prevRecord?.product_offer_subtotal);
+  const prevRowBrands = splitByRow(prevRecord?.supplier_brand);
+  const prevRowSpecs = splitSpecsByRow(prevRecord?.product_offer_technical_specification);
+  const prevRowCompanyNames = splitByRow(prevRecord?.company_name);
+  const prevRowContactNames = splitByRow(prevRecord?.contact_name);
+  const prevRowContactNumbers = splitByRow(prevRecord?.contact_number);
+  const prevRowLeadTimes = splitByRow(prevRecord?.proj_lead_time);
+  const prevRowSellingCosts = splitByRow(prevRecord?.final_selling_cost);
+  const prevRowFinalUnitCosts = splitByRow(prevRecord?.final_unit_cost);
+  const prevRowFinalSubtotals = splitByRow(prevRecord?.final_subtotal);
+  const prevRowItemCodes = splitByRow(prevRecord?.item_code);
+  const prevRowPriceValidities = splitByRow(prevRecord?.price_validity);
+  const prevRowTdsBrands = splitByRow(prevRecord?.tds);
+  const prevRowProductNames = splitByRow(prevRecord?.product_name);
+  const prevRowCommercialTypes = splitByRow(prevRecord?.commercial_type);
+
+
+  // Helper to get prev value safely (undefined = no prev = no highlight)
+  const getPrev = (arr: string[][], rowIdx: number, i: number): string | undefined => {
+    if (isFirst || !prevRecord) return undefined;
+    return arr[rowIdx]?.[i];
+  };
+
+  const getSpecsPrev = (arr: SpecGroup[][][], rowIdx: number, i: number): string | undefined => {
+    if (isFirst || !prevRecord) return undefined;
+    const groups = arr[rowIdx]?.[i] ?? [];
+    return JSON.stringify(groups);
+  };
+
   return (
-    <div className="h-dvh flex flex-col overflow-hidden -mx-4 md:-mx-6 -mt-4 md:-mt-6">
+    <div className="space-y-3 mt-2">
+      {itemDescriptions.map((desc, rowIndex) => {
+        const prodImages = rowImages[rowIndex] ?? [];
+        const prodQtys = rowQtys[rowIndex] ?? [];
+        const prodUnitCosts = rowUnitCosts[rowIndex] ?? [];
+        const prodPcsPerCartons = rowPcsPerCartons[rowIndex] ?? [];
+        const prodPackaging = rowPackaging[rowIndex] ?? [];
+        const prodWarranties = rowWarranties[rowIndex] ?? [];
+        const prodFactories = rowFactories[rowIndex] ?? [];
+        const prodPorts = rowPorts[rowIndex] ?? [];
+        const prodSubtotals = rowSubtotals[rowIndex] ?? [];
+        const prodBrands = rowSupplierBrands[rowIndex] ?? [];
+        const prodSpecs = rowSpecs[rowIndex] ?? [];
+        const prodCompanyNames = rowCompanyNames[rowIndex] ?? [];
+        const prodContactNames = rowContactNames[rowIndex] ?? [];
+        const prodContactNumbers = rowContactNumbers[rowIndex] ?? [];
+        const prodLeadTimes = rowLeadTimes[rowIndex] ?? [];
+        const prodSellingCosts = rowSellingCosts[rowIndex] ?? [];
+        const prodFinalUnitCosts = rowFinalUnitCosts[rowIndex] ?? [];
+        const prodFinalSubtotals = rowFinalSubtotals[rowIndex] ?? [];
+        const prodItemCodes = rowItemCodes[rowIndex] ?? [];
+        const prodPriceValidities = rowPriceValidities[rowIndex] ?? [];
+        const prodTdsBrands = rowTdsBrands[rowIndex] ?? [];
+        const prodProductNames = rowProductNames[rowIndex] ?? [];
+        const prodDimensionalDrawings = rowDimensionalDrawings[rowIndex] ?? [];
+        const prodIlluminanceDrawings = rowIlluminanceDrawings[rowIndex] ?? [];
+        const prodCommercialTypes = rowCommercialTypes[rowIndex] ?? [];
 
-      {/* ── Toolbar ── */}
-      <div className="shrink-0 bg-white/80 backdrop-blur-md border-b px-4 md:px-6 pt-4 pb-3 space-y-3">
-        {/* search + filter row */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder={searchPlaceholder}
-              value={search}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 bg-white/70 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-300"
-            />
-          </div>
-          <Select value={actionFilter} onValueChange={onActionFilterChange}>
-            <SelectTrigger className="h-9 w-44 bg-white/70">
-              <SelectValue placeholder="All actions" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Actions</SelectItem>
-              {actionOptions.map((a) => (
-                <SelectItem key={a} value={a}>{a}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {/* pagination info */}
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-500">
-            Page {page} · {filteredCount} record{filteredCount !== 1 ? "s" : ""} on page
-          </span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={page === 1 || fetching}
-              onClick={onFirstPage}>
-              <ChevronLeft className="h-3.5 w-3.5 mr-1" /> First
-            </Button>
-            <Button size="sm" variant="outline" disabled={!hasMore || fetching}
-              onClick={onNextPage}>
-              Next <ChevronRight className="h-3.5 w-3.5 ml-1" />
-            </Button>
-          </div>
-        </div>
-      </div>
+        const hasProducts =
+          prodImages.length > 0 &&
+          !(prodImages.length === 1 && prodImages[0] === "");
 
-      {/* ── Desktop table — thead sticky inside this scroll container ── */}
-      <div className="hidden md:block flex-1 min-h-0 overflow-auto bg-white/60 backdrop-blur-sm">
-        <table className="w-full text-sm border-collapse">
-          <thead className="bg-red-50/80 backdrop-blur-sm sticky top-0 z-10">
-            <tr>{tableHeaders}</tr>
-          </thead>
-          <tbody>
-            {fetching ? (
-              <tr><td colSpan={99} className="text-center py-10 text-muted-foreground">Loading…</td></tr>
-            ) : filteredCount === 0 ? (
-              <tr><td colSpan={99} className="text-center py-10 text-muted-foreground">No audit logs found.</td></tr>
-            ) : tableRows}
-          </tbody>
-        </table>
-      </div>
+        // Check if this entire row is new (didn't exist in previous version)
+        const rowIsNew = !isFirst && prevRecord && (prevRowImages[rowIndex] === undefined || prevRowImages[rowIndex]?.every(v => !v || v === ""));
 
-      {/* ── Mobile cards ── */}
-      <div className="md:hidden flex-1 overflow-y-auto px-3 pt-3 pb-28 space-y-3 min-h-0">
-        {fetching ? (
-          <div className="flex justify-center py-16">
-            <div className="h-7 w-7 rounded-full border-2 border-gray-200 border-t-gray-800 animate-spin" />
+        return (
+          <div
+            key={rowIndex}
+            className={`border rounded-lg overflow-hidden bg-white ${rowIsNew ? "border-yellow-400" : "border-gray-200"}`}
+          >
+            <div className={`border-b px-3 py-2 flex items-center gap-3 ${rowIsNew ? "bg-yellow-50" : "bg-gray-50"}`}>
+              {rowIsNew && (
+                <span className="text-[9px] font-bold text-yellow-700 bg-yellow-200 px-1.5 py-0.5 rounded shrink-0">
+                  NEW ROW
+                </span>
+              )}
+              <span className="text-xs font-bold text-gray-500 shrink-0">
+                {record.spf_number}-{String(rowIndex + 1).padStart(3, "0")}
+              </span>
+              {itemImages[rowIndex] ? (
+                <img
+                  src={itemImages[rowIndex]}
+                  className="w-8 h-8 object-contain rounded shrink-0"
+                  alt=""
+                />
+              ) : null}
+              <p className="text-xs font-medium text-gray-800 line-clamp-2 flex-1">
+                {desc.replace(/\|/g, " · ")}
+              </p>
+            </div>
+
+            {!hasProducts && !deletedOffersByRow[rowIndex] ? (
+              <p className="text-xs text-muted-foreground px-3 py-2">
+                No products
+              </p>
+            ) : isMobile ? (
+              <div className="space-y-2 px-3 py-2">
+                {prodImages.map((img, i) => {
+                  const groups = prodSpecs[i] ?? [];
+                  const optItemCode = prodItemCodes[i] && prodItemCodes[i] !== "-" ? prodItemCodes[i] : null;
+                  // Check if this option is new (didn't exist in prev version)
+                  const optIsNew = !isFirst && prevRecord && prevRowImages[rowIndex]?.[i] === undefined;
+
+                  return (
+                    <div key={i} className={`border rounded-lg p-3 bg-white ${optIsNew ? "border-yellow-400 bg-yellow-50" : ""}`}>
+                      {optIsNew && (
+                        <span className="text-[9px] font-bold text-yellow-700 bg-yellow-200 px-1.5 py-0.5 rounded block mb-2 w-fit">
+                          NEW OPTION
+                        </span>
+                      )}
+                      <div className="flex items-center gap-2 mb-2">
+                        {img && img !== "-" ? (
+                          <img
+                            src={img}
+                            className="w-12 h-12 object-contain rounded border"
+                            alt=""
+                          />
+                        ) : (
+                          <div className="w-12 h-12 bg-gray-100 rounded border flex items-center justify-center text-[9px] text-gray-400">
+                            No img
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold truncate">
+                            Option {i + 1}
+                            {prodBrands[i] ? ` · ${prodBrands[i]}` : ""}
+                          </p>
+                          {optItemCode && (
+                            <p className="text-[10px] text-gray-500 leading-tight">
+                              {optItemCode}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[10px] mb-2">
+                        <DiffValue label="Product Name" current={prodProductNames[i]} previous={getPrev(prevRowProductNames, rowIndex, i)} />
+                        <DiffValue label="Qty" current={prodQtys[i]} previous={getPrev(prevRowQtys, rowIndex, i)} />
+                        <DiffValue label="Unit Cost" current={prodUnitCosts[i]} previous={getPrev(prevRowUnitCosts, rowIndex, i)} />
+                        <DiffValue label="Qty/Per Carton" current={prodPcsPerCartons[i]} previous={getPrev(prevRowPcsPerCartons, rowIndex, i)} />
+                        <div className={`${(() => { const c = prodPackaging[i]; const p = getPrev(prevRowPackaging, rowIndex, i); const changed = (c ?? "").trim() !== (p ?? "").trim(); return changed ? "bg-yellow-50 rounded px-1 py-0.5 border border-yellow-200" : ""; })()}`}>
+                          <span className="text-gray-400 block text-[10px]">Packaging</span>
+                          {(() => {
+                            const c = prodPackaging[i];
+                            const p = getPrev(prevRowPackaging, rowIndex, i);
+                            const changed = (c ?? "").trim() !== (p ?? "").trim();
+                            if (changed && p !== undefined) {
+                              return (
+                                <div>
+                                  <span className="text-[9px] text-yellow-700 font-semibold block leading-none mb-0.5">✎ changed</span>
+                                  {formatPackagingForDisplay(c, prodCommercialTypes[i])}
+                                </div>
+                              );
+                            }
+                            return formatPackagingForDisplay(c, prodCommercialTypes[i]);
+                          })()}
+                        </div>
+                        <DiffValue label="Warranty" current={prodWarranties[i]} previous={getPrev(prevRowWarranties, rowIndex, i)} />
+                        <DiffValue
+                          label="Price Validity"
+                          current={(() => {
+                            const pv = prodPriceValidities[i];
+                            if (!pv || pv === "-") return "-";
+                            try { return new Date(pv).toLocaleString("en-PH", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return pv; }
+                          })()}
+                          previous={(() => {
+                            const pv = getPrev(prevRowPriceValidities, rowIndex, i);
+                            if (!pv || pv === "-") return "-";
+                            try { return new Date(pv).toLocaleString("en-PH", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return pv; }
+                          })()}
+                        />
+                        <div className={`${(() => { const b = prodTdsBrands[i]; const p = getPrev(prevRowTdsBrands, rowIndex, i); const changed = (b ?? "").trim() !== (p ?? "").trim(); return changed ? "bg-yellow-50 rounded px-1 py-0.5 border border-yellow-200" : ""; })()}`}>
+                          <span className="text-gray-400 block text-[10px]">TDS Brand</span>
+                          {(() => {
+                            const b = prodTdsBrands[i];
+                            const p = getPrev(prevRowTdsBrands, rowIndex, i);
+                            const changed = (b ?? "").trim() !== (p ?? "").trim();
+                            if (!b || b === "-" || b === "") return <p className="text-[10px]">-</p>;
+                            const img = prodImages[i];
+                            const specs = prodSpecs[i] ?? [];
+                            const techSpecs = specs.map((g) => ({
+                              title: g.title,
+                              specs: g.specs.map((s) => {
+                                const idx = s.indexOf(":");
+                                if (idx === -1) return { specId: s, value: "" };
+                                return { specId: s.slice(0, idx).trim(), value: s.slice(idx + 1).trim() };
+                              }),
+                            }));
+                            const itemCode = prodItemCodes[i] || "";
+                            return (
+                              <div className="flex flex-col gap-0.5">
+                                {changed && p !== undefined && (
+                                  <span className="text-[9px] text-yellow-700 font-semibold block leading-none mb-0.5">✎ changed</span>
+                                )}
+                                <p className="text-[10px] font-medium">{b}</p>
+                                <button
+                                  type="button"
+                                  className="text-[10px] text-green-600 underline font-medium text-left"
+                                  onClick={() => {
+                                    import("jspdf").then(({ default: jsPDF }) =>
+                                      import("jspdf-autotable").then(({ default: autoTable }) => {
+                                        generateTDSPdf({
+                                          jsPDF,
+                                          autoTable,
+                                          brand: b,
+                                          productName: itemCode,
+                                          itemCode,
+                                          mainImage: img && img !== "-" ? { url: img } : undefined,
+                                          technicalSpecifications: techSpecs,
+                                          dimensionalDrawing: (() => {
+                                            const u = prodDimensionalDrawings[i];
+                                            return u && u !== "-" ? { url: u } : null;
+                                          })(),
+                                          illuminanceDrawing: (() => {
+                                            const u = prodIlluminanceDrawings[i];
+                                            return u && u !== "-" ? { url: u } : null;
+                                          })(),
+                                          hideEmptySpecs: true,
+                                        });
+                                      })
+                                    );
+                                  }}
+                                >
+                                  ⬇ Download TDS
+                                </button>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                        <DiffValue label="Factory" current={prodFactories[i]} previous={getPrev(prevRowFactories, rowIndex, i)} />
+                        <DiffValue label="Port" current={prodPorts[i]} previous={getPrev(prevRowPorts, rowIndex, i)} />
+                        <DiffValue label="Subtotal" current={prodSubtotals[i] ? `₱${Number(prodSubtotals[i] || 0).toLocaleString()}` : undefined} previous={getPrev(prevRowSubtotals, rowIndex, i) ? `₱${Number(getPrev(prevRowSubtotals, rowIndex, i) || 0).toLocaleString()}` : getPrev(prevRowSubtotals, rowIndex, i)} />
+                        <DiffValue label="Lead Time" current={prodLeadTimes[i]} previous={getPrev(prevRowLeadTimes, rowIndex, i)} />
+                        <DiffValue label="Selling Cost" current={prodSellingCosts[i]} previous={getPrev(prevRowSellingCosts, rowIndex, i)} />
+                        <DiffValue label="Final Unit Cost" current={prodFinalUnitCosts[i]} previous={getPrev(prevRowFinalUnitCosts, rowIndex, i)} />
+                        <div className="col-span-2">
+                          <DiffValue label="Final Subtotal" current={prodFinalSubtotals[i]} previous={getPrev(prevRowFinalSubtotals, rowIndex, i)} />
+                        </div>
+                      </div>
+                      <div className="text-[10px] mb-2">
+                        <p className="font-semibold">Technical Specs</p>
+                        {groups.length === 0 ? (
+                          <p className="text-gray-500">-</p>
+                        ) : (
+                          groups.map((group, gi) => (
+                            <p key={`${gi}-${group.title || 'no-title'}`} className="text-gray-500">
+                              {group.title ? `${group.title}: ` : ""}
+                              {group.specs.join(", ")}
+                            </p>
+                          ))
+                        )}
+                      </div>
+                      <div className="text-[10px] space-y-0.5">
+                        <DiffValue label="Company" current={prodCompanyNames[i]} previous={getPrev(prevRowCompanyNames, rowIndex, i)} />
+                        <DiffValue label="Contact Name" current={prodContactNames[i]} previous={getPrev(prevRowContactNames, rowIndex, i)} />
+                        <DiffValue label="Contact No." current={prodContactNumbers[i]} previous={getPrev(prevRowContactNumbers, rowIndex, i)} />
+                      </div>
+                    </div>
+                  );
+                })}
+                {/* Display deleted offers in red */}
+                {deletedOffersByRow[rowIndex]?.map((deletedOffer: any, i: number) => (
+                  <div key={`deleted-${i}`} className="border rounded-lg p-3 bg-red-50 border-red-300">
+                    <span className="text-[9px] font-bold text-red-700 bg-red-200 px-1.5 py-0.5 rounded block mb-2 w-fit">
+                      DELETED
+                    </span>
+                    <div className="flex items-center gap-2 mb-2">
+                      {deletedOffer.mainImage?.url && deletedOffer.mainImage.url !== "-" ? (
+                        <img
+                          src={deletedOffer.mainImage.url}
+                          className="w-12 h-12 object-contain rounded border"
+                          alt=""
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-gray-100 rounded border flex items-center justify-center text-[9px] text-gray-400">
+                          No img
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold truncate text-red-800">
+                          {deletedOffer.productName || `Deleted Option ${i + 1}`}
+                          {deletedOffer.supplier?.supplierBrand ? ` · ${deletedOffer.supplier.supplierBrand}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="overflow-x-auto px-4 py-3">
+                <table className="w-full border text-sm" style={{ minWidth: "1400px" }}>
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Supplier Brand</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Product Name</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Image</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Qty</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Price Validity</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">TDS Brand</th>
+                      <th className="border px-2 py-1 text-center min-w-[180px]">Technical Specs</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Unit Cost</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Qty/Per Carton</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Packaging</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Warranty</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Factory</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Port</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Subtotal</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Company</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Contact Name</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Contact No.</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Lead Time</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Selling Cost</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Final Unit Cost</th>
+                      <th className="border px-2 py-1 text-center whitespace-nowrap">Final Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {prodImages.map((img, i) => {
+                      const groups = prodSpecs[i] ?? [];
+                      const prevGroups = prevRowSpecs[rowIndex]?.[i] ?? [];
+                      const specsChanged = !isFirst && prevRecord && JSON.stringify(groups) !== JSON.stringify(prevGroups);
+                      const optIsNew = !isFirst && prevRecord && prevRowImages[rowIndex]?.[i] === undefined;
+
+                      return (
+                        <tr key={i} className={`align-top ${optIsNew ? "bg-yellow-50" : ""}`}>
+                          <DiffCell current={prodBrands[i]} previous={getPrev(prevRowBrands, rowIndex, i)}>
+                            {prodBrands[i] || "-"}
+                          </DiffCell>
+                          <DiffCell current={prodProductNames[i]} previous={getPrev(prevRowProductNames, rowIndex, i)}>
+                            {prodProductNames[i] || "-"}
+                          </DiffCell>
+                          <td className={`border px-2 py-1 text-center ${optIsNew ? "bg-yellow-50" : ""}`}>
+                            {optIsNew && (
+                              <span className="block text-[9px] font-bold text-yellow-700 bg-yellow-200 px-1 rounded mb-0.5 w-fit mx-auto">
+                                NEW
+                              </span>
+                            )}
+                            {img && img !== "-" ? (
+                              <img
+                                src={img}
+                                className="w-12 h-12 object-contain mx-auto"
+                                alt=""
+                              />
+                            ) : (
+                              <span className="text-muted-foreground text-[10px]">-</span>
+                            )}
+                          </td>
+                          <DiffCell current={prodQtys[i]} previous={getPrev(prevRowQtys, rowIndex, i)}>
+                            {prodQtys[i] || "-"}
+                          </DiffCell>
+                          <DiffCell current={prodPriceValidities[i]} previous={getPrev(prevRowPriceValidities, rowIndex, i)}>
+                            {(() => {
+                              const pv = prodPriceValidities[i];
+                              if (!pv || pv === "-") return "-";
+                              try { return new Date(pv).toLocaleString("en-PH", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return pv; }
+                            })()}
+                          </DiffCell>
+                          <DiffCell current={prodTdsBrands[i]} previous={getPrev(prevRowTdsBrands, rowIndex, i)}>
+                            {(() => {
+                              const b = prodTdsBrands[i];
+                              if (!b || b === "-" || b === "") return "-";
+                              const img = prodImages[i];
+                              const specs = prodSpecs[i] ?? [];
+                              const techSpecs = specs.map((g) => ({
+                                title: g.title,
+                                specs: g.specs.map((s) => {
+                                  const idx = s.indexOf(":");
+                                  if (idx === -1) return { specId: s, value: "" };
+                                  return { specId: s.slice(0, idx).trim(), value: s.slice(idx + 1).trim() };
+                                }),
+                              }));
+                              const itemCode = prodItemCodes[i] || "";
+                              return (
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="font-medium text-[11px]">{b}</span>
+                                  <button
+                                    type="button"
+                                    className="text-[10px] text-green-600 underline font-medium whitespace-nowrap"
+                                    onClick={() => {
+                                      import("jspdf").then(({ default: jsPDF }) =>
+                                        import("jspdf-autotable").then(({ default: autoTable }) => {
+                                          generateTDSPdf({
+                                            jsPDF,
+                                            autoTable,
+                                            brand: b,
+                                            productName: itemCode,
+                                            itemCode,
+                                            mainImage: img && img !== "-" ? { url: img } : undefined,
+                                            technicalSpecifications: techSpecs,
+                                            dimensionalDrawing: (() => {
+                                              const u = prodDimensionalDrawings[i];
+                                              return u && u !== "-" ? { url: u } : null;
+                                            })(),
+                                            illuminanceDrawing: (() => {
+                                              const u = prodIlluminanceDrawings[i];
+                                              return u && u !== "-" ? { url: u } : null;
+                                            })(),
+                                            hideEmptySpecs: true,
+                                          });
+                                        })
+                                      );
+                                    }}
+                                  >
+                                    ⬇ Download TDS
+                                  </button>
+                                </div>
+                              );
+                            })()}
+                          </DiffCell>
+                          <td
+                            className={`border px-2 py-1 align-top text-[11px] ${specsChanged ? "bg-yellow-100" : ""}`}
+                            title={specsChanged ? "Specs changed" : undefined}
+                          >
+                            {specsChanged && (
+                              <span className="block text-[9px] text-yellow-700 font-semibold mb-0.5 leading-none">✎ changed</span>
+                            )}
+                            {renderHistoryTechnicalSpecs(groups)}
+                          </td>
+                          <DiffCell current={prodUnitCosts[i]} previous={getPrev(prevRowUnitCosts, rowIndex, i)}>
+                            {prodUnitCosts[i] || "-"}
+                          </DiffCell>
+                          <DiffCell current={prodPcsPerCartons[i]} previous={getPrev(prevRowPcsPerCartons, rowIndex, i)}>
+                            {prodPcsPerCartons[i] || "-"}
+                          </DiffCell>
+                          <DiffCell current={prodPackaging[i]} previous={getPrev(prevRowPackaging, rowIndex, i)}>
+                            {formatPackagingForDisplay(prodPackaging[i], prodCommercialTypes[i])}
+                          </DiffCell>
+                          <DiffCell current={prodWarranties[i]} previous={getPrev(prevRowWarranties, rowIndex, i)}>
+                            {prodWarranties[i] || "-"}
+                          </DiffCell>
+                          <DiffCell current={prodFactories[i]} previous={getPrev(prevRowFactories, rowIndex, i)}>
+                            {prodFactories[i] || "-"}
+                          </DiffCell>
+                          <DiffCell current={prodPorts[i]} previous={getPrev(prevRowPorts, rowIndex, i)}>
+                            {prodPorts[i] || "-"}
+                          </DiffCell>
+                          <DiffCell current={prodSubtotals[i]} previous={getPrev(prevRowSubtotals, rowIndex, i)}>
+                            ₱{Number(prodSubtotals[i] || 0).toLocaleString()}
+                          </DiffCell>
+                          <DiffCell current={prodCompanyNames[i]} previous={getPrev(prevRowCompanyNames, rowIndex, i)}>
+                            {prodCompanyNames[i] || "-"}
+                          </DiffCell>
+                          <DiffCell current={prodContactNames[i]} previous={getPrev(prevRowContactNames, rowIndex, i)}>
+                            {prodContactNames[i] || "-"}
+                          </DiffCell>
+                          <DiffCell current={prodContactNumbers[i]} previous={getPrev(prevRowContactNumbers, rowIndex, i)}>
+                            {prodContactNumbers[i] || "-"}
+                          </DiffCell>
+                          <DiffCell current={prodLeadTimes[i]} previous={getPrev(prevRowLeadTimes, rowIndex, i)}>
+                            {prodLeadTimes[i] || "-"}
+                          </DiffCell>
+                          <DiffCell current={prodSellingCosts[i]} previous={getPrev(prevRowSellingCosts, rowIndex, i)}>
+                            {prodSellingCosts[i] || "-"}
+                          </DiffCell>
+                          <DiffCell current={prodFinalUnitCosts[i]} previous={getPrev(prevRowFinalUnitCosts, rowIndex, i)}>
+                            {prodFinalUnitCosts[i] || "-"}
+                          </DiffCell>
+                          <DiffCell current={prodFinalSubtotals[i]} previous={getPrev(prevRowFinalSubtotals, rowIndex, i)}>
+                            {prodFinalSubtotals[i] || "-"}
+                          </DiffCell>
+                        </tr>
+                      );
+                    })}
+                    {/* Display deleted offers in red for desktop */}
+                    {deletedOffersByRow[rowIndex]?.map((deletedOffer: any, i: number) => (
+                      <tr key={`deleted-${i}`} className="align-top bg-red-50">
+                        <td className="border px-2 py-1 text-center align-middle text-red-800" colSpan={3}>
+                          <span className="text-[9px] font-bold text-red-700 bg-red-200 px-1.5 py-0.5 rounded">
+                            DELETED
+                          </span>
+                          <span className="ml-2 text-xs">{deletedOffer.productName || `Deleted Option ${i + 1}`}</span>
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          {deletedOffer.qty || "-"}
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          {deletedOffer.supplier?.supplierBrand || "-"}
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                        <td className="border px-2 py-1 text-center align-middle text-red-800">
+                          -
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        ) : filteredCount === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <Search className="h-8 w-8 text-gray-300 mb-3" />
-            <p className="text-sm font-medium text-gray-600">No audit logs found</p>
-          </div>
-        ) : mobileCards}
-      </div>
+        );
+      })}
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────
-   Main Page
-───────────────────────────────────────────── */
-export default function HistoryPage() {
-  const router = useRouter();
-  const { userId } = useUser();
-  const { theme } = useTheme();
-  const { wallpaper } = useWallpaper();
-  const isEngineer = theme === "engineer";
-
-  const [user, setUser] = useState<UserData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<CollectionTab>("suppliers");
-  const [fetching, setFetching] = useState(false);
-  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [imageModal, setImageModal] = useState<{ url: string; label: string } | null>(null);
-  const [specsModal, setSpecsModal] = useState<{ title: string; specs: { specId: string; value: string }[] }[] | null>(null);
+/* ─────────────────────────────────────────────────────────────── */
+/* MAIN COMPONENT                                                  */
+/* ─────────────────────────────────────────────────────────────── */
+export default function SPFRequestFetchVersionHistory({
+  spfNumber,
+  isMobile = false,
+}: Props) {
+  const [open, setOpen] = useState(false);
+  const [versions, setVersions] = useState<VersionRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [expandedVersion, setExpanded] = useState<number | null>(null);
   const [, setNameVersion] = useState(0);
 
-  const [tabStates, setTabStates] = useState<Record<CollectionTab, TabState>>({
-  suppliers: initTabState(),
-  products: initTabState(),
-  productFamilies: initTabState(),
-  productUsages: initTabState(),
+  const [itemDescriptions, setItemDescriptions] = useState<string[]>([]);
+  const [itemImages, setItemImages] = useState<string[]>([]);
 
-  // ✅ ADD THIS
-  spfVersions: initTabState(),
-});
-
-  const updateTab = (tab: CollectionTab, patch: Partial<TabState>) =>
-    setTabStates((prev) => ({ ...prev, [tab]: { ...prev[tab], ...patch } }));
-
-  useEffect(() => {
-    if (userId === null) return;
-    if (!userId) { router.push("/login"); return; }
-    fetch(`/api/users?id=${encodeURIComponent(userId)}`)
-      .then((r) => r.json()).then((d) => setUser(d)).catch(console.error)
-      .finally(() => setLoading(false));
-  }, [userId, router]);
-
-  const fetchLogs = useCallback(async (
-    tab: CollectionTab,
-    cursor: QueryDocumentSnapshot<DocumentData> | null,
-    actionFilter: string,
-  ): Promise<{ logs: AuditLog[]; lastDoc: QueryDocumentSnapshot<DocumentData> | null; hasMore: boolean }> => {
-    const colName = COL_MAP[tab];
-    let q = query(collection(db, colName), orderBy("date_updated", "desc"), limit(PAGE_SIZE + 1));
-    if (actionFilter !== "all") {
-      q = query(collection(db, colName), where("whatHappened", "==", actionFilter), orderBy("date_updated", "desc"), limit(PAGE_SIZE + 1));
-    }
-    if (cursor) {
-      q = query(
-        collection(db, colName),
-        ...(actionFilter !== "all" ? [where("whatHappened", "==", actionFilter)] : []),
-        orderBy("date_updated", "desc"), startAfter(cursor), limit(PAGE_SIZE + 1),
-      );
-    }
-    const snap = await getDocs(q);
-    const docs = snap.docs;
-    const hasMore = docs.length > PAGE_SIZE;
-    const sliced = docs.slice(0, PAGE_SIZE);
-    const lastDoc = sliced[sliced.length - 1] ?? null;
-
-    const logs: AuditLog[] = sliced.map((d) => {
-      const raw = d.data() as Record<string, any>;
-      const refId = raw.referenceID ?? raw.performedBy ?? raw.updatedByReferenceID ?? "";
-      return {
-        id: d.id, whatHappened: raw.whatHappened ?? "Unknown",
-        performedBy: refId, performedByName: nameCache.get(refId) ?? "",
-        referenceID: raw.referenceID ?? "", supplierId: raw.supplierId ?? "",
-        supplierbrandId: raw.supplierbrandId ?? "", company: raw.company ?? "",
-        supplierBrand: raw.supplierBrand ?? "", productId: raw.productId ?? "",
-        productReferenceID: raw.productReferenceID ?? "", productClass: raw.productClass ?? "",
-        pricePoint: raw.pricePoint ?? "", supplier: raw.supplier ?? null,
-        productFamilyId: raw.productFamilyId ?? "", productFamilyName: raw.productFamilyName ?? "",
-        productUsageId: raw.productUsageId ?? "", productUsageName: raw.productUsageName ?? "",
-        mainImage: raw.mainImage ?? null, dimensionalDrawing: raw.dimensionalDrawing ?? null,
-        illuminanceDrawing: raw.illuminanceDrawing ?? null,
-        technicalSpecifications: raw.technicalSpecifications ?? null,
-        inserted: raw.inserted, reactivated: raw.reactivated, skipped: raw.skipped, overwritten: raw.overwritten,
-        date_updated: raw.date_updated, createdAt: raw.createdAt, updatedAt: raw.updatedAt, _raw: raw,
-      };
-    });
-
-    const refIds = [...new Set(logs.map((l) => l.performedBy ?? "").filter(Boolean))];
-    await resolveNames(refIds);
-    logs.forEach((log) => {
-      if (log.performedBy) log.performedByName = nameCache.get(log.performedBy) ?? log.performedBy;
-    });
-    return { logs, lastDoc, hasMore };
-  }, []);
-
-  const loadTab = useCallback(async (tab: CollectionTab, actionFilter: string) => {
-    if (!userId) return;
-    setFetching(true);
+  const fetchVersions = async () => {
     try {
-      const { logs, lastDoc, hasMore } = await fetchLogs(tab, null, actionFilter);
-      updateTab(tab, { logs, cursor: lastDoc, hasMore, page: 1 });
-      setNameVersion((v) => v + 1);
-    } finally { setFetching(false); }
-  }, [userId, fetchLogs]);
+      setLoading(true);
 
-  useEffect(() => { loadTab("suppliers", tabStates.suppliers.actionFilter); }, [userId, tabStates.suppliers.actionFilter]); // eslint-disable-line
-  useEffect(() => { loadTab("products", tabStates.products.actionFilter); }, [userId, tabStates.products.actionFilter]); // eslint-disable-line
-  useEffect(() => { loadTab("productFamilies", tabStates.productFamilies.actionFilter); }, [userId, tabStates.productFamilies.actionFilter]); // eslint-disable-line
-  useEffect(() => { loadTab("productUsages", tabStates.productUsages.actionFilter); }, [userId, tabStates.productUsages.actionFilter]); // eslint-disable-line
-  useEffect(() => {
-  loadTab("spfVersions", tabStates.spfVersions.actionFilter);
-}, [userId, tabStates.spfVersions.actionFilter]);
+      const { data: historyData, error } = await supabase
+        .from("spf_creation_history")
+        .select("*")
+        .eq("spf_number", spfNumber)
+        .order("version_number", { ascending: false });
 
-  const loadNextPage = async (tab: CollectionTab) => {
-    setFetching(true);
-    try {
-      const { cursor, actionFilter } = tabStates[tab];
-      const { logs, lastDoc, hasMore } = await fetchLogs(tab, cursor, actionFilter);
-      updateTab(tab, { logs, cursor: lastDoc, hasMore, page: tabStates[tab].page + 1 });
-      setNameVersion((v) => v + 1);
-    } finally { setFetching(false); }
+      if (error) {
+        console.error("Version history fetch error:", error);
+      } else {
+        setVersions(historyData || []);
+        const referenceIDs = (historyData || [])
+          .flatMap((v) => [v.edited_by, v.item_added_author].filter(Boolean))
+          .filter((id, index, arr) => arr.indexOf(id) === index);
+        if (referenceIDs.length > 0) {
+          await resolveNames(referenceIDs);
+          setNameVersion((n) => n + 1);
+        }
+      }
+
+      const { data: requestData } = await supabase
+        .from("spf_request")
+        .select("item_description,item_photo")
+        .eq("spf_number", spfNumber)
+        .maybeSingle();
+
+      if (requestData) {
+        setItemDescriptions(
+          (requestData.item_description || "")
+            .split(",")
+            .map((s: string) => s.trim()),
+        );
+        setItemImages(
+          (requestData.item_photo || "")
+            .split(",")
+            .map((s: string) => s.trim()),
+        );
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const filtered = (tab: CollectionTab): AuditLog[] => {
-    const { logs, search } = tabStates[tab];
-    const q = search.toLowerCase();
-    if (!q) return logs;
-    return logs.filter((l) =>
-      l.whatHappened?.toLowerCase().includes(q) ||
-      l.performedByName?.toLowerCase().includes(q) ||
-      l.performedBy?.toLowerCase().includes(q) ||
-      l.company?.toLowerCase().includes(q) ||
-      l.supplierBrand?.toLowerCase().includes(q) ||
-      l.productReferenceID?.toLowerCase().includes(q) ||
-      l.supplier?.company?.toLowerCase().includes(q) ||
-      l.productClass?.toLowerCase().includes(q) ||
-      l.productFamilyName?.toLowerCase().includes(q) ||
-      l.productUsageName?.toLowerCase().includes(q),
-    );
+  useEffect(() => {
+    if (open) fetchVersions();
+  }, [open]);
+
+  const toggleExpand = (vNum: number) => {
+    setExpanded((prev) => (prev === vNum ? null : vNum));
   };
-
-  const ActionBadge = ({ action }: { action: string }) => (
-    <Badge variant="outline" className={cn("text-xs whitespace-nowrap", ACTION_COLORS[action] ?? "bg-gray-100 text-gray-700 border-gray-200")}>
-      {action}
-    </Badge>
-  );
-
-  const displayName = (log: AuditLog) => log.performedByName || log.performedBy || "—";
-
-  const EyeBtn = ({ log }: { log: AuditLog }) => (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button size="icon" variant="ghost" className="h-7 w-7"
-            onClick={() => { setSelectedLog(log); setDetailOpen(true); }}>
-            <Eye className="h-3.5 w-3.5" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>View details</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-
-  /* ── Reusable tab layout: toolbar + table/cards + pagination ── */
-  // TabLayout is now defined outside HistoryPage to prevent input focus loss
-
-  if (loading) return null;
-
-  /* ── th helper ── */
-  const Th = ({ children, className }: { children?: React.ReactNode; className?: string }) => (
-    <th className={cn("text-left font-bold px-3 py-3 border-b whitespace-nowrap text-sm", className)}>
-      {children}
-    </th>
-  );
-
-  /* ── td helper ── */
-  const Td = ({ children, className }: { children?: React.ReactNode; className?: string }) => (
-    <td className={cn("px-3 py-3 border-b align-middle", className)}>{children}</td>
-  );
 
   return (
-    <div className="h-dvh flex flex-col overflow-hidden">
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+        onClick={() => setOpen(true)}
+        title="View version history"
+      >
+        <History size={14} />
+        History
+      </Button>
 
-      {/* ── DESKTOP HEADER ── */}
-      <div className="hidden md:flex flex-col gap-3 px-6 pt-6 pb-3 shrink-0 bg-white/80 backdrop-blur-md border-b">
-        <SidebarTrigger />
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold shrink-0">Audit Trail</h1>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">
-              Welcome, {user?.Firstname} {user?.Lastname}
-              <span className="ml-1 text-gray-400">({user?.Role})</span>
-            </span>
-            <Button size="sm" variant="outline" disabled={fetching}
-              onClick={() => {
-                  (["suppliers", "products", "productFamilies", "productUsages", "spfVersions"] as CollectionTab[]).forEach((t) =>
-                    updateTab(t, { actionFilter: "all" }),
-                  );
-              }}
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", fetching && "animate-spin")} />
-              Refresh
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── MOBILE HEADER ── */}
-      <div className="md:hidden shrink-0 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 pt-5 pb-3">
-        <div className="flex items-center justify-between mb-1">
-          <h1 className="text-lg font-bold text-gray-900">Audit Trail</h1>
-          <Button size="sm" variant="outline" disabled={fetching}
-            onClick={() => {
-              (["suppliers", "products", "productFamilies", "productUsages", "spfVersions"] as CollectionTab[]).forEach((t) =>
-                updateTab(t, { actionFilter: "all" }),
-              );
-            }}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent
+          className={
+            isMobile
+              ? "w-full max-w-full h-[100dvh] rounded-none p-0 flex flex-col overflow-hidden"
+              : "w-[95vw] max-w-[1200px] xl:max-w-[95vw] max-h-[90vh] overflow-y-auto rounded-none"
+          }
+        >
+          <DialogHeader
+            className={isMobile ? "px-4 pt-4 pb-3 border-b shrink-0" : ""}
           >
-            <RefreshCw className={cn("h-3.5 w-3.5", fetching && "animate-spin")} />
-          </Button>
-        </div>
-        <p className="text-xs text-gray-400">
-          {user?.Firstname} {user?.Lastname} · {user?.Role}
-        </p>
-      </div>
+            <DialogTitle className="flex items-center gap-2">
+              <History size={16} />
+              Version History — {spfNumber}
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Each entry represents a saved revision. Click to expand.{" "}
+              <span className="inline-flex items-center gap-1 text-yellow-700 font-medium">
+                <span className="inline-block w-3 h-3 bg-yellow-200 border border-yellow-400 rounded-sm" />
+                Yellow = changed from previous version.
+              </span>
+            </p>
+          </DialogHeader>
 
-      {/* ── TABS ── */}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as CollectionTab)} className="h-full flex flex-col">
+          <div
+            className={
+              isMobile ? "flex-1 overflow-y-auto px-3 pt-3 pb-4" : "mt-4 px-1"
+            }
+          >
+            {loading && (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Loading history...
+              </p>
+            )}
 
-          {/* Tab triggers — scrollable on mobile */}
-          <div className="overflow-x-auto shrink-0 bg-white/70 backdrop-blur-sm border-b px-4 md:px-6">
-            <TabsList className="w-max md:w-auto h-10 bg-transparent gap-0 rounded-none p-0">
-              {([
-                { value: "suppliers",       label: "Suppliers",        icon: Building2 },
-                { value: "products",        label: "Products",         icon: Package   },
-                { value: "productFamilies", label: "Product Families", icon: Layers    },
-                { value: "productUsages",   label: "Product Usage",    icon: Tag       },
-                { value: "spfVersions",     label: "SPF History",      icon: Layers    },
-              ] as { value: CollectionTab; label: string; icon: React.ElementType }[]).map(({ value, label, icon: Icon }) => (
-                <TabsTrigger
-                  key={value}
-                  value={value}
-                  className="h-10 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-gray-900 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-xs md:text-sm whitespace-nowrap flex items-center gap-1.5"
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+            {!loading && versions.length === 0 && (
+              <div className="text-center py-12 space-y-2">
+                <History size={32} className="mx-auto text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">No version history yet.</p>
+                <p className="text-xs text-muted-foreground/70">
+                  Versions are created each time the SPF is revised and resubmitted.
+                </p>
+              </div>
+            )}
+
+            {!loading && versions.length > 0 && (
+              <div className="space-y-3">
+                {versions.map((v, idx) => {
+                  const isExpanded = expandedVersion === v.version_number;
+                  // versions sorted desc → previous version = the next item in array (lower version number)
+                  const prevRecord = versions[idx + 1] ?? null;
+                  // v1 has no previous to diff against
+                  const isFirst = v.version_number === 1;
+
+                  return (
+                    <Card
+                      key={v.version_number}
+                      className="overflow-hidden border border-gray-200 rounded-xl shadow-sm"
+                    >
+                      {/* Version header */}
+                      <button
+                        type="button"
+                        onClick={() => toggleExpand(v.version_number)}
+                        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="inline-flex items-center shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 font-mono">
+                            {v.version_label || `${spfNumber}_v${v.version_number}`}
+                          </span>
+
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                              <span className="flex items-center gap-1 shrink-0">
+                                <Clock size={10} />
+                                {formatDateTime(v.created_at)}
+                              </span>
+                              {v.spf_creation_start_time && (
+                                <span className="flex items-center gap-1 truncate">
+                                  <span className="font-medium">Start:</span>{" "}
+                                  {formatDateTime(v.spf_creation_start_time)}
+                                </span>
+                              )}
+                              {v.spf_creation_end_time && (
+                                <span className="flex items-center gap-1 truncate">
+                                  <span className="font-medium">End:</span>{" "}
+                                  {formatDateTime(v.spf_creation_end_time)}
+                                </span>
+                              )}
+                              {v.spf_creation_start_time && v.spf_creation_end_time && (
+                                <span className="flex items-center gap-1 truncate">
+                                  <span className="font-medium">Dur:</span>
+                                  {(() => {
+                                    const start = new Date(v.spf_creation_start_time).getTime();
+                                    const end = new Date(v.spf_creation_end_time).getTime();
+                                    const diff = Math.max(0, Math.floor((end - start) / 1000));
+                                    const hrs = Math.floor(diff / 3600);
+                                    const mins = Math.floor((diff % 3600) / 60);
+                                    const secs = diff % 60;
+                                    const z = (n: number) => String(n).padStart(2, "0");
+                                    return `${hrs > 0 ? `${z(hrs)}:` : ""}${z(mins)}:${z(secs)}`;
+                                  })()}
+                                </span>
+                              )}
+                              {v.edited_by && (
+                                <span className="flex items-center gap-1 truncate">
+                                  <User size={10} />
+                                  {getResolvedName(v.edited_by)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          {/* ✅ STATUS BADGE — shown on every version card */}
+                          {v.status && (
+                            <span
+                              className={`inline-flex text-[9px] px-2 py-0.5 rounded-full uppercase font-semibold border whitespace-nowrap ${getStatusClass(v.status)}`}
+                            >
+                              {getStatusLabel(v.status)}
+                            </span>
+                          )}
+                          {v.item_added_author && (
+                            <span className="hidden sm:flex items-center gap-1 text-[9px] px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+                              <User size={8} />
+                              {getResolvedName(v.item_added_author)}
+                            </span>
+                          )}
+                          {isExpanded ? (
+                            <ChevronUp size={14} className="text-gray-500" />
+                          ) : (
+                            <ChevronDown size={14} className="text-gray-500" />
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Expanded content */}
+                      {isExpanded && (
+                        <div className="px-3 pb-3 border-t bg-white">
+                          {/* Legend for non-v1 versions */}
+                          {!isFirst && prevRecord && (
+                            <div className="flex items-center gap-2 mt-2 mb-3 px-1">
+                              <span className="inline-block w-4 h-4 bg-yellow-100 border border-yellow-300 rounded-sm" />
+                              <span className="text-[11px] text-yellow-700 font-medium">
+                                Yellow cells = changed from{" "}
+                                <span className="font-mono font-bold">
+                                  {prevRecord.version_label || `v${prevRecord.version_number}`}
+                                </span>
+                              </span>
+                            </div>
+                          )}
+                          {itemDescriptions.length > 0 ? (
+                            <VersionDetail
+                              record={v}
+                              prevRecord={prevRecord}
+                              itemDescriptions={itemDescriptions}
+                              itemImages={itemImages}
+                              isMobile={isMobile}
+                              isFirst={isFirst}
+                            />
+                          ) : (
+                            <p className="text-xs text-muted-foreground py-4 text-center">
+                              Item descriptions unavailable.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
           </div>
-
-          {/* ════ SUPPLIERS ════ */}
-          <TabsContent value="suppliers" className={`flex-1 min-h-0 overflow-hidden mt-0 p-4 md:p-6 ${
-            isEngineer && !wallpaper ? "engineer-blueprint-bg" : ""
-          }`}>
-            <TabLayout
-              tab="suppliers"
-              searchPlaceholder="Search company, brand, name…"
-              tableHeaders={<>
-                <Th className="w-44">Timestamp</Th>
-                <Th>Action</Th>
-                <Th>Company</Th>
-                <Th>Brand</Th>
-                <Th>Performed By</Th>
-                <Th className="w-10"></Th>
-              </>}
-              tableRows={filtered("suppliers").filter((log) => log.whatHappened !== "Supplier Bulk Upload").map((log) => (
-                <tr key={log.id} className="border-b hover:bg-white/60 align-middle">
-                  <Td className="text-xs text-muted-foreground whitespace-nowrap">{formatTimestamp(getDisplayTime(log))}</Td>
-                  <Td><ActionBadge action={log.whatHappened} /></Td>
-                  <Td className="font-medium">{log.company || <span className="text-gray-400 italic">No Company Name</span>}</Td>
-                  <Td className="text-muted-foreground">{log.supplierBrand || <span className="text-gray-400 italic">No Supplier Brand</span>}</Td>
-                  <Td className="text-xs text-muted-foreground">{displayName(log)}</Td>
-                  <Td><EyeBtn log={log} /></Td>
-                </tr>
-              ))}
-              mobileCards={<>{filtered("suppliers").filter((log) => log.whatHappened !== "Supplier Bulk Upload").map((log) => (
-                <MobileCard key={log.id} log={log}
-                  primaryLabel="Company Name" primaryValue={log.company || "No Company Name"}
-                  secondaryLabel="Supplier Brand" secondaryValue={log.supplierBrand || "No Supplier Brand"}
-                  onEye={() => { setSelectedLog(log); setDetailOpen(true); }}
-                />
-              ))}</>}
-              tabState={tabStates.suppliers}
-              filteredCount={filtered("suppliers").length}
-              fetching={fetching}
-              onSearchChange={(value) => updateTab("suppliers", { search: value })}
-              onActionFilterChange={(value) => updateTab("suppliers", { actionFilter: value })}
-              onFirstPage={() => { updateTab("suppliers", { cursor: null, page: 1 }); loadTab("suppliers", tabStates.suppliers.actionFilter); }}
-              onNextPage={() => loadNextPage("suppliers")}
-              actionOptions={ACTION_OPTIONS.suppliers}
-            />
-          </TabsContent>
-
-          {/* ════ PRODUCTS ════ */}
-          <TabsContent value="products" className={`flex-1 min-h-0 overflow-hidden mt-0 p-4 md:p-6 ${
-            isEngineer && !wallpaper ? "engineer-blueprint-bg" : ""
-          }`}>
-            <TabLayout
-              tab="products"
-              searchPlaceholder="Search ref ID, supplier, name…"
-              tableHeaders={<>
-                <Th className="w-44">Timestamp</Th>
-                <Th>Action</Th>
-                <Th>Company Name</Th>
-                <Th>Supplier Brand</Th>
-                <Th>Class</Th>
-                <Th>Image</Th>
-                <Th>Dimensional</Th>
-                <Th>Illuminance</Th>
-                <Th>Tech Specs</Th>
-                <Th>Performed By</Th>
-                <Th className="w-10"></Th>
-              </>}
-              tableRows={filtered("products").filter((log) => log.whatHappened !== "Product Bulk Upload").map((log) => (
-                <tr key={log.id} className="border-b hover:bg-white/60 align-middle">
-                  <Td className="text-xs text-muted-foreground whitespace-nowrap">{formatTimestamp(getDisplayTime(log))}</Td>
-                  <Td><ActionBadge action={log.whatHappened} /></Td>
-                  <Td className="text-muted-foreground">{log.supplier?.company || <span className="text-gray-400 italic">No Company Name</span>}</Td>
-                  <Td className="text-muted-foreground">{log.supplier?.supplierBrand || <span className="text-gray-400 italic">No Supplier Brand</span>}</Td>
-                  <Td>{log.productClass ? <Badge variant="secondary" className="text-xs">{log.productClass}</Badge> : "—"}</Td>
-                  <Td className="text-xs">
-                    {log.mainImage?.url
-                      ? <button onClick={() => setImageModal({ url: log.mainImage!.url!, label: "Main Image" })} className="text-blue-600 underline hover:text-blue-800">View</button>
-                      : <span className="text-gray-400 italic">None</span>}
-                  </Td>
-                  <Td className="text-xs">
-                    {log.dimensionalDrawing?.url
-                      ? <button onClick={() => setImageModal({ url: log.dimensionalDrawing!.url!, label: "Dimensional Drawing" })} className="text-blue-600 underline hover:text-blue-800">View</button>
-                      : <span className="text-gray-400 italic">None</span>}
-                  </Td>
-                  <Td className="text-xs">
-                    {log.illuminanceDrawing?.url
-                      ? <button onClick={() => setImageModal({ url: log.illuminanceDrawing!.url!, label: "Illuminance Drawing" })} className="text-blue-600 underline hover:text-blue-800">View</button>
-                      : <span className="text-gray-400 italic">None</span>}
-                  </Td>
-                  <Td className="text-xs">
-                    {log.technicalSpecifications?.length
-                      ? <button onClick={() => setSpecsModal(log.technicalSpecifications!)} className="text-blue-600 underline hover:text-blue-800">
-                          {log.technicalSpecifications.length} group{log.technicalSpecifications.length !== 1 ? "s" : ""}
-                        </button>
-                      : <span className="text-gray-400 italic">None</span>}
-                  </Td>
-                  <Td className="text-xs text-muted-foreground">{displayName(log)}</Td>
-                  <Td><EyeBtn log={log} /></Td>
-                </tr>
-              ))}
-              mobileCards={<>{filtered("products").filter((log) => log.whatHappened !== "Product Bulk Upload").map((log) => (
-                <MobileCard key={log.id} log={log}
-                  primaryLabel="Company Name" primaryValue={log.supplier?.company || "No Company Name"}
-                  secondaryLabel="Supplier Brand" secondaryValue={log.supplier?.supplierBrand || "No Supplier Brand"}
-                  onEye={() => { setSelectedLog(log); setDetailOpen(true); }}
-                  extraRows={[
-                    { label: "Class", value: log.productClass
-                        ? <Badge variant="secondary" className="text-xs">{log.productClass}</Badge>
-                        : <span className="text-gray-400 italic">—</span> },
-                    { label: "Tech Specs", value: log.technicalSpecifications?.length
-                        ? <button onClick={() => setSpecsModal(log.technicalSpecifications!)} className="text-blue-600 underline">
-                            {log.technicalSpecifications.length} group{log.technicalSpecifications.length !== 1 ? "s" : ""}
-                          </button>
-                        : <span className="text-gray-400 italic">None</span> },
-                  ]}
-                  mediaButtons={<>
-                    {log.mainImage?.url && (
-                      <button onClick={() => setImageModal({ url: log.mainImage!.url!, label: "Main Image" })}
-                        className="text-xs px-2.5 py-1 rounded-lg border border-blue-200 bg-blue-50 text-blue-600 font-medium">
-                        📷 Image
-                      </button>
-                    )}
-                    {log.dimensionalDrawing?.url && (
-                      <button onClick={() => setImageModal({ url: log.dimensionalDrawing!.url!, label: "Dimensional Drawing" })}
-                        className="text-xs px-2.5 py-1 rounded-lg border border-blue-200 bg-blue-50 text-blue-600 font-medium">
-                        📐 Dimensional
-                      </button>
-                    )}
-                    {log.illuminanceDrawing?.url && (
-                      <button onClick={() => setImageModal({ url: log.illuminanceDrawing!.url!, label: "Illuminance Drawing" })}
-                        className="text-xs px-2.5 py-1 rounded-lg border border-blue-200 bg-blue-50 text-blue-600 font-medium">
-                        💡 Illuminance
-                      </button>
-                    )}
-                  </>}
-                />
-              ))}</>}
-              tabState={tabStates.products}
-              filteredCount={filtered("products").length}
-              fetching={fetching}
-              onSearchChange={(value) => updateTab("products", { search: value })}
-              onActionFilterChange={(value) => updateTab("products", { actionFilter: value })}
-              onFirstPage={() => { updateTab("products", { cursor: null, page: 1 }); loadTab("products", tabStates.products.actionFilter); }}
-              onNextPage={() => loadNextPage("products")}
-              actionOptions={ACTION_OPTIONS.products}
-            />
-          </TabsContent>
-
-          {/* ════ PRODUCT FAMILIES ════ */}
-          <TabsContent value="productFamilies" className={`flex-1 min-h-0 overflow-hidden mt-0 p-4 md:p-6 ${
-            isEngineer && !wallpaper ? "engineer-blueprint-bg" : ""
-          }`}>
-            <TabLayout
-              tab="productFamilies"
-              searchPlaceholder="Search family name…"
-              tableHeaders={<>
-                <Th className="w-44">Timestamp</Th>
-                <Th>Action</Th>
-                <Th>Family Name</Th>
-                <Th>Performed By</Th>
-                <Th className="w-10"></Th>
-              </>}
-              tableRows={filtered("productFamilies").map((log) => (
-                <tr key={log.id} className="border-b hover:bg-white/60 align-middle">
-                  <Td className="text-xs text-muted-foreground whitespace-nowrap">{formatTimestamp(getDisplayTime(log))}</Td>
-                  <Td><ActionBadge action={log.whatHappened} /></Td>
-                  <Td className="font-medium">{log.productFamilyName || "—"}</Td>
-                  <Td className="text-xs text-muted-foreground">{displayName(log)}</Td>
-                  <Td><EyeBtn log={log} /></Td>
-                </tr>
-              ))}
-              mobileCards={<>{filtered("productFamilies").map((log) => (
-                <MobileCard key={log.id} log={log}
-                  primaryLabel="Family" primaryValue={log.productFamilyName || "—"}
-                  onEye={() => { setSelectedLog(log); setDetailOpen(true); }}
-                />
-              ))}</>}
-              tabState={tabStates.productFamilies}
-              filteredCount={filtered("productFamilies").length}
-              fetching={fetching}
-              onSearchChange={(value) => updateTab("productFamilies", { search: value })}
-              onActionFilterChange={(value) => updateTab("productFamilies", { actionFilter: value })}
-              onFirstPage={() => { updateTab("productFamilies", { cursor: null, page: 1 }); loadTab("productFamilies", tabStates.productFamilies.actionFilter); }}
-              onNextPage={() => loadNextPage("productFamilies")}
-              actionOptions={ACTION_OPTIONS.productFamilies}
-            />
-          </TabsContent>
-
-          {/* ════ PRODUCT USAGE ════ */}
-          <TabsContent value="productUsages" className={`flex-1 min-h-0 overflow-hidden mt-0 p-4 md:p-6 ${
-            isEngineer && !wallpaper ? "engineer-blueprint-bg" : ""
-          }`}>
-            <TabLayout
-              tab="productUsages"
-              searchPlaceholder="Search product usage name…"
-              tableHeaders={<>
-                <Th className="w-44">Timestamp</Th>
-                <Th>Action</Th>
-                <Th>Product Usage Name</Th>
-                <Th>Performed By</Th>
-                <Th className="w-10"></Th>
-              </>}
-              tableRows={filtered("productUsages").map((log) => (
-                <tr key={log.id} className="border-b hover:bg-white/60 align-middle">
-                  <Td className="text-xs text-muted-foreground whitespace-nowrap">{formatTimestamp(getDisplayTime(log))}</Td>
-                  <Td><ActionBadge action={log.whatHappened} /></Td>
-                  <Td className="font-medium">{log.productUsageName || "—"}</Td>
-                  <Td className="text-xs text-muted-foreground">{displayName(log)}</Td>
-                  <Td><EyeBtn log={log} /></Td>
-                </tr>
-              ))}
-              mobileCards={<>{filtered("productUsages").map((log) => (
-                <MobileCard key={log.id} log={log}
-                  primaryLabel="Usage" primaryValue={log.productUsageName || "—"}
-                  onEye={() => { setSelectedLog(log); setDetailOpen(true); }}
-                />
-              ))}</>}
-              tabState={tabStates.productUsages}
-              filteredCount={filtered("productUsages").length}
-              fetching={fetching}
-              onSearchChange={(value) => updateTab("productUsages", { search: value })}
-              onActionFilterChange={(value) => updateTab("productUsages", { actionFilter: value })}
-              onFirstPage={() => { updateTab("productUsages", { cursor: null, page: 1 }); loadTab("productUsages", tabStates.productUsages.actionFilter); }}
-              onNextPage={() => loadNextPage("productUsages")}
-              actionOptions={ACTION_OPTIONS.productUsages}
-            />
-          </TabsContent>
-
-          {/* ════ SPF VERSIONS ════ */}
-          <TabsContent value="spfVersions" className={`flex-1 min-h-0 overflow-hidden mt-0 p-4 md:p-6 ${
-            isEngineer && !wallpaper ? "engineer-blueprint-bg" : ""
-          }`}>
-            <TabLayout
-              tab="spfVersions"
-              searchPlaceholder="Search SPF number…"
-              tableHeaders={<>
-                <Th className="w-44">Timestamp</Th>
-                <Th>Action</Th>
-                <Th>SPF Number</Th>
-                <Th>Version</Th>
-                <Th>Performed By</Th>
-                <Th className="w-10"></Th>
-              </>}
-              tableRows={filtered("spfVersions").map((log) => (
-                <tr key={log.id} className="border-b hover:bg-white/60 align-middle">
-                  <Td className="text-xs text-muted-foreground whitespace-nowrap">
-                    {formatTimestamp(getDisplayTime(log))}
-                  </Td>
-                  <Td><ActionBadge action={log.whatHappened} /></Td>
-                  <Td className="font-medium">{log._raw?.spf_number || "—"}</Td>
-                  <Td>{log._raw?.version_label || "—"}</Td>
-                  <Td className="text-xs text-muted-foreground">{displayName(log)}</Td>
-                  <Td><EyeBtn log={log} /></Td>
-                </tr>
-              ))}
-              mobileCards={<>
-                {filtered("spfVersions").map((log) => (
-                  <MobileCard key={log.id} log={log}
-                    primaryLabel="SPF Number"
-                    primaryValue={log._raw?.spf_number || "—"}
-                    secondaryLabel="Version"
-                    secondaryValue={log._raw?.version_label || "—"}
-                    onEye={() => { setSelectedLog(log); setDetailOpen(true); }}
-                  />
-                ))}
-              </>}
-              tabState={tabStates.spfVersions}
-              filteredCount={filtered("spfVersions").length}
-              fetching={fetching}
-              onSearchChange={(value) => updateTab("spfVersions", { search: value })}
-              onActionFilterChange={(value) => updateTab("spfVersions", { actionFilter: value })}
-              onFirstPage={() => { updateTab("spfVersions", { cursor: null, page: 1 }); loadTab("spfVersions", tabStates.spfVersions.actionFilter); }}
-              onNextPage={() => loadNextPage("spfVersions")}
-              actionOptions={ACTION_OPTIONS.spfVersions}
-            />
-          </TabsContent>
-
-        </Tabs>
-      </div>
-
-      {/* ── IMAGE MODAL ── */}
-      {imageModal && (
-        <Sheet open={!!imageModal} onOpenChange={() => setImageModal(null)}>
-          <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>{imageModal.label}</SheetTitle>
-              <SheetDescription>
-                <a href={imageModal.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-xs break-all">
-                  Open original ↗
-                </a>
-              </SheetDescription>
-            </SheetHeader>
-            <Separator className="my-4" />
-            <div className="flex items-center justify-center bg-gray-50 rounded-xl p-4 min-h-[200px]">
-              <img
-                src={`/api/gdrive-image?url=${encodeURIComponent(imageModal.url)}`}
-                alt={imageModal.label}
-                className="max-w-full max-h-[60vh] object-contain rounded-lg shadow"
-                onError={(e) => {
-                  // fallback: try direct URL if proxy fails
-                  const img = e.target as HTMLImageElement;
-                  if (!img.src.includes("fallback")) {
-                    img.src = imageModal.url;
-                    img.setAttribute("data-fallback", "true");
-                  }
-                }}
-              />
-            </div>
-          </SheetContent>
-        </Sheet>
-      )}
-
-      {/* ── TECH SPECS MODAL ── */}
-      {specsModal && (
-        <Sheet open={!!specsModal} onOpenChange={() => setSpecsModal(null)}>
-          <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>Technical Specifications</SheetTitle>
-              <SheetDescription>Snapshot at time of action</SheetDescription>
-            </SheetHeader>
-            <Separator className="my-4" />
-            <div className="space-y-4">
-              {specsModal.map((group, gi) => (
-                <div key={gi}>
-                  <p className="text-xs font-bold uppercase tracking-widest text-orange-600 mb-2">{group.title}</p>
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600 border-b">Specification</th>
-                        <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600 border-b">Value</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {group.specs.map((row, ri) => (
-                        <tr key={ri} className="border-b hover:bg-gray-50">
-                          <td className="px-3 py-2 text-xs text-gray-600">{row.specId || "—"}</td>
-                          <td className="px-3 py-2 text-xs font-medium">{row.value || <span className="text-gray-400 italic">—</span>}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
-            </div>
-          </SheetContent>
-        </Sheet>
-      )}
-
-      <LogDetailSheet log={selectedLog} open={detailOpen} onClose={() => setDetailOpen(false)} />
-    </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
