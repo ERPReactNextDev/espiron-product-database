@@ -23,10 +23,11 @@ interface SeenByDialogProps {
   seenByIds: string[];
   userNamesMap: Record<string, SeenByUser>;
   isMe: boolean;
+  currentUserId: string;
 }
 
-export function SeenByDialog({ seenByIds, userNamesMap, isMe }: SeenByDialogProps) {
-  if (!isMe || seenByIds.length === 0) return null;
+export function SeenByDialog({ seenByIds, userNamesMap, isMe, currentUserId }: SeenByDialogProps) {
+  if (seenByIds.length === 0) return null;
 
   return (
     <Dialog>
@@ -45,7 +46,40 @@ export function SeenByDialog({ seenByIds, userNamesMap, isMe }: SeenByDialogProp
         </DialogHeader>
         <div className="space-y-3 max-h-[400px] overflow-y-auto">
           {seenByIds.map((userId) => {
+            const isCurrentUser = userId === currentUserId;
             const user = userNamesMap[userId];
+            
+            // Show "You" for current user, or user data from map
+            if (isCurrentUser) {
+              return (
+                <div
+                  key={userId}
+                  className="flex items-center gap-3 p-2 rounded-lg bg-[#be2d2d]/5 border border-[#be2d2d]/20"
+                >
+                  <Avatar className="h-12 w-12 border-2 border-[#be2d2d]">
+                    <AvatarImage 
+                      src={user?.profilePicture} 
+                      alt="You"
+                      className="object-cover"
+                    />
+                    <AvatarFallback className="bg-[#be2d2d] text-white font-semibold">
+                      You
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm text-[#be2d2d] truncate">
+                      You
+                    </p>
+                    {user?.userName && (
+                      <p className="text-xs text-[#be2d2d]/70 truncate">
+                        @{user.userName}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
             if (!user) return null;
 
             return (

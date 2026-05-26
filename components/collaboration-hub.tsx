@@ -105,13 +105,11 @@ export function CollaborationHub({
   // Fetch user names for seenBy IDs
   useEffect(() => {
     const fetchUserNames = async () => {
-      // Collect all unique user IDs from seenBy arrays
+      // Collect all unique user IDs from seenBy arrays (including current user)
       const allUserIds = new Set<string>();
       messages.forEach(msg => {
         msg.seenBy?.forEach(id => {
-          if (id !== currentUserId) {
-            allUserIds.add(id);
-          }
+          allUserIds.add(id);
         });
       });
 
@@ -136,7 +134,7 @@ export function CollaborationHub({
     if (messages.length > 0) {
       fetchUserNames();
     }
-  }, [messages, currentUserId]);
+  }, [messages]);
 
   // FEATURE: TYPING INDICATORS (WRITE)
   useEffect(() => {
@@ -576,9 +574,10 @@ export function CollaborationHub({
                           <div className={cn("flex items-center justify-end gap-1 text-[9px] mt-1 opacity-60 font-medium", isMe ? "text-blue-100" : "text-slate-400")}>
                             {new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             <SeenByDialog 
-                              seenByIds={seenByOthers} 
+                              seenByIds={msg.seenBy || []} 
                               userNamesMap={userNamesMap} 
                               isMe={isMe}
+                              currentUserId={currentUserId}
                             />
                           </div>
                         </div>
