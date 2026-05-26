@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useNotifications } from "@/contexts/NotificationContext";
+import { SeenByDialog } from "@/components/seen-by-dialog";
 
 const EspironLogo = () => (
   <div className="flex items-center justify-center size-9 bg-linear-to-br from-[#be2d2d] to-[#5f2828] rounded-xl shadow-lg">
@@ -90,6 +91,7 @@ export function CollaborationHubDialog({
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [userNamesMap, setUserNamesMap] = useState<Record<string, { firstName: string; lastName: string; userName: string; profilePicture?: string }>>({});
   
   const { updateChatUnreadCount, markChatAsRead } = useNotifications();
 
@@ -167,6 +169,42 @@ export function CollaborationHubDialog({
     if (sentSound.current) sentSound.current.volume = 0.3;
     if (receivedSound.current) receivedSound.current.volume = 0.3;
   }, []);
+
+  // Fetch user names for seenBy IDs
+  useEffect(() => {
+    const fetchUserNames = async () => {
+      // Collect all unique user IDs from seenBy arrays
+      const allUserIds = new Set<string>();
+      messages.forEach(msg => {
+        msg.seenBy?.forEach(id => {
+          if (id !== currentUserId) {
+            allUserIds.add(id);
+          }
+        });
+      });
+
+      if (allUserIds.size === 0) return;
+
+      try {
+        const response = await fetch("/api/get-users-by-ids", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userIds: Array.from(allUserIds) })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setUserNamesMap(data.users || {});
+        }
+      } catch (error) {
+        console.error("Failed to fetch user names:", error);
+      }
+    };
+
+    if (messages.length > 0) {
+      fetchUserNames();
+    }
+  }, [messages, currentUserId]);
 
   // FEATURE: TYPING INDICATORS (WRITE)
   useEffect(() => {
@@ -605,12 +643,11 @@ export function CollaborationHubDialog({
 
                         <div className={cn("flex items-center justify-end gap-1 text-[9px] mt-1 opacity-60 font-medium", isMe ? "text-white/80" : "text-slate-400")}>
                           {new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          {isMe && seenByOthers.length > 0 && (
-                            <div className="flex items-center gap-0.5 ml-1">
-                              <Eye size={10} />
-                              <span>{seenByOthers.length}</span>
-                            </div>
-                          )}
+                          <SeenByDialog 
+                            seenByIds={seenByOthers} 
+                            userNamesMap={userNamesMap} 
+                            isMe={isMe}
+                          />
                         </div>
                       </div>
                     </div>
