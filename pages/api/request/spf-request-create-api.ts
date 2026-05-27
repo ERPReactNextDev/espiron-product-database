@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
 const ROW_SEP = "|ROW|";
-const ROW_BOUNDARY = "|ROW||ROW|";
+const ROW_BOUNDARY = "|ROW|";
 
 const encodeBase64Json = (value: any): string =>
   Buffer.from(JSON.stringify(value), "utf8").toString("base64");
@@ -416,9 +416,9 @@ export default async function handler(
     const rowTdsPdfUrls: string[] = [];
     for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
       const rowProducts = rowMap[rowIdx] || [];
-      rowTdsPdfUrls.push(rowProducts.map((p: any) => p.__tdsPdfUrl ?? "").join(","));
+      rowTdsPdfUrls.push(rowProducts.map((p: any) => p.__tdsPdfUrl ?? "").join(ROW_SEP));
     }
-    const finalTds = rowTdsPdfUrls.join(ROW_SEP);
+    const finalTds = rowTdsPdfUrls.join(ROW_BOUNDARY);
 
     /* ── Check existing SPF ── */
     const { data: existing, error: checkError } = await supabase

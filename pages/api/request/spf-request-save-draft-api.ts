@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
 const ROW_SEP = "|ROW|";
-const ROW_BOUNDARY = "|ROW||ROW|";
+const ROW_BOUNDARY = "|ROW|";
 
 const supplierCache = new Map<
   string,
@@ -364,36 +364,36 @@ export default async function handler(
     }
 
     /* ── Final strings ── */
-    const finalImages          = rowImages.join(ROW_BOUNDARY);
-    const finalQtys            = rowQtys.join(ROW_BOUNDARY);
-    const finalSpecs           = rowSpecs.join(ROW_BOUNDARY);
-    const finalUnitCosts       = rowUnitCosts.join(ROW_BOUNDARY);
-    const finalPcsPerCarton    = rowPcsPerCarton.join(ROW_BOUNDARY);
-    const finalPackaging       = rowPackaging.join(ROW_BOUNDARY);
-    const finalWarranties      = rowWarranties.join(ROW_BOUNDARY);
-    const finalFactories       = rowFactories.join(ROW_BOUNDARY);
-    const finalPorts           = rowPorts.join(ROW_BOUNDARY);
-    const finalSubtotals       = rowSubtotals.join(ROW_BOUNDARY);
-    const finalSupplierBrands  = rowSupplierBrands.join(ROW_BOUNDARY);
-    const finalCompanyNames    = rowCompanyNames.join(ROW_BOUNDARY);
-    const finalContactNames    = rowContactNames.join(ROW_BOUNDARY);
-    const finalContactNumbers  = rowContactNumbers.join(ROW_BOUNDARY);
-    const finalSellingCosts    = rowSellingCosts.join(ROW_BOUNDARY);
-    const finalLeadTimes       = rowLeadTimes.join(ROW_BOUNDARY);
-    const finalPriceValidities = rowPriceValidities.join(ROW_BOUNDARY);
-    const finalDimensionalDrawings = rowDimensionalDrawings.join(ROW_BOUNDARY);
-    const finalIlluminanceDrawings = rowIlluminanceDrawings.join(ROW_BOUNDARY);
-    const finalProductNames = rowProductNames.join(ROW_BOUNDARY);
-    const finalTdsBrands = rowTdsBrands.join(ROW_BOUNDARY);
-    const finalOriginalSpecs       = rowOriginalSpecs.join(ROW_BOUNDARY);
-    const finalProductRefIDs       = rowProductRefIDs.join(ROW_BOUNDARY);
-    const finalBranches            = rowBranches.join(ROW_BOUNDARY);
-    const finalSpfRemarksPD        = rowSpfRemarksPD.join(ROW_BOUNDARY);
-    const finalCommercialTypes     = rowCommercialTypes.join(ROW_BOUNDARY);
+    const finalImages          = rowImages.join(ROW_SEP);
+    const finalQtys            = rowQtys.join(ROW_SEP);
+    const finalSpecs           = rowSpecs.join(ROW_SEP);
+    const finalUnitCosts       = rowUnitCosts.join(ROW_SEP);
+    const finalPcsPerCarton    = rowPcsPerCarton.join(ROW_SEP);
+    const finalPackaging       = rowPackaging.join(ROW_SEP);
+    const finalWarranties      = rowWarranties.join(ROW_SEP);
+    const finalFactories       = rowFactories.join(ROW_SEP);
+    const finalPorts           = rowPorts.join(ROW_SEP);
+    const finalSubtotals       = rowSubtotals.join(ROW_SEP);
+    const finalSupplierBrands  = rowSupplierBrands.join(ROW_SEP);
+    const finalCompanyNames    = rowCompanyNames.join(ROW_SEP);
+    const finalContactNames    = rowContactNames.join(ROW_SEP);
+    const finalContactNumbers  = rowContactNumbers.join(ROW_SEP);
+    const finalSellingCosts    = rowSellingCosts.join(ROW_SEP);
+    const finalLeadTimes       = rowLeadTimes.join(ROW_SEP);
+    const finalPriceValidities = rowPriceValidities.join(ROW_SEP);
+    const finalDimensionalDrawings = rowDimensionalDrawings.join(ROW_SEP);
+    const finalIlluminanceDrawings = rowIlluminanceDrawings.join(ROW_SEP);
+    const finalProductNames = rowProductNames.join(ROW_SEP);
+    const finalTdsBrands = rowTdsBrands.join(ROW_SEP);
+    const finalOriginalSpecs       = rowOriginalSpecs.join(ROW_SEP);
+    const finalProductRefIDs       = rowProductRefIDs.join(ROW_SEP);
+    const finalBranches            = rowBranches.join(ROW_SEP);
+    const finalSpfRemarksPD        = rowSpfRemarksPD.join(ROW_SEP);
+    const finalCommercialTypes     = rowCommercialTypes.join(ROW_SEP);
     const finalTdsPdfUrls          = rowTdsPdfUrls.join(ROW_BOUNDARY);
-    const finalIsExisting          = rowIsExisting.join(ROW_BOUNDARY);
+    const finalIsExisting          = rowIsExisting.join(ROW_SEP);
     const finalItemCode        = rowItemCodes.some((r) => r !== "-" && r !== "")
-      ? rowItemCodes.join(ROW_BOUNDARY)
+      ? rowItemCodes.join(ROW_SEP)
       : (item_code ?? null);
 
     const nowISO = getPhilippinesISOString();
@@ -439,6 +439,16 @@ export default async function handler(
         product_name: finalProductNames,
         tds_brand: finalTdsBrands,
         is_existing: finalIsExisting,
+
+        // Additional fields for sync with spf_creation
+        final_unit_cost: finalUnitCosts,
+        final_subtotal: finalSubtotals,
+        item_added_date: null,
+        item_added_author: draft_author,
+        revision_remarks: null,
+        revision_type: null,
+        spf_remarks_procurement: null,
+        tds_pdf_urls: finalTdsPdfUrls,
 
         status: "Draft",
         is_edit_mode: is_edit_mode ?? false,

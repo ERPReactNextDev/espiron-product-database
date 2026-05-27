@@ -62,7 +62,6 @@ type Props = {
 };
 
 const ROW_SEP = "|ROW|";
-const ROW_BOUNDARY = "|ROW||ROW|";
 
 type SpecGroup = { title: string; specs: string[] };
 
@@ -286,18 +285,33 @@ function parseTechSpec(raw: string): SpecGroup[] {
   return specs.length ? [{ title: "", specs }] : [];
 }
 
-function splitByRow(value: string | undefined): string[][] {
+function splitByRow(value: string | undefined, rowStructure?: number[]): string[][] {
   if (!value) return [];
-  return value
-    .split(ROW_BOUNDARY)
-    .map((rowStr) => rowStr.split(ROW_SEP).map((v) => v.trim()));
+  const items = value.split(ROW_SEP).map((v) => v.trim());
+  
+  // If we have row structure (item counts per row), use it to distribute items
+  if (rowStructure && rowStructure.length > 0) {
+    const rows: string[][] = [];
+    let itemIndex = 0;
+    
+    for (const itemCount of rowStructure) {
+      const rowItems = items.slice(itemIndex, itemIndex + itemCount);
+      rows.push(rowItems);
+      itemIndex += itemCount;
+    }
+    
+    return rows;
+  }
+  
+  // Default: return as single row
+  return [items];
 }
 
 function splitSpecsByRow(value: string | undefined): SpecGroup[][][] {
   if (!value) return [];
   return value
-    .split(ROW_BOUNDARY)
-    .map((rowStr) => rowStr.split(ROW_SEP).map(parseTechSpec));
+    .split(ROW_SEP)
+    .map((rowStr) => rowStr.split(" || ").map(parseTechSpec));
 }
 
 function formatDateTime(iso: string): string {
@@ -461,31 +475,68 @@ function VersionDetail({
   isMobile?: boolean;
   isFirst: boolean; // v1 = no previous, no highlighting
 }) {
-  const rowImages = splitByRow(record.product_offer_image);
-  const rowQtys = splitByRow(record.product_offer_qty);
-  const rowUnitCosts = splitByRow(record.product_offer_unit_cost);
-  const rowPcsPerCartons = splitByRow(record.product_offer_pcs_per_carton);
-  const rowPackaging = splitByRow(record.product_offer_packaging_details);
-  const rowWarranties = splitByRow(record.warranty);
-  const rowFactories = splitByRow(record.product_offer_factory_address);
-  const rowPorts = splitByRow(record.product_offer_port_of_discharge);
-  const rowSubtotals = splitByRow(record.product_offer_subtotal);
-  const rowSupplierBrands = splitByRow(record.supplier_brand);
+  // Derive row structure from item_code (which has row prefixes like SPF-XXX-001, SPF-XXX-002, etc.)
+  const deriveRowStructure = (itemCode: string | undefined): number[] => {
+    if (!itemCode || itemCode === "-") return [];
+    const items = itemCode.split(ROW_SEP).map((v) => v.trim());
+    const structure: number[] = [];
+    let currentRowPrefix = "";
+    let currentCount = 0;
+    
+    for (const item of items) {
+      // Match the full SPF number with row index (e.g., SPF-DSI-26-TEST-002)
+      // This is the base before any option suffixes like -A, -B, -OPT-2123
+      const rowMatch = item.match(/^([A-Z0-9-]+-\d{3})/);
+      if (rowMatch) {
+        const rowPrefix = rowMatch[1];
+        if (rowPrefix !== currentRowPrefix) {
+          if (currentCount > 0) {
+            structure.push(currentCount);
+          }
+          currentRowPrefix = rowPrefix;
+          currentCount = 1;
+        } else {
+          currentCount++;
+        }
+      } else {
+        currentCount++;
+      }
+    }
+    
+    if (currentCount > 0) {
+      structure.push(currentCount);
+    }
+    
+    return structure.length > 0 ? structure : [items.length];
+  };
+  
+  const rowStructure = deriveRowStructure(record.item_code);
+  
+  const rowImages = splitByRow(record.product_offer_image, rowStructure);
+  const rowQtys = splitByRow(record.product_offer_qty, rowStructure);
+  const rowUnitCosts = splitByRow(record.product_offer_unit_cost, rowStructure);
+  const rowPcsPerCartons = splitByRow(record.product_offer_pcs_per_carton, rowStructure);
+  const rowPackaging = splitByRow(record.product_offer_packaging_details, rowStructure);
+  const rowWarranties = splitByRow(record.warranty, rowStructure);
+  const rowFactories = splitByRow(record.product_offer_factory_address, rowStructure);
+  const rowPorts = splitByRow(record.product_offer_port_of_discharge, rowStructure);
+  const rowSubtotals = splitByRow(record.product_offer_subtotal, rowStructure);
+  const rowSupplierBrands = splitByRow(record.supplier_brand, rowStructure);
   const rowSpecs = splitSpecsByRow(record.product_offer_technical_specification);
-  const rowCompanyNames = splitByRow(record.company_name);
-  const rowContactNames = splitByRow(record.contact_name);
-  const rowContactNumbers = splitByRow(record.contact_number);
-  const rowLeadTimes = splitByRow(record.proj_lead_time);
-  const rowSellingCosts = splitByRow(record.final_selling_cost);
-  const rowFinalUnitCosts = splitByRow(record.final_unit_cost);
-  const rowFinalSubtotals = splitByRow(record.final_subtotal);
-  const rowItemCodes = splitByRow(record.item_code);
-  const rowPriceValidities = splitByRow(record.price_validity);
-  const rowTdsBrands = splitByRow(record.tds);
-  const rowProductNames = splitByRow(record.product_name);
-  const rowDimensionalDrawings = splitByRow(record.dimensional_drawing);
-  const rowIlluminanceDrawings = splitByRow(record.illuminance_drawing);
-  const rowCommercialTypes = splitByRow(record.commercial_type);
+  const rowCompanyNames = splitByRow(record.company_name, rowStructure);
+  const rowContactNames = splitByRow(record.contact_name, rowStructure);
+  const rowContactNumbers = splitByRow(record.contact_number, rowStructure);
+  const rowLeadTimes = splitByRow(record.proj_lead_time, rowStructure);
+  const rowSellingCosts = splitByRow(record.final_selling_cost, rowStructure);
+  const rowFinalUnitCosts = splitByRow(record.final_unit_cost, rowStructure);
+  const rowFinalSubtotals = splitByRow(record.final_subtotal, rowStructure);
+  const rowItemCodes = splitByRow(record.item_code, rowStructure);
+  const rowPriceValidities = splitByRow(record.price_validity, rowStructure);
+  const rowTdsBrands = splitByRow(record.tds, rowStructure);
+  const rowProductNames = splitByRow(record.product_name, rowStructure);
+  const rowDimensionalDrawings = splitByRow(record.dimensional_drawing, rowStructure);
+  const rowIlluminanceDrawings = splitByRow(record.illuminance_drawing, rowStructure);
+  const rowCommercialTypes = splitByRow(record.commercial_type, rowStructure);
 
   // Parse deleted offers
   const deletedOffersData = record.deleted_offers ? JSON.parse(record.deleted_offers) : [];
@@ -499,29 +550,30 @@ function VersionDetail({
   });
 
   // Previous version parsed values (for diff)
-  const prevRowImages = splitByRow(prevRecord?.product_offer_image);
-  const prevRowQtys = splitByRow(prevRecord?.product_offer_qty);
-  const prevRowUnitCosts = splitByRow(prevRecord?.product_offer_unit_cost);
-  const prevRowPcsPerCartons = splitByRow(prevRecord?.product_offer_pcs_per_carton);
-  const prevRowPackaging = splitByRow(prevRecord?.product_offer_packaging_details);
-  const prevRowWarranties = splitByRow(prevRecord?.warranty);
-  const prevRowFactories = splitByRow(prevRecord?.product_offer_factory_address);
-  const prevRowPorts = splitByRow(prevRecord?.product_offer_port_of_discharge);
-  const prevRowSubtotals = splitByRow(prevRecord?.product_offer_subtotal);
-  const prevRowBrands = splitByRow(prevRecord?.supplier_brand);
+  const prevRowStructure = prevRecord ? deriveRowStructure(prevRecord.item_code) : [];
+  const prevRowImages = splitByRow(prevRecord?.product_offer_image, prevRowStructure);
+  const prevRowQtys = splitByRow(prevRecord?.product_offer_qty, prevRowStructure);
+  const prevRowUnitCosts = splitByRow(prevRecord?.product_offer_unit_cost, prevRowStructure);
+  const prevRowPcsPerCartons = splitByRow(prevRecord?.product_offer_pcs_per_carton, prevRowStructure);
+  const prevRowPackaging = splitByRow(prevRecord?.product_offer_packaging_details, prevRowStructure);
+  const prevRowWarranties = splitByRow(prevRecord?.warranty, prevRowStructure);
+  const prevRowFactories = splitByRow(prevRecord?.product_offer_factory_address, prevRowStructure);
+  const prevRowPorts = splitByRow(prevRecord?.product_offer_port_of_discharge, prevRowStructure);
+  const prevRowSubtotals = splitByRow(prevRecord?.product_offer_subtotal, prevRowStructure);
+  const prevRowBrands = splitByRow(prevRecord?.supplier_brand, prevRowStructure);
   const prevRowSpecs = splitSpecsByRow(prevRecord?.product_offer_technical_specification);
-  const prevRowCompanyNames = splitByRow(prevRecord?.company_name);
-  const prevRowContactNames = splitByRow(prevRecord?.contact_name);
-  const prevRowContactNumbers = splitByRow(prevRecord?.contact_number);
-  const prevRowLeadTimes = splitByRow(prevRecord?.proj_lead_time);
-  const prevRowSellingCosts = splitByRow(prevRecord?.final_selling_cost);
-  const prevRowFinalUnitCosts = splitByRow(prevRecord?.final_unit_cost);
-  const prevRowFinalSubtotals = splitByRow(prevRecord?.final_subtotal);
-  const prevRowItemCodes = splitByRow(prevRecord?.item_code);
-  const prevRowPriceValidities = splitByRow(prevRecord?.price_validity);
-  const prevRowTdsBrands = splitByRow(prevRecord?.tds);
-  const prevRowProductNames = splitByRow(prevRecord?.product_name);
-  const prevRowCommercialTypes = splitByRow(prevRecord?.commercial_type);
+  const prevRowCompanyNames = splitByRow(prevRecord?.company_name, prevRowStructure);
+  const prevRowContactNames = splitByRow(prevRecord?.contact_name, prevRowStructure);
+  const prevRowContactNumbers = splitByRow(prevRecord?.contact_number, prevRowStructure);
+  const prevRowLeadTimes = splitByRow(prevRecord?.proj_lead_time, prevRowStructure);
+  const prevRowSellingCosts = splitByRow(prevRecord?.final_selling_cost, prevRowStructure);
+  const prevRowFinalUnitCosts = splitByRow(prevRecord?.final_unit_cost, prevRowStructure);
+  const prevRowFinalSubtotals = splitByRow(prevRecord?.final_subtotal, prevRowStructure);
+  const prevRowItemCodes = splitByRow(prevRecord?.item_code, prevRowStructure);
+  const prevRowPriceValidities = splitByRow(prevRecord?.price_validity, prevRowStructure);
+  const prevRowTdsBrands = splitByRow(prevRecord?.tds, prevRowStructure);
+  const prevRowProductNames = splitByRow(prevRecord?.product_name, prevRowStructure);
+  const prevRowCommercialTypes = splitByRow(prevRecord?.commercial_type, prevRowStructure);
 
 
   // Helper to get prev value safely (undefined = no prev = no highlight)

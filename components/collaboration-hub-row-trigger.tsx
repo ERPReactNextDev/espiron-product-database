@@ -34,6 +34,7 @@ export function CollaborationHubRowTrigger({
     userName: string;
     profilePicture?: string;
     userRole: string;
+    userDepartment?: string;
   } | null>(null);
 
   // Use spfNumber as effective doc ID when requestId is empty (document was deleted)
@@ -54,6 +55,7 @@ export function CollaborationHubRowTrigger({
             userName: `${data.Firstname || ""} ${data.Lastname || ""}`.trim(),
             profilePicture: data.profilePicture || "",
             userRole: data.Role || "User",
+            userDepartment: data.Department || "",
           });
         }
       } catch (e) {
@@ -112,6 +114,7 @@ export function CollaborationHubRowTrigger({
             userName={userData.userName}
             profilePicture={userData.profilePicture}
             userRole={userData.userRole}
+            userDepartment={userData.userDepartment}
             status={status}
             title={title || spfNumber}
           />
@@ -151,6 +154,7 @@ export function CollaborationHubRowTrigger({
           userName={userData.userName}
           profilePicture={userData.profilePicture}
           userRole={userData.userRole}
+          userDepartment={userData.userDepartment}
           status={status}
           title={title || spfNumber}
         />

@@ -102,7 +102,7 @@ type SPFRequestData = {
 };
 
 const ROW_SEP = "|ROW|";
-const ROW_BOUNDARY = "|ROW||ROW|";
+const ROW_BOUNDARY = "|ROW|";
 
 type SpecGroup = { title: string; specs: string[] };
 
@@ -191,11 +191,61 @@ function parseTechSpec(raw: string): SpecGroup[] {
   return specs.length ? [{ title: "", specs }] : [];
 }
 
-function splitByRow(value: string | undefined): string[][] {
+function splitByRow(value: string | undefined, rowStructure?: number[]): string[][] {
   if (!value) return [];
-  return value
-    .split(ROW_BOUNDARY)
-    .map((rowStr) => rowStr.split(ROW_SEP).map((v) => v.trim()));
+  const items = value.split(ROW_SEP).map((v) => v.trim());
+  
+  // If we have row structure (item counts per row), use it to distribute items
+  if (rowStructure && rowStructure.length > 0) {
+    const rows: string[][] = [];
+    let itemIndex = 0;
+    
+    for (const itemCount of rowStructure) {
+      const rowItems = items.slice(itemIndex, itemIndex + itemCount);
+      rows.push(rowItems);
+      itemIndex += itemCount;
+    }
+    
+    return rows;
+  }
+  
+  // Default: return as single row
+  return [items];
+}
+
+// Derive row structure from item_code (which has row prefixes like SPF-XXX-001, SPF-XXX-002, etc.)
+function deriveRowStructure(itemCode: string | undefined): number[] {
+  if (!itemCode || itemCode === "-") return [];
+  const items = itemCode.split(ROW_SEP).map((v) => v.trim());
+  const structure: number[] = [];
+  let currentRowPrefix = "";
+  let currentCount = 0;
+  
+  for (const item of items) {
+    // Match the full SPF number with row index (e.g., SPF-DSI-26-TEST-002)
+    // This is the base before any option suffixes like -A, -B, -OPT-2123
+    const rowMatch = item.match(/^([A-Z0-9-]+-\d{3})/);
+    if (rowMatch) {
+      const rowPrefix = rowMatch[1];
+      if (rowPrefix !== currentRowPrefix) {
+        if (currentCount > 0) {
+          structure.push(currentCount);
+        }
+        currentRowPrefix = rowPrefix;
+        currentCount = 1;
+      } else {
+        currentCount++;
+      }
+    } else {
+      currentCount++;
+    }
+  }
+  
+  if (currentCount > 0) {
+    structure.push(currentCount);
+  }
+  
+  return structure.length > 0 ? structure : [items.length];
 }
 
 function splitSpecsByRow(value: string | undefined): SpecGroup[][][] {
@@ -851,32 +901,34 @@ useEffect(() => {
   const enterEditMode = (type: RevisionType) => {
     if (!data || !requestData) return;
 
-    const rowImages = splitByRow(data.product_offer_image);
-    const rowQtys = splitByRow(data.product_offer_qty);
-    const rowUnitCosts = splitByRow(data.product_offer_unit_cost);
-    const rowPcsPerCartons = splitByRow(data.product_offer_pcs_per_carton);
-    const rowPackaging = splitByRow(data.product_offer_packaging_details);
-    const rowWarranties = splitByRow(data.warranty);
-    const rowFactories = splitByRow(data.product_offer_factory_address);
-    const rowPorts = splitByRow(data.product_offer_port_of_discharge);
-    const rowSubtotals = splitByRow(data.product_offer_subtotal);
-    const rowBrands = splitByRow(data.supplier_brand);
-    const rowSellingCosts = splitByRow(data.final_selling_cost);
-    const rowLeadTimes = splitByRow(data.proj_lead_time);
-    const rowItemCodes = splitByRow(data.item_code);
-    const rowPriceValidities = splitByRow(data.price_validity);
-    const rowTdsBrands = splitByRow(data.tds);
-    const rowTdsUrls = splitByRow(data.tds);
-    const rowDimensionalDrawings = splitByRow(data.dimensional_drawing);
-    const rowIlluminanceDrawings = splitByRow(data.illuminance_drawing);
-    const rowProductNames = splitByRow((data as any).product_name);
-    const rowSpfRemarksPD = splitByRow(data.spf_remarks_pd);
-    const rowSpfRemarksProcurement = splitByRow(data.spf_remarks_procurement);
-    const rowBranches = splitByRow(data.supplier_branch);
-    const rowCommercialTypes = splitByRow(data.commercial_type);
+    const rowStructure = deriveRowStructure(data.item_code);
+
+    const rowImages = splitByRow(data.product_offer_image, rowStructure);
+    const rowQtys = splitByRow(data.product_offer_qty, rowStructure);
+    const rowUnitCosts = splitByRow(data.product_offer_unit_cost, rowStructure);
+    const rowPcsPerCartons = splitByRow(data.product_offer_pcs_per_carton, rowStructure);
+    const rowPackaging = splitByRow(data.product_offer_packaging_details, rowStructure);
+    const rowWarranties = splitByRow(data.warranty, rowStructure);
+    const rowFactories = splitByRow(data.product_offer_factory_address, rowStructure);
+    const rowPorts = splitByRow(data.product_offer_port_of_discharge, rowStructure);
+    const rowSubtotals = splitByRow(data.product_offer_subtotal, rowStructure);
+    const rowBrands = splitByRow(data.supplier_brand, rowStructure);
+    const rowSellingCosts = splitByRow(data.final_selling_cost, rowStructure);
+    const rowLeadTimes = splitByRow(data.proj_lead_time, rowStructure);
+    const rowItemCodes = splitByRow(data.item_code, rowStructure);
+    const rowPriceValidities = splitByRow(data.price_validity, rowStructure);
+    const rowTdsBrands = splitByRow(data.tds, rowStructure);
+    const rowTdsUrls = splitByRow(data.tds, rowStructure);
+    const rowDimensionalDrawings = splitByRow(data.dimensional_drawing, rowStructure);
+    const rowIlluminanceDrawings = splitByRow(data.illuminance_drawing, rowStructure);
+    const rowProductNames = splitByRow((data as any).product_name, rowStructure);
+    const rowSpfRemarksPD = splitByRow(data.spf_remarks_pd, rowStructure);
+    const rowSpfRemarksProcurement = splitByRow(data.spf_remarks_procurement, rowStructure);
+    const rowBranches = splitByRow(data.supplier_branch, rowStructure);
+    const rowCommercialTypes = splitByRow(data.commercial_type, rowStructure);
     const rowSpecs = splitSpecsByRow(data.product_offer_technical_specification);
     const rowOriginalSpecs = splitSpecsByRow(data.original_technical_specification);
-    const rowProductRefIDs = splitByRow(data.product_reference_id);
+    const rowProductRefIDs = splitByRow(data.product_reference_id, rowStructure);
 
     const descs = (requestData.item_description || "")
       .split(",")
@@ -1555,35 +1607,37 @@ useEffect(() => {
   const canEditOffer = isForRevision || isPendingForProcurement || isApproved;
   const showProcurementRemarks = isApproved || isForRevision;
 
-  const rowImages = splitByRow(data?.product_offer_image);
-  const rowQtys = splitByRow(data?.product_offer_qty);
-  const rowUnitCosts = splitByRow(data?.product_offer_unit_cost);
-  const rowPcsPerCartons = splitByRow(data?.product_offer_pcs_per_carton);
-  const rowPackaging = splitByRow(data?.product_offer_packaging_details);
-  const rowCommercialTypes = splitByRow(data?.commercial_type);
-  const rowWarranties = splitByRow(data?.warranty);
-  const rowFactories = splitByRow(data?.product_offer_factory_address);
-  const rowPorts = splitByRow(data?.product_offer_port_of_discharge);
-  const rowSubtotals = splitByRow(data?.product_offer_subtotal);
-  const rowSupplierBrands = splitByRow(data?.supplier_brand);
-  const rowBranches = splitByRow(data?.supplier_branch);
+  const rowStructure = deriveRowStructure(data?.item_code);
+
+  const rowImages = splitByRow(data?.product_offer_image, rowStructure);
+  const rowQtys = splitByRow(data?.product_offer_qty, rowStructure);
+  const rowUnitCosts = splitByRow(data?.product_offer_unit_cost, rowStructure);
+  const rowPcsPerCartons = splitByRow(data?.product_offer_pcs_per_carton, rowStructure);
+  const rowPackaging = splitByRow(data?.product_offer_packaging_details, rowStructure);
+  const rowCommercialTypes = splitByRow(data?.commercial_type, rowStructure);
+  const rowWarranties = splitByRow(data?.warranty, rowStructure);
+  const rowFactories = splitByRow(data?.product_offer_factory_address, rowStructure);
+  const rowPorts = splitByRow(data?.product_offer_port_of_discharge, rowStructure);
+  const rowSubtotals = splitByRow(data?.product_offer_subtotal, rowStructure);
+  const rowSupplierBrands = splitByRow(data?.supplier_brand, rowStructure);
+  const rowBranches = splitByRow(data?.supplier_branch, rowStructure);
   const rowSpecs = splitSpecsByRow(data?.product_offer_technical_specification);
-  const rowCompanyNames = splitByRow(data?.company_name);
-  const rowContactNames = splitByRow(data?.contact_name);
-  const rowContactNumbers = splitByRow(data?.contact_number);
-  const rowLeadTimes = splitByRow(data?.proj_lead_time);
-  const rowSellingCosts = splitByRow(data?.final_selling_cost);
-  const rowFinalUnitCosts = splitByRow(data?.final_unit_cost);
-  const rowFinalSubtotals = splitByRow(data?.final_subtotal);
-  const rowItemCodes = splitByRow(data?.item_code);
-  const rowPriceValidities = splitByRow(data?.price_validity);
-  const rowTdsBrands = splitByRow(data?.tds);
-  const rowTdsUrls = splitByRow(data?.tds);
-  const rowDimensionalDrawings = splitByRow(data?.dimensional_drawing);
-  const rowIlluminanceDrawings = splitByRow(data?.illuminance_drawing);
-  const rowSpfRemarksPD = splitByRow(data?.spf_remarks_pd);
-  const rowSpfRemarksProcurement = splitByRow(data?.spf_remarks_procurement);
-  const rowProductNames = splitByRow((data as any)?.product_name);
+  const rowCompanyNames = splitByRow(data?.company_name, rowStructure);
+  const rowContactNames = splitByRow(data?.contact_name, rowStructure);
+  const rowContactNumbers = splitByRow(data?.contact_number, rowStructure);
+  const rowLeadTimes = splitByRow(data?.proj_lead_time, rowStructure);
+  const rowSellingCosts = splitByRow(data?.final_selling_cost, rowStructure);
+  const rowFinalUnitCosts = splitByRow(data?.final_unit_cost, rowStructure);
+  const rowFinalSubtotals = splitByRow(data?.final_subtotal, rowStructure);
+  const rowItemCodes = splitByRow(data?.item_code, rowStructure);
+  const rowPriceValidities = splitByRow(data?.price_validity, rowStructure);
+  const rowTdsBrands = splitByRow(data?.tds, rowStructure);
+  const rowTdsUrls = splitByRow(data?.tds, rowStructure);
+  const rowDimensionalDrawings = splitByRow(data?.dimensional_drawing, rowStructure);
+  const rowIlluminanceDrawings = splitByRow(data?.illuminance_drawing, rowStructure);
+  const rowSpfRemarksPD = splitByRow(data?.spf_remarks_pd, rowStructure);
+  const rowSpfRemarksProcurement = splitByRow(data?.spf_remarks_procurement, rowStructure);
+  const rowProductNames = splitByRow((data as any)?.product_name, rowStructure);
 
   const itemDescriptions: string[] = (requestData?.item_description || "")
     .split(",")

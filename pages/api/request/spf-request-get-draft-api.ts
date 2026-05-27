@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/utils/supabase";
 
 const ROW_SEP = "|ROW|";
+const ROW_BOUNDARY = "|ROW||ROW|";
 
 export default async function handler(
   req: NextApiRequest,
@@ -34,148 +35,190 @@ export default async function handler(
       return res.status(404).json({ message: "No draft found", hasDraft: false });
     }
 
-    /* ── Parse draft data into structured format ── */
-    const parseRowData = (value: string | null): string[] => {
+    /* ── Detect format ── */
+    const detectFormat = (value: string | null): "old" | "new" => {
+      if (!value) return "new";
+      return value.includes(ROW_BOUNDARY) ? "old" : "new";
+    };
+
+    const format = detectFormat(draft.product_offer_image);
+
+    /* ── Split a flat string into per-row strings ── */
+    const splitRows = (value: string | null): string[] => {
       if (!value) return [];
-      return value.split(ROW_SEP);
+      const sep = format === "old" ? ROW_BOUNDARY : ROW_SEP;
+      return value.split(sep);
     };
 
-    const parseCommaDelimited = (value: string | null): string[][] => {
-      const rows = parseRowData(value);
-      return rows.map(row => row.split(",").map(v => v.trim()));
-    };
+    /* ──────────────────────────────────────────────────────────
+     * KEY FIX: Determine true row count and group options by row
+     *
+     * The save API writes one |ROW| entry PER PRODUCT OPTION.
+     * Row 0 option A  → "SPF-001-A"
+     * Row 0 option B  → "SPF-001-B"
+     * Row 1 option    → "SPF-002"
+     *
+     * We must re-group those flat entries back into rows.
+     * ────────────────────────────────────────────────────────── */
+    const rawItemCodes = splitRows(draft.item_code);
 
-    const parsePipeDelimited = (value: string | null): string[][] => {
-      const rows = parseRowData(value);
-      return rows.map(row => row.split(" | ").map(v => v.trim()));
-    };
+    // Strip trailing -A / -B / -C / -AA etc. to get the base row code
+    const getBaseCode = (code: string): string =>
+      code.replace(/-[A-Z]+$/, "").trim();
 
-    // Parse technical specs (format: "Group1~~spec1:val1;;spec2:val2@@Group2~~...")
-    const parseTechnicalSpecs = (value: string | null): any[] => {
-      if (!value || value === "-") return [];
-      const rows = parseRowData(value);
-      return rows.map(row => {
-        if (row === "-" || !row) return [];
-        const groups = row.split("@@");
-        return groups.map(group => {
-          const [title, specsStr] = group.split("~~");
-          const specs = specsStr ? specsStr.split(";;").map(spec => {
-            const [specId, value] = spec.split(":");
-            return { specId: specId?.trim(), value: value?.trim() };
-          }) : [];
-          return { title: title?.trim(), specs };
-        });
-      });
-    };
+    // Build ordered list of unique base codes (preserves row order)
+    const orderedBaseCodes: string[] = [];
+    const baseCodeSet = new Set<string>();
+    for (const code of rawItemCodes) {
+      const base = getBaseCode(code);
+      if (!baseCodeSet.has(base)) {
+        baseCodeSet.add(base);
+        orderedBaseCodes.push(base);
+      }
+    }
 
-    const rowCount = parseRowData(draft.product_offer_image).length || 1;
+    // rowCount = number of unique base codes = number of item rows
+    const rowCount = orderedBaseCodes.length || splitRows(draft.product_offer_image).length || 1;
 
-    // Helper to format date for datetime-local input (YYYY-MM-DDTHH:mm)
+    // Map each flat index → which rowIndex it belongs to
+    const flatIndexToRowIndex: number[] = rawItemCodes.map((code) => {
+      const base = getBaseCode(code);
+      return orderedBaseCodes.indexOf(base);
+    });
+
+    /* ── Helper to format datetime-local ── */
     const formatDateTimeLocal = (value: string | null): string => {
       if (!value || value === "-" || value === "") return "";
-      // If already in datetime-local format, return as-is
       if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return value;
-      // If it's an ISO string, convert it
       try {
         const parsed = new Date(value);
         if (!isNaN(parsed.getTime())) {
           const year = parsed.getFullYear();
-          const month = String(parsed.getMonth() + 1).padStart(2, '0');
-          const day = String(parsed.getDate()).padStart(2, '0');
-          const hours = String(parsed.getHours()).padStart(2, '0');
-          const minutes = String(parsed.getMinutes()).padStart(2, '0');
+          const month = String(parsed.getMonth() + 1).padStart(2, "0");
+          const day = String(parsed.getDate()).padStart(2, "0");
+          const hours = String(parsed.getHours()).padStart(2, "0");
+          const minutes = String(parsed.getMinutes()).padStart(2, "0");
           return `${year}-${month}-${day}T${hours}:${minutes}`;
         }
       } catch {}
       return value;
     };
 
-    // Reconstruct product offers by row
+    /* ── Flat arrays (one entry per product option) ── */
+    const flatImages          = splitRows(draft.product_offer_image);
+    const flatQtys            = splitRows(draft.product_offer_qty);
+    const flatUnitCosts       = splitRows(draft.product_offer_unit_cost);
+    const flatPcsPerCartons   = splitRows(draft.product_offer_pcs_per_carton);
+    const flatPackaging       = splitRows(draft.product_offer_packaging_details);
+    const flatWarranties      = splitRows((draft as any).warranty ?? null);
+    const flatFactories       = splitRows(draft.product_offer_factory_address);
+    const flatPorts           = splitRows(draft.product_offer_port_of_discharge);
+    const flatSubtotals       = splitRows(draft.product_offer_subtotal);
+    const flatSupplierBrands  = splitRows(draft.supplier_brand);
+    const flatCompanyNames    = splitRows(draft.company_name);
+    const flatContactNames    = splitRows(draft.contact_name);
+    const flatContactNumbers  = splitRows(draft.contact_number);
+    const flatSellingCosts    = splitRows(draft.final_selling_cost);
+    const flatLeadTimes       = splitRows(draft.proj_lead_time);
+    const flatPriceValidities = splitRows(draft.price_validity);
+    const flatDimDrawings     = splitRows(draft.dimensional_drawing);
+    const flatIllumDrawings   = splitRows(draft.illuminance_drawing);
+    const flatProductNames    = splitRows((draft as any).product_name ?? null);
+    const flatTdsBrands       = splitRows((draft as any).tds_brand ?? null);
+    const flatProductRefIDs   = splitRows(draft.product_reference_id);
+    const flatBranches        = splitRows(draft.supplier_branch);
+    const flatSpfRemarksPD    = splitRows(draft.spf_remarks_pd);
+    const flatCommercialTypes = splitRows(draft.commercial_type);
+    const flatTdsPdfUrls      = splitRows(draft.tds);
+    const flatIsExisting      = splitRows(draft.is_existing);
+
+    /* ── Parse technical specs (per flat index) ── */
+    const parseSingleRowSpec = (raw: string): any[] => {
+      if (!raw || raw === "-") return [];
+      const groups = raw.split("@@");
+      return groups.map((group) => {
+        const [title, specsStr] = group.split("~~");
+        const specs = specsStr
+          ? specsStr.split(";;").map((spec) => {
+              const colonIdx = spec.indexOf(":");
+              if (colonIdx === -1) return { specId: spec.trim(), value: "" };
+              return {
+                specId: spec.slice(0, colonIdx).trim(),
+                value: spec.slice(colonIdx + 1).trim(),
+              };
+            })
+          : [];
+        return { title: title?.trim() ?? "", specs };
+      });
+    };
+
+    const flatSpecs     = splitRows(draft.product_offer_technical_specification).map(parseSingleRowSpec);
+    const flatOrigSpecs = splitRows(draft.original_technical_specification).map(parseSingleRowSpec);
+
+    /* ── Re-group flat options into rows ── */
     const productOffersByRow: Record<number, any[]> = {};
-    
-    const images = parseCommaDelimited(draft.product_offer_image);
-    const qtys = parseCommaDelimited(draft.product_offer_qty);
-    const specs = parseTechnicalSpecs(draft.product_offer_technical_specification);
-    const origSpecs = parseTechnicalSpecs(draft.original_technical_specification);
-    const unitCosts = parseCommaDelimited(draft.product_offer_unit_cost);
-    const pcsPerCartons = parsePipeDelimited(draft.product_offer_pcs_per_carton);
-    const packagingDetails = parseCommaDelimited(draft.product_offer_packaging_details);
-    const warranties = parseCommaDelimited((draft as any).warranty ?? null);
-    const factories = parseCommaDelimited(draft.product_offer_factory_address);
-    const ports = parseCommaDelimited(draft.product_offer_port_of_discharge);
-    const subtotals = parseCommaDelimited(draft.product_offer_subtotal);
-    const supplierBrands = parseCommaDelimited(draft.supplier_brand);
-    const companyNames = parseCommaDelimited(draft.company_name);
-    const contactNames = parseCommaDelimited(draft.contact_name);
-    const contactNumbers = parseCommaDelimited(draft.contact_number);
-    const sellingCosts = parseCommaDelimited(draft.final_selling_cost);
-    const leadTimes = parseCommaDelimited(draft.proj_lead_time);
-    const itemCodes = parseCommaDelimited(draft.item_code);
-    const priceValidities = parseCommaDelimited(draft.price_validity);
-    const dimensionalDrawings = parseCommaDelimited(draft.dimensional_drawing);
-    const illuminanceDrawings = parseCommaDelimited(draft.illuminance_drawing);
-    const productNames = parseCommaDelimited((draft as any).product_name ?? null);
-    const tdsBrands = parseCommaDelimited((draft as any).tds_brand ?? null);
-    const productRefIDs = parseCommaDelimited(draft.product_reference_id);
-    const branches = parseCommaDelimited(draft.supplier_branch);
-    const spfRemarksPD = parseCommaDelimited(draft.spf_remarks_pd);
-    const commercialTypes = parseCommaDelimited(draft.commercial_type);
-    const tdsPdfUrls = parseCommaDelimited(draft.tds);
-    const isExisting = parseCommaDelimited(draft.is_existing);
-
     for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
-      const rowProducts: any[] = [];
-      const rowImageList = images[rowIdx] || [];
-      
-      for (let optIdx = 0; optIdx < rowImageList.length; optIdx++) {
-        if (rowImageList[optIdx] === "-" || !rowImageList[optIdx]) continue;
+      productOffersByRow[rowIdx] = [];
+    }
 
-        const product: any = {
-          mainImage: { url: rowImageList[optIdx] },
-          qty: Number(qtys[rowIdx]?.[optIdx] || 1),
-          productName: productNames[rowIdx]?.[optIdx] && productNames[rowIdx][optIdx] !== "-" ? productNames[rowIdx][optIdx] : "",
-          technicalSpecifications: specs[rowIdx] || [],
-          __originalTechnicalSpecifications: origSpecs[rowIdx] || [],
-          commercialDetails: {
-            unitCost: unitCosts[rowIdx]?.[optIdx] || "0",
-            pcsPerCarton: pcsPerCartons[rowIdx]?.[optIdx] || "-",
-            packaging: packagingDetails[rowIdx]?.[optIdx] || "-",
-            warranty: warranties[rowIdx]?.[optIdx] || "-",
-            factoryAddress: factories[rowIdx]?.[optIdx] || "-",
-            portOfDischarge: ports[rowIdx]?.[optIdx] || "-",
-            commercialType: commercialTypes[rowIdx]?.[optIdx] || "BASIC",
-          },
-          supplier: {
-            supplierBrand: supplierBrands[rowIdx]?.[optIdx] || "-",
-            company: companyNames[rowIdx]?.[optIdx] || "-",
-          },
-          contact_name: contactNames[rowIdx]?.[optIdx] || "-",
-          contact_number: contactNumbers[rowIdx]?.[optIdx] || "-",
-          __sellingCost: sellingCosts[rowIdx]?.[optIdx] || "-",
-          __leadTime: leadTimes[rowIdx]?.[optIdx] || "-",
-          __priceValidity: formatDateTimeLocal(priceValidities[rowIdx]?.[optIdx] || null),
-          dimensionalDrawing: (() => {
-            const u = dimensionalDrawings[rowIdx]?.[optIdx];
-            return u && u !== "-" ? { url: u } : null;
-          })(),
-          illuminanceDrawing: (() => {
-            const u = illuminanceDrawings[rowIdx]?.[optIdx];
-            return u && u !== "-" ? { url: u } : null;
-          })(),
-          productReferenceID: productRefIDs[rowIdx]?.[optIdx] || null,
-          __selectedBranch: branches[rowIdx]?.[optIdx] || "-",
-          __spfRemarksPD: spfRemarksPD[rowIdx]?.[optIdx] || "-",
-          __tdsPdfUrl: tdsPdfUrls[rowIdx]?.[optIdx] || "",
-          __tdsBrand: tdsBrands[rowIdx]?.[optIdx] && tdsBrands[rowIdx][optIdx] !== "-" ? tdsBrands[rowIdx][optIdx] : "",
-          __tdsProductName: productNames[rowIdx]?.[optIdx] && productNames[rowIdx][optIdx] !== "-" ? productNames[rowIdx][optIdx] : "",
-          __isExisting: isExisting[rowIdx]?.[optIdx] === "true",
-          __rowIndex: rowIdx,
-        };
+    for (let flatIdx = 0; flatIdx < flatImages.length; flatIdx++) {
+      const img = flatImages[flatIdx];
+      if (!img || img === "-") continue;
 
-        rowProducts.push(product);
-      }
+      const rowIdx = flatIndexToRowIndex[flatIdx] ?? 0;
 
-      productOffersByRow[rowIdx] = rowProducts;
+      const product: any = {
+        mainImage: { url: img },
+        qty: Number(flatQtys[flatIdx] || 1),
+        productName:
+          flatProductNames[flatIdx] && flatProductNames[flatIdx] !== "-"
+            ? flatProductNames[flatIdx]
+            : "",
+        technicalSpecifications: flatSpecs[flatIdx] || [],
+        __originalTechnicalSpecifications: flatOrigSpecs[flatIdx] || [],
+        commercialDetails: {
+          unitCost: flatUnitCosts[flatIdx] || "0",
+          pcsPerCarton: flatPcsPerCartons[flatIdx] || "-",
+          packaging: flatPackaging[flatIdx] || "-",
+          warranty: flatWarranties[flatIdx] || "-",
+          factoryAddress: flatFactories[flatIdx] || "-",
+          portOfDischarge: flatPorts[flatIdx] || "-",
+          commercialType: flatCommercialTypes[flatIdx] || "BASIC",
+        },
+        supplier: {
+          supplierBrand: flatSupplierBrands[flatIdx] || "-",
+          company: flatCompanyNames[flatIdx] || "-",
+        },
+        contact_name: flatContactNames[flatIdx] || "-",
+        contact_number: flatContactNumbers[flatIdx] || "-",
+        __sellingCost: flatSellingCosts[flatIdx] || "-",
+        __leadTime: flatLeadTimes[flatIdx] || "-",
+        __priceValidity: formatDateTimeLocal(flatPriceValidities[flatIdx] || null),
+        dimensionalDrawing: (() => {
+          const u = flatDimDrawings[flatIdx];
+          return u && u !== "-" ? { url: u } : null;
+        })(),
+        illuminanceDrawing: (() => {
+          const u = flatIllumDrawings[flatIdx];
+          return u && u !== "-" ? { url: u } : null;
+        })(),
+        productReferenceID: flatProductRefIDs[flatIdx] || null,
+        __selectedBranch: flatBranches[flatIdx] || "-",
+        __spfRemarksPD: flatSpfRemarksPD[flatIdx] || "-",
+        __tdsPdfUrl: flatTdsPdfUrls[flatIdx] || "",
+        __tdsBrand:
+          flatTdsBrands[flatIdx] && flatTdsBrands[flatIdx] !== "-"
+            ? flatTdsBrands[flatIdx]
+            : "",
+        __tdsProductName:
+          flatProductNames[flatIdx] && flatProductNames[flatIdx] !== "-"
+            ? flatProductNames[flatIdx]
+            : "",
+        __isExisting: flatIsExisting[flatIdx] === "true",
+        __rowIndex: rowIdx,
+      };
+
+      productOffersByRow[rowIdx].push(product);
     }
 
     return res.status(200).json({
@@ -194,11 +237,18 @@ export default async function handler(
         spf_creation_start_time: draft.spf_creation_start_time,
         date_created: draft.date_created,
         date_updated: draft.date_updated,
+        final_unit_cost: (draft as any).final_unit_cost,
+        final_subtotal: (draft as any).final_subtotal,
+        item_added_date: (draft as any).item_added_date,
+        item_added_author: (draft as any).item_added_author,
+        revision_remarks: (draft as any).revision_remarks,
+        revision_type: (draft as any).revision_type,
+        spf_remarks_procurement: (draft as any).spf_remarks_procurement,
+        tds_pdf_urls: (draft as any).tds_pdf_urls,
       },
       productOffers: productOffersByRow,
       totalItemRows: rowCount,
     });
-
   } catch (err: any) {
     console.error(err);
     return res.status(500).json({ message: err.message || "Server error" });
