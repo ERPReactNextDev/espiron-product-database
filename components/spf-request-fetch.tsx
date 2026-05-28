@@ -26,6 +26,7 @@ import {
   Pencil,
   Save,
 } from "lucide-react";
+import { ForPoolingButton } from "@/components/for-pooling-button";
 import { toast } from "sonner";
 import { collection, query, where, onSnapshot, getDocs, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -52,6 +53,7 @@ type SPFViewProps = {
   onOpen?: () => void;
   triggerDataAttr?: string;
   triggerMode?: "view" | "edit";
+  showPoolingButton?: boolean;
 };
 
 type SPFData = {
@@ -576,6 +578,7 @@ export default function SPFRequestFetch({
   onOpen,
   triggerDataAttr,
   triggerMode = "view",
+  showPoolingButton,
 }: SPFViewProps) {
   const { userId } = useUser();
   const { onSPFUpdated } = useNotificationTriggers();
@@ -1686,13 +1689,16 @@ useEffect(() => {
     <>
       <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
         <div className="flex items-center justify-between gap-2">
-          <DialogTitle className="text-sm font-semibold truncate flex items-center gap-2">
-            <Pencil size={14} className="text-orange-500" />
-            Edit {spfNumber}
-            <span className={`text-[9px] px-2 py-0.5 rounded border ${revisionBadge.color}`}>
-              {revisionBadge.label}
-            </span>
-          </DialogTitle>
+          <div className="flex items-center gap-2">
+            <ForPoolingButton show={showPoolingButton} />
+            <DialogTitle className="text-sm font-semibold truncate flex items-center gap-2">
+              <Pencil size={14} className="text-orange-500" />
+              Edit {spfNumber}
+              <span className={`text-[9px] px-2 py-0.5 rounded border ${revisionBadge.color}`}>
+                {revisionBadge.label}
+              </span>
+            </DialogTitle>
+          </div>
           <div className="flex items-center gap-1 shrink-0">
             {hasDraft && (
               <Button
@@ -2448,13 +2454,16 @@ useEffect(() => {
       <DialogHeader className="w-full mb-4 shrink-0">
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1" />
-          <DialogTitle className="flex items-center justify-center gap-2 shrink-0">
-            <Pencil size={16} className="text-orange-500" />
-            Edit SPF — {spfNumber}
-            <span className={`text-xs px-2 py-0.5 rounded border ${revisionBadge.color}`}>
-              {revisionBadge.label}
-            </span>
-          </DialogTitle>
+          <div className="flex items-center justify-center gap-2 shrink-0">
+            <ForPoolingButton show={showPoolingButton} />
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil size={16} className="text-orange-500" />
+              Edit SPF — {spfNumber}
+              <span className={`text-xs px-2 py-0.5 rounded border ${revisionBadge.color}`}>
+                {revisionBadge.label}
+              </span>
+            </DialogTitle>
+          </div>
           <div className="flex-1 flex gap-2 items-center justify-end">
             {hasDraft && (
               <Button
@@ -4381,14 +4390,17 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
             }
           >
             <div className="flex items-center justify-between gap-2">
-              <DialogTitle className="flex items-center gap-2">
-                SPF Request View
-                {latestVersionLabel && (
-                  <span className="text-[11px] px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200 font-mono">
-                    {latestVersionLabel}
-                  </span>
-                )}
-              </DialogTitle>
+              <div className="flex items-center gap-2">
+                <ForPoolingButton show={showPoolingButton} />
+                <DialogTitle className="flex items-center gap-2">
+                  SPF Request View
+                  {latestVersionLabel && (
+                    <span className="text-[11px] px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200 font-mono">
+                      {latestVersionLabel}
+                    </span>
+                  )}
+                </DialogTitle>
+              </div>
               <SPFRequestFetchVersionHistory
                 spfNumber={spfNumber}
                 isMobile={isMobile}

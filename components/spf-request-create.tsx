@@ -18,6 +18,7 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion";
 import { Funnel, Plus, Trash2, ChevronDown, ChevronUp, Pencil, Save } from "lucide-react";
+import { ForPoolingButton } from "@/components/for-pooling-button";
 import { toast } from "sonner";
 import FilteringComponent from "@/components/filtering-component-v2";
 import AddProductComponent from "@/components/add-product-component";
@@ -74,6 +75,7 @@ type Props = {
   processBy: string;
   isMobile: boolean;
   onSuccess: () => void;
+  showPoolingButton?: boolean;
 };
 
 /* ─────────────────────────────────────────────────────────────── */
@@ -193,6 +195,7 @@ export default function SPFRequestCreate({
   processBy,
   isMobile,
   onSuccess,
+  showPoolingButton,
 }: Props) {
   /* ── Form ── */
   const [formData, setFormData] = useState<SPFRequest>({
@@ -828,6 +831,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
       <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
+            <ForPoolingButton show={showPoolingButton} />
             <DialogTitle className="text-sm font-semibold truncate">
               {formData.spf_number || "Create SPF"}
             </DialogTitle>
@@ -1478,6 +1482,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
     <>
       <DialogHeader className="w-full mb-4 relative">
         <div className="flex items-center justify-center gap-2">
+          <ForPoolingButton show={showPoolingButton} />
           <DialogTitle className="text-center">
             Create SPF Request
           </DialogTitle>

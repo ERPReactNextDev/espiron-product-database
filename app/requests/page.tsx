@@ -16,10 +16,12 @@ import {
   ChevronUp,
   Search,
   RefreshCw,
+  Plus,
 } from "lucide-react";
 import SPFRequestFetch from "@/components/spf-request-fetch";
 import SPFRequestCreate, { type SPFRequest } from "@/components/spf-request-create";
 import { CollaborationHubRowTrigger } from "@/components/collaboration-hub-row-trigger";
+import { ForPoolingButton } from "@/components/for-pooling-button";
 import SPFRequestDownloadAll from "@/components/spf-request-download-all";
 import SpecialInstructionsDialog from "@/components/special-instructions-dialog";
 
@@ -599,7 +601,7 @@ export default function RequestsPage() {
         <table className="w-full text-sm border-collapse">
           <thead className="bg-red-50/80 backdrop-blur-sm sticky top-0 z-30">
             <tr>
-              {["SPF Number", "Customer Name", "Special Instructions", "Prepared By", "Approved By", "Date Received", "Date Updated", "Action"].map((h, index) => (
+              {["SPF Number", "Customer Name", "Special Instructions", "Prepared By", "Approved By", "Date Received", "Date Updated", "For Pooling (no function yet)", "Action"].map((h, index) => (
                 <th key={h} className={`px-4 py-3 text-left font-bold border-b whitespace-nowrap ${index === 0 ? 'sticky left-0 bg-red-50/80 backdrop-blur-sm z-20' : ''}`}>{h}</th>
               ))}
             </tr>
@@ -607,11 +609,11 @@ export default function RequestsPage() {
           <tbody>
             {isRefreshing ? (
               <tr>
-                <td colSpan={8} className="text-center py-10 text-muted-foreground">Loading...</td>
+                <td colSpan={9} className="text-center py-10 text-muted-foreground">Loading...</td>
               </tr>
             ) : filteredRequests.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center py-10 text-muted-foreground">No SPF requests yet.</td>
+                <td colSpan={9} className="text-center py-10 text-muted-foreground">No SPF requests yet.</td>
               </tr>
             ) : (
               paginatedRequests.map((req) => {
@@ -701,6 +703,9 @@ export default function RequestsPage() {
                     <td className="px-4 py-3 uppercase">{req.approved_by || "-"}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formattedDateApprovedSalesHead}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formattedDate}</td>
+                    <td className="px-4 py-3 text-center">
+                      <ForPoolingButton show={!isProcurementStatus(req.spf_number) || spfStatus?.toLowerCase() === "for revision"} />
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2 flex-nowrap items-center">
                         <CollaborationHubRowTrigger
@@ -722,6 +727,7 @@ export default function RequestsPage() {
                               triggerMode={
                                 reviseTargetSpfNumber === req.spf_number ? "edit" : "view"
                               }
+                              showPoolingButton={!isProcurementStatus(req.spf_number) || spfStatus?.toLowerCase() === "for revision"}
                             />
                           </div>
                         )}
@@ -819,6 +825,7 @@ export default function RequestsPage() {
                       <SPFRequestFetch
                         spfNumber={req.spf_number}
                         onOpen={() => markSPFRequestAsRead(req.spf_number)}
+                        showPoolingButton={!isProcurementStatus(req.spf_number) || spfStatus?.toLowerCase() === "for revision"}
                       />
                     </div>
                   )}
@@ -869,6 +876,7 @@ export default function RequestsPage() {
           processBy={processBy}
           isMobile={isMobile}
           onSuccess={fetchRequests}
+          showPoolingButton={!isProcurementStatus(selectedRow.spf_number) || createdSPF[selectedRow.spf_number]?.toLowerCase() === "for revision"}
         />
       )}
 
