@@ -366,6 +366,15 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
   const [illuminancePreview, setIlluminancePreview] = useState<string | null>(null);
   const [illuminanceLink, setIlluminanceLink] = useState("");
 
+  type ImagePasteTarget = "main" | "dimensional" | "illuminance";
+  const [imagePasteTarget, setImagePasteTarget] = useState<ImagePasteTarget | null>(null);
+
+  type ImageHistoryState = { file: File | null; link: string };
+  type ImageHistoryStacks = { undo: ImageHistoryState[]; redo: ImageHistoryState[] };
+  const mainImageHistoryRef = useRef<ImageHistoryStacks>({ undo: [], redo: [] });
+  const dimensionalImageHistoryRef = useRef<ImageHistoryStacks>({ undo: [], redo: [] });
+  const illuminanceImageHistoryRef = useRef<ImageHistoryStacks>({ undo: [], redo: [] });
+
   const [classificationType, setClassificationType] = useState<SelectedClassification>(null);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [brandSearch, setBrandSearch] = useState("");
@@ -483,24 +492,147 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
     setTechnicalSpecs(copy);
   };
 
+  const getImageHistoryRef = (target: ImagePasteTarget) => {
+    if (target === "main") return mainImageHistoryRef;
+    if (target === "dimensional") return dimensionalImageHistoryRef;
+    return illuminanceImageHistoryRef;
+  };
+
+  const getCurrentImageState = (target: ImagePasteTarget): ImageHistoryState => {
+    if (target === "main") return { file: mainImage, link: imageLink };
+    if (target === "dimensional") return { file: dimensionalDrawing, link: dimensionalLink };
+    return { file: illuminanceDrawing, link: illuminanceLink };
+  };
+
+  const pushImageHistory = (target: ImagePasteTarget) => {
+    const ref = getImageHistoryRef(target);
+    const current = getCurrentImageState(target);
+    const last = ref.current.undo[ref.current.undo.length - 1];
+    if (last && last.file === current.file && last.link === current.link) return;
+    ref.current.undo.push(current);
+    ref.current.redo = [];
+  };
+
+  const applyImageState = (target: ImagePasteTarget, state: ImageHistoryState) => {
+    const normalized: ImageHistoryState = state.link ? { file: null, link: state.link } : { file: state.file, link: "" };
+    if (target === "main") {
+      setMainImage(normalized.file);
+      setImageLink(normalized.link);
+      if (preview) URL.revokeObjectURL(preview);
+      if (normalized.file) setPreview(URL.createObjectURL(normalized.file));
+      else if (normalized.link) setPreview(convertDriveToThumbnail(normalized.link));
+      else setPreview(null);
+      return;
+    }
+    if (target === "dimensional") {
+      setDimensionalDrawing(normalized.file);
+      setDimensionalLink(normalized.link);
+      if (dimensionalPreview) URL.revokeObjectURL(dimensionalPreview);
+      if (normalized.file) setDimensionalPreview(URL.createObjectURL(normalized.file));
+      else if (normalized.link) setDimensionalPreview(convertDriveToThumbnail(normalized.link));
+      else setDimensionalPreview(null);
+      return;
+    }
+    setIlluminanceDrawing(normalized.file);
+    setIlluminanceLink(normalized.link);
+    if (illuminancePreview) URL.revokeObjectURL(illuminancePreview);
+    if (normalized.file) setIlluminancePreview(URL.createObjectURL(normalized.file));
+    else if (normalized.link) setIlluminancePreview(convertDriveToThumbnail(normalized.link));
+    else setIlluminancePreview(null);
+  };
+
+  const undoImageChange = (target: ImagePasteTarget) => {
+    const ref = getImageHistoryRef(target);
+    const prev = ref.current.undo.pop();
+    if (!prev) return;
+    ref.current.redo.push(getCurrentImageState(target));
+    applyImageState(target, prev);
+  };
+
+  const redoImageChange = (target: ImagePasteTarget) => {
+    const ref = getImageHistoryRef(target);
+    const next = ref.current.redo.pop();
+    if (!next) return;
+    ref.current.undo.push(getCurrentImageState(target));
+    applyImageState(target, next);
+  };
+
   const handleImageChange = (file: File | null) => {
     if (!file) return;
+    pushImageHistory("main");
     setMainImage(file); setImageLink("");
     if (preview) URL.revokeObjectURL(preview);
     setPreview(URL.createObjectURL(file));
   };
   const handleDimensionalChange = (file: File | null) => {
     if (!file) return;
+    pushImageHistory("dimensional");
     setDimensionalDrawing(file);
+    setDimensionalLink("");
     if (dimensionalPreview) URL.revokeObjectURL(dimensionalPreview);
     setDimensionalPreview(URL.createObjectURL(file));
   };
   const handleIlluminanceChange = (file: File | null) => {
     if (!file) return;
+    pushImageHistory("illuminance");
     setIlluminanceDrawing(file);
+    setIlluminanceLink("");
     if (illuminancePreview) URL.revokeObjectURL(illuminancePreview);
     setIlluminancePreview(URL.createObjectURL(file));
   };
+
+  const getPastedImageFile = (event: ClipboardEvent): File | null => {
+    const items = event.clipboardData?.items;
+    if (!items) return null;
+    for (const item of Array.from(items)) {
+      if (item.kind !== "file") continue;
+      if (!item.type.startsWith("image/")) continue;
+      const file = item.getAsFile();
+      if (!file) continue;
+      const ext = file.type.split("/")[1] || "png";
+      const name = file.name?.trim() ? file.name : `pasted-${Date.now()}.${ext}`;
+      try {
+        return new File([file], name, { type: file.type });
+      } catch {
+        return file;
+      }
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      if (!imagePasteTarget) return;
+      const pasted = getPastedImageFile(event);
+      if (!pasted) return;
+      event.preventDefault();
+      if (imagePasteTarget === "main") handleImageChange(pasted);
+      if (imagePasteTarget === "dimensional") handleDimensionalChange(pasted);
+      if (imagePasteTarget === "illuminance") handleIlluminanceChange(pasted);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [imagePasteTarget, handleImageChange, handleDimensionalChange, handleIlluminanceChange]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!imagePasteTarget) return;
+      const isModifier = event.ctrlKey || event.metaKey;
+      if (!isModifier) return;
+      const key = event.key.toLowerCase();
+      if (key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        undoImageChange(imagePasteTarget);
+        return;
+      }
+      if (key === "y" || (key === "z" && event.shiftKey)) {
+        event.preventDefault();
+        redoImageChange(imagePasteTarget);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [imagePasteTarget, mainImage, imageLink, preview, dimensionalDrawing, dimensionalLink, dimensionalPreview, illuminanceDrawing, illuminanceLink, illuminancePreview]);
 
   const handleAddCategoryType = async () => {
     if (!newCategoryType.trim()) return;
@@ -944,12 +1076,14 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
 
   if (loading) return null;
 
-  const ImageUploadCard = ({ label, file, previewUrl, link, onFile, onLink }: { label: string; file: File | null; previewUrl: string | null; link: string; onFile: (f: File | null) => void; onLink: (l: string, p: string) => void }) => (
+  const ImageUploadCard = ({ label, file, previewUrl, link, onFile, onLink, pasteTarget }: { label: string; file: File | null; previewUrl: string | null; link: string; onFile: (f: File | null) => void; onLink: (l: string, p: string) => void; pasteTarget: ImagePasteTarget }) => (
     <Card>
       <CardHeader><CardTitle className="text-center text-xs font-bold uppercase tracking-wide">{label}</CardTitle></CardHeader>
       <CardContent className="space-y-3">
         <label
           className="flex flex-col items-center justify-center border-2 border-dashed rounded-xl h-40 cursor-pointer hover:border-blue-400 transition bg-gray-50"
+          onMouseEnter={() => setImagePasteTarget(pasteTarget)}
+          onMouseLeave={() => setImagePasteTarget(null)}
           onDragOver={e => e.preventDefault()}
           onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f?.type.startsWith("image/")) onFile(f); else toast.error("Only image files allowed"); }}
         >
@@ -982,6 +1116,8 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
             <CardContent className="space-y-4">
               <label
                 className="flex flex-col items-center justify-center border-2 border-dashed rounded-xl h-52 cursor-pointer hover:border-blue-400 transition bg-gray-50"
+                onMouseEnter={() => setImagePasteTarget("main")}
+                onMouseLeave={() => setImagePasteTarget(null)}
                 onDragOver={e => e.preventDefault()}
                 onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f?.type.startsWith("image/")) handleImageChange(f); else toast.error("Only image files allowed"); }}
               >
@@ -998,8 +1134,8 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
                 <Input placeholder="https://..." value={imageLink} onChange={e => { const orig = e.target.value; setImageLink(orig); setMainImage(null); setPreview(convertDriveToThumbnail(orig)); }} />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <ImageUploadCard label="Dimensional Drawing" file={dimensionalDrawing} previewUrl={dimensionalPreview} link={dimensionalLink} onFile={handleDimensionalChange} onLink={(orig, conv) => { setDimensionalLink(orig); setDimensionalDrawing(null); setDimensionalPreview(conv); }} />
-                <ImageUploadCard label="Illuminance Drawing" file={illuminanceDrawing} previewUrl={illuminancePreview} link={illuminanceLink} onFile={handleIlluminanceChange} onLink={(orig, conv) => { setIlluminanceLink(orig); setIlluminanceDrawing(null); setIlluminancePreview(conv); }} />
+                <ImageUploadCard label="Dimensional Drawing" file={dimensionalDrawing} previewUrl={dimensionalPreview} link={dimensionalLink} onFile={handleDimensionalChange} onLink={(orig, conv) => { setDimensionalLink(orig); setDimensionalDrawing(null); setDimensionalPreview(conv); }} pasteTarget="dimensional" />
+                <ImageUploadCard label="Illuminance Drawing" file={illuminanceDrawing} previewUrl={illuminancePreview} link={illuminanceLink} onFile={handleIlluminanceChange} onLink={(orig, conv) => { setIlluminanceLink(orig); setIlluminanceDrawing(null); setIlluminancePreview(conv); }} pasteTarget="illuminance" />
               </div>
             </CardContent>
           </Card>
