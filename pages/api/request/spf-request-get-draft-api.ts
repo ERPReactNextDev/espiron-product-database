@@ -4,6 +4,115 @@ import { supabase } from "@/utils/supabase";
 const ROW_SEP = "|ROW|";
 const ROW_BOUNDARY = "|ROW||ROW|";
 
+type LightMultipleRow = {
+  itemName?: string;
+  unitCost?: number;
+  length?: number | string;
+  width?: number | string;
+  height?: number | string;
+  qtyPerCarton?: number;
+};
+
+type MultiPackagingPayloadV1 = {
+  v: 1;
+  type: "LIGHT_MULTIPLE";
+  rows: LightMultipleRow[];
+};
+
+function decodeBase64ToString(base64: string): string | null {
+  try {
+    return Buffer.from(base64, "base64").toString("utf-8");
+  } catch {
+    return null;
+  }
+}
+
+function decodeMultiPackaging(packagingStr: string | undefined): MultiPackagingPayloadV1 | null {
+  const raw = (packagingStr ?? "").trim();
+  if (!raw.startsWith("MULTI:")) return null;
+  const b64 = raw.slice("MULTI:".length);
+  const decoded = decodeBase64ToString(b64);
+  if (!decoded) return null;
+  try {
+    const parsed = JSON.parse(decoded);
+    if (
+      parsed?.v !== 1 ||
+      parsed?.type !== "LIGHT_MULTIPLE" ||
+      !Array.isArray(parsed?.rows)
+    ) {
+      return null;
+    }
+    return parsed as MultiPackagingPayloadV1;
+  } catch {
+    return null;
+  }
+}
+
+function parseHumanReadableMultiPackaging(packagingStr: string | undefined): MultiPackagingPayloadV1 | null {
+  const raw = (packagingStr ?? "").trim();
+  if (!raw || raw === "-") return null;
+  if (raw.startsWith("MULTI:")) return decodeMultiPackaging(raw);
+
+  const lines = raw
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l);
+  if (lines.length === 0) return null;
+
+  const isOldFormat = lines.length % 3 === 0;
+  const isNewFormat = lines.length % 4 === 0;
+  if (!isOldFormat && !isNewFormat) return null;
+
+  const rows: LightMultipleRow[] = [];
+  const linesPerItem = isNewFormat ? 4 : 3;
+
+  for (let i = 0; i < lines.length; i += linesPerItem) {
+    const itemName = lines[i] || "";
+
+    let qtyPerCarton = 0;
+    let dimensions = "";
+    let unitCostStr = "";
+
+    if (isNewFormat) {
+      const qtyLine = lines[i + 1] || "";
+      dimensions = lines[i + 2] || "";
+      unitCostStr = lines[i + 3] || "";
+      const qtyMatch = qtyLine.match(/^Qty:\s*(\d+)/);
+      qtyPerCarton = qtyMatch ? parseInt(qtyMatch[1], 10) : 0;
+    } else {
+      dimensions = lines[i + 1] || "";
+      unitCostStr = lines[i + 2] || "";
+      qtyPerCarton = 0;
+    }
+
+    const dimParts = dimensions.split("×").map((p) => p.trim());
+    const length = dimParts[0] || "-";
+    const width = dimParts[1] || "-";
+    const height = dimParts[2] || "-";
+
+    const costMatch = unitCostStr.match(/^([\d.]+)/);
+    const unitCost = costMatch ? parseFloat(costMatch[1]) : 0;
+
+    rows.push({ itemName, length, width, height, unitCost, qtyPerCarton });
+  }
+
+  if (rows.length === 0) return null;
+  return { v: 1, type: "LIGHT_MULTIPLE", rows };
+}
+
+function parsePackagingDimensions(packagingStr: string | undefined): { length: string; width: string; height: string } {
+  const raw = (packagingStr ?? "").trim();
+  if (!raw || raw === "-") return { length: "-", width: "-", height: "-" };
+  const parts = raw
+    .split(/(?:\s*x\s*|\s*×\s*)/i)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const length = parts[0] ?? "-";
+  const width = parts[1] ?? "-";
+  const height = parts[2] ?? "-";
+  return { length, width, height };
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -166,6 +275,36 @@ export default async function handler(
       if (!img || img === "-") continue;
 
       const rowIdx = flatIndexToRowIndex[flatIdx] ?? 0;
+      const commercialTypeRaw = (flatCommercialTypes[flatIdx] || "BASIC").toUpperCase();
+      const rawPackaging = flatPackaging[flatIdx] || "-";
+
+      let packagingData = { length: "-", width: "-", height: "-" };
+      let useArrayInput = false;
+      let multiRows: LightMultipleRow[] = [];
+      let totalUnitCost: number | undefined;
+
+      if (commercialTypeRaw === "LIGHT") {
+        const decodedMulti = parseHumanReadableMultiPackaging(rawPackaging);
+        if (decodedMulti?.rows?.length) {
+          useArrayInput = true;
+          multiRows = decodedMulti.rows.map((r) => ({
+            itemName: r.itemName ?? "",
+            unitCost: Number(r.unitCost ?? 0) || 0,
+            length: (r.length ?? "-").toString(),
+            width: (r.width ?? "-").toString(),
+            height: (r.height ?? "-").toString(),
+            qtyPerCarton: Number(r.qtyPerCarton ?? 0) || 0,
+          }));
+          totalUnitCost = multiRows.reduce(
+            (sum: number, r: LightMultipleRow) => sum + (Number(r.unitCost) || 0),
+            0,
+          );
+        } else {
+          packagingData = parsePackagingDimensions(rawPackaging);
+        }
+      } else {
+        packagingData = parsePackagingDimensions(rawPackaging);
+      }
 
       const product: any = {
         mainImage: { url: img },
@@ -179,11 +318,14 @@ export default async function handler(
         commercialDetails: {
           unitCost: flatUnitCosts[flatIdx] || "0",
           pcsPerCarton: flatPcsPerCartons[flatIdx] || "-",
-          packaging: flatPackaging[flatIdx] || "-",
+          packaging: packagingData,
           warranty: flatWarranties[flatIdx] || "-",
           factoryAddress: flatFactories[flatIdx] || "-",
           portOfDischarge: flatPorts[flatIdx] || "-",
           commercialType: flatCommercialTypes[flatIdx] || "BASIC",
+          useArrayInput,
+          multiRows,
+          ...(typeof totalUnitCost === "number" ? { totalUnitCost } : {}),
         },
         supplier: {
           supplierBrand: flatSupplierBrands[flatIdx] || "-",

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -677,6 +677,7 @@ useEffect(() => {
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isLoadingDraft, setIsLoadingDraft] = useState(false);
   const [draftAutoLoaded, setDraftAutoLoaded] = useState(false);
+  const draftInUseRef = useRef(false);
 
   /* ── TDS Dialog state ── */
   const [tdsDialogOpen, setTdsDialogOpen] = useState(false);
@@ -695,6 +696,7 @@ useEffect(() => {
     setSpfCreationEndTime(null);
     setTimerActive(true);
     setDraftAutoLoaded(false);
+    draftInUseRef.current = false;
   }, [open]);
 
   /* ── Check for existing draft and restore timer ── */
@@ -1157,6 +1159,7 @@ useEffect(() => {
     
     // For existing products without original specs stored, fetch from Firebase
     const enrichProductsWithOriginalSpecs = async () => {
+      if (draftInUseRef.current) return;
       const updatedOffers: Record<number, any[]> = {};
       for (const [rowIdx, products] of Object.entries(initialOffers)) {
         const rowIndex = parseInt(rowIdx);
@@ -1176,6 +1179,7 @@ useEffect(() => {
           })
         );
       }
+      if (draftInUseRef.current) return;
       setProductOffers(updatedOffers);
     };
     
@@ -1426,6 +1430,7 @@ useEffect(() => {
             }))
         ));
 
+        draftInUseRef.current = true;
         // Set the product offers from draft
         setProductOffers(data.productOffers);
         // Switch to edit mode with draft loaded

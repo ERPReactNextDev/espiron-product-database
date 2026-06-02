@@ -183,21 +183,60 @@ export default async function handler(
         const p = rowProducts[optIdx];
 
         const qty          = Number(p.qty || 0);
-        const unitCost     = Number(p?.commercialDetails?.unitCost || 0);
+        const commercialType = (p?.commercialDetails?.commercialType || "BASIC").toUpperCase();
+        const useArrayInput =
+          commercialType === "LIGHT" && p?.commercialDetails?.useArrayInput === true;
+        const totalUnitCost = Number(p?.commercialDetails?.totalUnitCost || 0);
+        const baseUnitCost = Number(p?.commercialDetails?.unitCost || 0);
+        const unitCost = useArrayInput ? totalUnitCost : baseUnitCost;
         const factory      = p?.commercialDetails?.factoryAddress    || "-";
         const port         = p?.commercialDetails?.portOfDischarge   || "-";
         const subtotal     = qty * unitCost;
 
-        const packagingData = p?.commercialDetails?.packaging;
-        const length = packagingData?.length || "-";
-        const width  = packagingData?.width  || "-";
-        const height = packagingData?.height || "-";
-        const pcsPerCarton = String(p?.commercialDetails?.pcsPerCarton ?? "-");
-        const packagingStr = `${length} x ${width} x ${height}`;
-        const warranty = p?.commercialDetails?.warranty || "-";
+        let pcsPerCarton = String(p?.commercialDetails?.pcsPerCarton ?? "-");
+        let packagingStr = "- x - x -";
 
-        // Get commercial type for this product
-        const commercialType = p?.commercialDetails?.commercialType || "BASIC";
+        if (
+          commercialType === "LIGHT" &&
+          useArrayInput &&
+          Array.isArray(p?.commercialDetails?.multiRows) &&
+          p.commercialDetails.multiRows.length > 0
+        ) {
+          pcsPerCarton = "-";
+          packagingStr = p.commercialDetails.multiRows
+            .map((r: Record<string, unknown>) => {
+              const itemName = (r?.itemName ?? "").toString();
+              const qtyPerCarton = Number(r?.qtyPerCarton ?? 0) || 0;
+              const length = (r?.length ?? "-").toString();
+              const width = (r?.width ?? "-").toString();
+              const height = (r?.height ?? "-").toString();
+              const rowUnitCost = Number(r?.unitCost ?? 0) || 0;
+              return `${itemName}\nQty: ${qtyPerCarton}\n${length} × ${width} × ${height}\n${rowUnitCost} USD`;
+            })
+            .join("\n");
+        } else {
+          const packagingData = p?.commercialDetails?.packaging;
+          let length = "-";
+          let width = "-";
+          let height = "-";
+
+          if (typeof packagingData === "string") {
+            const parts = packagingData
+              .split(/(?:\s*x\s*|\s*×\s*)/i)
+              .map((s) => s.trim())
+              .filter(Boolean);
+            length = parts[0] ?? "-";
+            width = parts[1] ?? "-";
+            height = parts[2] ?? "-";
+          } else {
+            length = packagingData?.length || "-";
+            width = packagingData?.width || "-";
+            height = packagingData?.height || "-";
+          }
+
+          packagingStr = `${length} x ${width} x ${height}`;
+        }
+        const warranty = p?.commercialDetails?.warranty || "-";
 
         // price_validity - preserve datetime-local format (YYYY-MM-DDTHH:mm)
         const rawPV = p?.__priceValidity || p?.price_validity;
@@ -231,7 +270,7 @@ export default async function handler(
         pcsPerCartons.push(pcsPerCarton);
         packaging.push(packagingStr);
         warranties.push(warranty);
-        commercialTypes.push(commercialType);
+        commercialTypes.push(p?.commercialDetails?.commercialType || "BASIC");
         factories.push(factory);
         ports.push(port);
         subtotals.push(String(subtotal));
