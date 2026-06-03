@@ -708,6 +708,11 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
           toast.error(`Row ${i + 1}, Option ${j + 1}: TDS Brand is required`);
           return;
         }
+        // Validate TDS PDF URL
+        if (!prod.__tdsPdfUrl || prod.__tdsPdfUrl.trim() === "") {
+          toast.error(`Row ${i + 1}, Option ${j + 1}: TDS PDF is required. Please generate TDS first.`);
+          return;
+        }
       }
     }
 
@@ -2476,6 +2481,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                   ) ||
                   Object.values(productOffers).flat().some(
                     (p: any) => !p.__priceValidity?.trim() || !p.__tdsBrand?.trim() ||
+                      !p.__tdsPdfUrl?.trim() ||
                       (p.countries?.length > 1 && !p.__selectedBranch?.trim())
                   )
                 }

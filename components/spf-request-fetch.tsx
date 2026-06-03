@@ -1536,6 +1536,12 @@ useEffect(() => {
           setIsSubmitting(false);
           return;
         }
+        // Validate TDS PDF URL
+        if (!prod.__tdsPdfUrl || prod.__tdsPdfUrl.trim() === "") {
+          toast.error(`Row ${i + 1}, Option ${j + 1}: TDS PDF is required. Please generate TDS first.`);
+          setIsSubmitting(false);
+          return;
+        }
 
         // Validate branch selection for products with multiple countries
         const availableCountries = prod.countries || [];
@@ -2417,6 +2423,7 @@ useEffect(() => {
                 ) ||
                 Object.values(productOffers).flat().some(
                   (p: any) => !p.__priceValidity?.trim() || !p.__tdsBrand?.trim() ||
+                    !p.__tdsPdfUrl?.trim() ||
                     (p.countries?.length > 1 && !p.__selectedBranch?.trim())
                 )
               }
@@ -3547,6 +3554,7 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                 ) ||
                 Object.values(productOffers).flat().some(
                   (p: any) => !p.__priceValidity?.trim() || !p.__tdsBrand?.trim() ||
+                    !p.__tdsPdfUrl?.trim() ||
                     (p.countries?.length > 1 && !p.__selectedBranch?.trim())
                 )
               }

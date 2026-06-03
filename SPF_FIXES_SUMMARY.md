@@ -67,6 +67,43 @@ Tinanggal ang `disabled` attribute at conditional handlers para laging editable.
 
 ---
 
+## 🔧 Fix #3: TDS Required Before Submit/Save
+
+### Problem
+Hindi required ang **TDS PDF** (View TDS link) bago mag-submit o mag-save ng SPF. Users can submit without generating TDS first.
+
+### Solution
+Added validation sa both Create SPF at Edit SPF modes para i-require ang TDS PDF URL.
+
+**Files Fixed:**
+1. ✅ `components/spf-request-create.tsx`
+2. ✅ `components/spf-request-fetch.tsx`
+
+**Validation Added:**
+```typescript
+// Validate TDS PDF URL
+if (!prod.__tdsPdfUrl || prod.__tdsPdfUrl.trim() === "") {
+  toast.error(`Row ${i + 1}, Option ${j + 1}: TDS PDF is required. Please generate TDS first.`);
+  return;
+}
+```
+
+**Button Disabled Condition:**
+```typescript
+Object.values(productOffers).flat().some(
+  (p: any) => !p.__priceValidity?.trim() || !p.__tdsBrand?.trim() ||
+    !p.__tdsPdfUrl?.trim() ||  // ✅ NEW: TDS PDF required
+    (p.countries?.length > 1 && !p.__selectedBranch?.trim())
+)
+```
+
+### Result
+✅ TDS PDF is now required before submitting/saving SPF requests
+✅ Submit/Save buttons are disabled kung walang TDS PDF
+✅ Clear error message: "TDS PDF is required. Please generate TDS first."
+
+---
+
 ## Testing Checklist
 
 ### Unit Cost Fix
@@ -88,6 +125,16 @@ Tinanggal ang `disabled` attribute at conditional handlers para laging editable.
 - [ ] Save changes
 - [ ] Verify new price validity saved in database
 
+### TDS Required Fix
+- [ ] Create SPF and add product
+- [ ] Try to submit without generating TDS
+- [ ] Verify Submit button is disabled
+- [ ] Should show error: "TDS PDF is required"
+- [ ] Generate TDS for the product
+- [ ] Verify Submit button is now enabled
+- [ ] Submit successfully
+- [ ] Repeat for Edit SPF mode
+
 ---
 
 ## Files Modified Summary
@@ -97,8 +144,15 @@ Tinanggal ang `disabled` attribute at conditional handlers para laging editable.
 - `pages/api/request/spf-request-edit-api.ts` (Line ~259)
 - `pages/api/request/spf-request-save-draft-api.ts` (Line ~186)
 
-### Frontend Components (Price Validity Fix)
-- `components/spf-request-fetch.tsx` (Line ~3029)
+### Frontend Components (Price Validity & TDS Fixes)
+- `components/spf-request-fetch.tsx`
+  - Line ~3029: Price Validity always editable
+  - Line ~1540: TDS validation in edit submit
+  - Line ~2415, ~3550: TDS button disabled conditions
+  
+- `components/spf-request-create.tsx`
+  - Line ~714: TDS validation in create submit
+  - Line ~2478: TDS button disabled condition
 
 ---
 
@@ -114,7 +168,13 @@ Tinanggal ang `disabled` attribute at conditional handlers para laging editable.
 - **Risk**: Low - enables previously disabled field
 - **Breaking Changes**: None - only enables functionality
 
+### TDS Required Fix
+- **Scope**: All SPF create/edit operations
+- **Risk**: Medium - enforces new validation (blocks submit without TDS)
+- **Breaking Changes**: None - enforces business requirement
+- **User Impact**: Must generate TDS before submitting (proper workflow)
+
 ---
 
 ## Status
-✅ **BOTH FIXES COMPLETED** - Ready for testing and deployment
+✅ **ALL THREE FIXES COMPLETED** - Ready for testing and deployment
