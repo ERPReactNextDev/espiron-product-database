@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 interface SeenByUser {
   firstName: string;
   lastName: string;
-  userName: string;
+  userName: string; //string
   profilePicture?: string;
   department?: string;
 }
