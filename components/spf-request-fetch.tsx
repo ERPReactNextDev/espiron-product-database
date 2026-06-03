@@ -3026,11 +3026,10 @@ useEffect(() => {
                                         <td className="border px-2 py-1 text-center align-middle">
                                           <input
                                             type="datetime-local"
-                                            className={`border px-1 py-0.5 text-xs w-full ${prod.__isExisting ? "bg-gray-100 cursor-not-allowed" : ""}`}
+                                            className="border px-1 py-0.5 text-xs w-full"
                                             value={prod.__priceValidity ?? ""}
-                                            disabled={prod.__isExisting}
-                                            title={prod.__isExisting ? "Price validity cannot be edited for existing products" : "Price validity"}
-                                            onChange={prod.__isExisting ? undefined : (e) => {
+                                            title="Price validity"
+                                            onChange={(e) => {
                                               setProductOffers((prev) => {
                                                 const copy = { ...prev };
                                                 const row = [...(copy[index] || [])];
