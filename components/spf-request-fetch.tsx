@@ -2126,23 +2126,21 @@ useEffect(() => {
                                   </select>
                                 </div>
                                 <div className="flex flex-col gap-1 mt-1">
-                                  {!prod.__tdsPdfUrl && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedRowIndexForTDS(index);
-                                        setSelectedOptionIndexForTDS(i);
-                                        setSelectedProductForTDS({
-                                          ...prod,
-                                          itemCode: `${spfNumber}-${String(index + 1).padStart(3, "0")}`,
-                                        });
-                                        setTdsDialogOpen(true);
-                                      }}
-                                      className="text-[10px] bg-blue-50 text-blue-600 border border-blue-200 rounded px-2 py-1 hover:bg-blue-100"
-                                    >
-                                      Generate TDS
-                                    </button>
-                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedRowIndexForTDS(index);
+                                      setSelectedOptionIndexForTDS(i);
+                                      setSelectedProductForTDS({
+                                        ...prod,
+                                        itemCode: `${spfNumber}-${String(index + 1).padStart(3, "0")}`,
+                                      });
+                                      setTdsDialogOpen(true);
+                                    }}
+                                    className="text-[10px] bg-blue-50 text-blue-600 border border-blue-200 rounded px-2 py-1 hover:bg-blue-100"
+                                  >
+                                    Generate TDS
+                                  </button>
                                   {prod.__tdsPdfUrl && (
                                     <a
                                       href={prod.__tdsPdfUrl}
@@ -3100,38 +3098,36 @@ useEffect(() => {
                                               <option key={b} value={b}>{b}</option>
                                             ))}
                                           </select>
-                                          {!prod.__tdsPdfUrl && (
-                                            <button
-                                              type="button"
-                                              className="mt-1 text-[10px] text-green-600 underline block"
-                                              onClick={() => {
-                                                const rowBase = `${spfNumber}-${String(index + 1).padStart(3, "0")}`;
-                                                const optionIndexToLetters = (idx: number) => {
-                                                  let n = idx;
-                                                  let s = "";
-                                                  while (n >= 0) {
-                                                    s = String.fromCharCode(65 + (n % 26)) + s;
-                                                    n = Math.floor(n / 26) - 1;
-                                                  }
-                                                  return s;
-                                                };
-                                                const rowOffers = productOffers[index] || [];
-                                                const itemCode =
-                                                  rowOffers.length > 1
-                                                    ? `${rowBase}-${optionIndexToLetters(i)}`
-                                                    : rowBase;
-                                                setSelectedRowIndexForTDS(index);
-                                                setSelectedOptionIndexForTDS(i);
-                                                setSelectedProductForTDS({
-                                                  ...prod,
-                                                  itemCode,
-                                                });
-                                                setTdsDialogOpen(true);
-                                              }}
-                                            >
-                                              Generate TDS
-                                            </button>
-                                          )}
+                                          <button
+                                            type="button"
+                                            className="mt-1 text-[10px] text-green-600 underline block"
+                                            onClick={() => {
+                                              const rowBase = `${spfNumber}-${String(index + 1).padStart(3, "0")}`;
+                                              const optionIndexToLetters = (idx: number) => {
+                                                let n = idx;
+                                                let s = "";
+                                                while (n >= 0) {
+                                                  s = String.fromCharCode(65 + (n % 26)) + s;
+                                                  n = Math.floor(n / 26) - 1;
+                                                }
+                                                return s;
+                                              };
+                                              const rowOffers = productOffers[index] || [];
+                                              const itemCode =
+                                                rowOffers.length > 1
+                                                  ? `${rowBase}-${optionIndexToLetters(i)}`
+                                                  : rowBase;
+                                              setSelectedRowIndexForTDS(index);
+                                              setSelectedOptionIndexForTDS(i);
+                                              setSelectedProductForTDS({
+                                                ...prod,
+                                                itemCode,
+                                              });
+                                              setTdsDialogOpen(true);
+                                            }}
+                                          >
+                                            Generate TDS
+                                          </button>
                                           {prod.__tdsPdfUrl && (
                                             <a
                                               href={prod.__tdsPdfUrl}

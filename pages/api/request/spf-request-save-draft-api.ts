@@ -281,7 +281,20 @@ export default async function handler(
         pcsPerCartons.push(pcsPerCarton);
         packaging.push(packagingStr);
         warranties.push(warranty);
-        commercialTypes.push(p?.commercialDetails?.commercialType || "BASIC");
+        
+        // Determine commercial type label
+        let commercialTypeLabel = "Basic";
+        if (commercialType === "POLE") {
+          commercialTypeLabel = "Pole";
+        } else if (commercialType === "LIGHT") {
+          if (useArrayInput && Array.isArray(p?.commercialDetails?.multiRows) && p.commercialDetails.multiRows.length > 0) {
+            commercialTypeLabel = "Light (Multiple)";
+          } else {
+            commercialTypeLabel = "Light (Single)";
+          }
+        }
+        commercialTypes.push(commercialTypeLabel);
+        
         factories.push(factory);
         ports.push(port);
         subtotals.push(String(subtotal));

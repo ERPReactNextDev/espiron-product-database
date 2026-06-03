@@ -20,7 +20,7 @@ const buildStoredCommercial = (commercialDetails: any): StoredCommercial => {
   const commercialType = String(commercialDetails?.commercialType || "BASIC").toUpperCase();
 
   if (commercialType === "POLE") {
-    return { commercialType, pcsPerCarton: "-", packaging: "-" };
+    return { commercialType: "Pole", pcsPerCarton: "-", packaging: "-" };
   }
 
   if (commercialType === "LIGHT") {
@@ -44,13 +44,28 @@ const buildStoredCommercial = (commercialDetails: any): StoredCommercial => {
         packagingLines.push(`${unitCost.toFixed(2)} USD`);
       }
       return {
-        commercialType,
+        commercialType: "Light (Multiple)",
         pcsPerCarton: "-",
         packaging: packagingLines.join("\n"),
       };
     }
+    
+    // Light Single
+    const packagingData = commercialDetails?.packaging;
+    let packagingStr = "-";
+    if (typeof packagingData === "string") {
+      packagingStr = packagingData.trim() || "-";
+    } else if (packagingData && typeof packagingData === "object") {
+      const length = packagingData.length || "-";
+      const width = packagingData.width || "-";
+      const height = packagingData.height || "-";
+      packagingStr = `${length} x ${width} x ${height}`;
+    }
+    const pcsPerCarton = String(commercialDetails?.pcsPerCarton ?? "-");
+    return { commercialType: "Light (Single)", pcsPerCarton, packaging: packagingStr };
   }
 
+  // BASIC type
   const packagingData = commercialDetails?.packaging;
   let packagingStr = "-";
   if (typeof packagingData === "string") {
@@ -63,7 +78,7 @@ const buildStoredCommercial = (commercialDetails: any): StoredCommercial => {
   }
 
   const pcsPerCarton = String(commercialDetails?.pcsPerCarton ?? "-");
-  return { commercialType, pcsPerCarton, packaging: packagingStr };
+  return { commercialType: "Basic", pcsPerCarton, packaging: packagingStr };
 };
 
 const supplierCache = new Map<
