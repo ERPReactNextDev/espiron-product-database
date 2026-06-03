@@ -235,7 +235,18 @@ export default async function handler(
         const p = rowProducts[optIdx];
 
         const qty          = Number(p.qty || 0);
-        const unitCost     = Number(p?.commercialDetails?.unitCost || 0);
+        
+        // Extract unit cost: for LIGHT Multiple, sum all multiRows unitCost; otherwise use direct unitCost
+        let unitCost = 0;
+        const commercialType = String(p?.commercialDetails?.commercialType || "BASIC").toUpperCase();
+        if (commercialType === "LIGHT" && p?.commercialDetails?.useArrayInput && Array.isArray(p?.commercialDetails?.multiRows)) {
+          // LIGHT (Multiple): sum all item unit costs
+          unitCost = p.commercialDetails.multiRows.reduce((sum: number, row: any) => sum + (Number(row?.unitCost || 0)), 0);
+        } else {
+          // LIGHT (Single), BASIC, or POLE: use direct unitCost
+          unitCost = Number(p?.commercialDetails?.unitCost || 0);
+        }
+        
         const factory      = p?.commercialDetails?.factoryAddress    || "-";
         const port         = p?.commercialDetails?.portOfDischarge   || "-";
         const subtotal     = qty * unitCost;

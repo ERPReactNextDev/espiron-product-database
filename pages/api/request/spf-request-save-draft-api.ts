@@ -186,9 +186,20 @@ export default async function handler(
         const commercialType = (p?.commercialDetails?.commercialType || "BASIC").toUpperCase();
         const useArrayInput =
           commercialType === "LIGHT" && p?.commercialDetails?.useArrayInput === true;
-        const totalUnitCost = Number(p?.commercialDetails?.totalUnitCost || 0);
-        const baseUnitCost = Number(p?.commercialDetails?.unitCost || 0);
-        const unitCost = useArrayInput ? totalUnitCost : baseUnitCost;
+        
+        // Extract unit cost: for LIGHT Multiple, calculate from multiRows or use totalUnitCost; otherwise use direct unitCost
+        let unitCost = 0;
+        if (useArrayInput && Array.isArray(p?.commercialDetails?.multiRows) && p.commercialDetails.multiRows.length > 0) {
+          // LIGHT (Multiple): sum all item unit costs from multiRows
+          unitCost = p.commercialDetails.multiRows.reduce((sum: number, row: any) => sum + (Number(row?.unitCost || 0)), 0);
+        } else if (useArrayInput && p?.commercialDetails?.totalUnitCost) {
+          // Fallback to totalUnitCost if multiRows not available
+          unitCost = Number(p.commercialDetails.totalUnitCost);
+        } else {
+          // LIGHT (Single), BASIC, or POLE: use direct unitCost
+          unitCost = Number(p?.commercialDetails?.unitCost || 0);
+        }
+        
         const factory      = p?.commercialDetails?.factoryAddress    || "-";
         const port         = p?.commercialDetails?.portOfDischarge   || "-";
         const subtotal     = qty * unitCost;
