@@ -714,7 +714,10 @@ export default function RequestsPage() {
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formattedDateApprovedSalesHead}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formattedDate}</td>
                     <td className="px-4 py-3 text-center">
-                      <ForPoolingButton show={!isProcurementStatus(req.spf_number) || spfStatus?.toLowerCase() === "for revision"} />
+                      <ForPoolingButton
+                        show={!isProcurementStatus(req.spf_number) || spfStatus?.toLowerCase() === "for revision"}
+                        spfNumber={req.spf_number}
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2 flex-nowrap items-center">

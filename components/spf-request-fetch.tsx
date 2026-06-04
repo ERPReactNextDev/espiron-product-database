@@ -1706,7 +1706,7 @@ useEffect(() => {
       <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <ForPoolingButton show={showPoolingButton} />
+            <ForPoolingButton show={showPoolingButton} spfNumber={spfNumber} />
             <DialogTitle className="text-sm font-semibold truncate flex items-center gap-2">
               <Pencil size={14} className="text-orange-500" />
               Edit {spfNumber}
@@ -2499,7 +2499,7 @@ useEffect(() => {
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1" />
           <div className="flex items-center justify-center gap-2 shrink-0">
-            <ForPoolingButton show={showPoolingButton} />
+            <ForPoolingButton show={showPoolingButton} spfNumber={spfNumber} />
             <DialogTitle className="flex items-center gap-2">
               <Pencil size={16} className="text-orange-500" />
               Edit SPF — {spfNumber}
@@ -4435,7 +4435,7 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <ForPoolingButton show={showPoolingButton} />
+                <ForPoolingButton show={showPoolingButton} spfNumber={spfNumber} />
                 <DialogTitle className="flex items-center gap-2">
                   SPF Request View
                   {latestVersionLabel && (

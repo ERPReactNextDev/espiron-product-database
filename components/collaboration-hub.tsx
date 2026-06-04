@@ -34,6 +34,7 @@ interface Message {
   time: string;
   isResolved?: boolean;
   isSystem?: boolean; // Added for System Messages feature
+  systemType?: string;
   imageUrl?: string;
   seenBy?: string[]; 
   reactions?: Record<string, string[]>; 
@@ -473,9 +474,17 @@ export function CollaborationHub({
               {filteredMessages.map((msg, i) => {
                 // FEATURE: SYSTEM MESSAGE RENDER
                 if (msg.isSystem) {
+                  const isPDSent = msg.systemType === "pd_sent" || msg.text?.toLowerCase().includes("spf send by pd");
                   return (
                     <div key={msg.id} className="flex justify-center my-4">
-                      <span className="px-4 py-1.5 bg-slate-200/50 text-slate-500 text-[10px] font-black uppercase rounded-full tracking-widest border border-slate-200">
+                      <span
+                        className={cn(
+                          "px-4 py-1.5 text-[10px] font-black uppercase rounded-full tracking-widest border",
+                          isPDSent
+                            ? "bg-green-600 text-white border-green-700"
+                            : "bg-slate-200/50 text-slate-500 border-slate-200",
+                        )}
+                      >
                         {msg.text}
                       </span>
                     </div>

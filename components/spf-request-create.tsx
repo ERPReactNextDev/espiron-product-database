@@ -839,7 +839,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
       <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <ForPoolingButton show={showPoolingButton} />
+            <ForPoolingButton show={showPoolingButton} spfNumber={formData.spf_number} />
             <DialogTitle className="text-sm font-semibold truncate">
               {formData.spf_number || "Create SPF"}
             </DialogTitle>
@@ -1490,7 +1490,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
     <>
       <DialogHeader className="w-full mb-4 relative">
         <div className="flex items-center justify-center gap-2">
-          <ForPoolingButton show={showPoolingButton} />
+          <ForPoolingButton show={showPoolingButton} spfNumber={formData.spf_number} />
           <DialogTitle className="text-center">
             Create SPF Request
           </DialogTitle>
