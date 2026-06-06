@@ -88,12 +88,13 @@ export default function SPFGenerateTDSDialog({
 
     if (!response.ok) {
       let errorMessage = "Drawing upload failed";
+      const clonedResponse = response.clone();
       try {
         const error = await response.json();
         errorMessage = error.message || error.error || errorMessage;
       } catch {
-        // Response is not JSON, try to get text
-        const errorText = await response.text();
+        // Response is not JSON, try to get text from cloned response
+        const errorText = await clonedResponse.text();
         errorMessage = errorText || errorMessage;
       }
       throw new Error(errorMessage);
@@ -151,24 +152,43 @@ export default function SPFGenerateTDSDialog({
         (illuminanceLink ? { url: illuminanceLink } : null) ||
         product?.illuminanceDrawing;
 
-      const persistedDimensionalUrl = uploadedDimensionalDrawing
-        ? await uploadDrawing(uploadedDimensionalDrawing)
-        : (dimensionalLink || product?.dimensionalDrawing?.url || "");
-      const persistedIlluminanceUrl = uploadedIlluminanceLevel
-        ? await uploadDrawing(uploadedIlluminanceLevel)
-        : (illuminanceLink || product?.illuminanceDrawing?.url || "");
+      // Upload drawings with error handling - don't block if they fail
+      let persistedDimensionalUrl = "";
+      let persistedIlluminanceUrl = "";
 
-      // Generate PDF Blob
+      try {
+        if (uploadedDimensionalDrawing) {
+          persistedDimensionalUrl = await uploadDrawing(uploadedDimensionalDrawing);
+        } else {
+          persistedDimensionalUrl = dimensionalLink || product?.dimensionalDrawing?.url || "";
+        }
+      } catch (error) {
+        console.warn("Dimensional drawing upload failed, continuing without it:", error);
+        persistedDimensionalUrl = dimensionalLink || product?.dimensionalDrawing?.url || "";
+      }
+
+      try {
+        if (uploadedIlluminanceLevel) {
+          persistedIlluminanceUrl = await uploadDrawing(uploadedIlluminanceLevel);
+        } else {
+          persistedIlluminanceUrl = illuminanceLink || product?.illuminanceDrawing?.url || "";
+        }
+      } catch (error) {
+        console.warn("Illuminance drawing upload failed, continuing without it:", error);
+        persistedIlluminanceUrl = illuminanceLink || product?.illuminanceDrawing?.url || "";
+      }
+
+      // Generate PDF Blob with all fallbacks
       const pdfBlob = await generateTDSPdfBlob({
         jsPDF,
         autoTable,
         brand: selectedBrand,
         productName: productName || "Product Name",
         itemCode: itemCode || "",
-        mainImage: product?.mainImage,
-        technicalSpecifications: product?.technicalSpecifications,
-        dimensionalDrawing: dimensionalSource,
-        illuminanceDrawing: illuminanceSource,
+        mainImage: product?.mainImage || null,
+        technicalSpecifications: product?.technicalSpecifications || [],
+        dimensionalDrawing: dimensionalSource || null,
+        illuminanceDrawing: illuminanceSource || null,
         hideEmptySpecs,
       });
 
@@ -183,12 +203,13 @@ export default function SPFGenerateTDSDialog({
 
       if (!response.ok) {
         let errorMessage = "Upload failed";
+        const clonedResponse = response.clone();
         try {
           const error = await response.json();
           errorMessage = error.message || error.error || errorMessage;
         } catch {
-          // Response is not JSON, try to get text
-          const errorText = await response.text();
+          // Response is not JSON, try to get text from cloned response
+          const errorText = await clonedResponse.text();
           errorMessage = errorText || errorMessage;
         }
         throw new Error(errorMessage);
@@ -508,7 +529,12 @@ async function generateTDSPdfBlob({
 
   // Header
   const brandLower = brand.toLowerCase();
-  pdf.addImage(`/${brandLower}-header.png`, "PNG", 0, 0, pageWidth, headerHeight);
+  try {
+    pdf.addImage(`/${brandLower}-header.png`, "PNG", 0, 0, pageWidth, headerHeight);
+  } catch {
+    // If header image fails, continue without it
+    console.warn(`Failed to load header image for brand: ${brandLower}`);
+  }
 
   // Product image
   const boxWidth = 150;
@@ -782,8 +808,16 @@ async function generateTDSPdfBlob({
     const ratio = pageWidth / footerImg.width;
     const fh = footerImg.height * ratio;
     pdf.addImage(`/${brandLower}-footer.png`, "PNG", 0, pageHeight - fh, pageWidth, fh);
-  } catch {}
+  } catch {
+    // If footer image fails, continue without it
+    console.warn(`Failed to load footer image for brand: ${brandLower}`);
+  }
 
   // Return as blob
-  return pdf.output("blob");
+  try {
+    return pdf.output("blob");
+  } catch (error) {
+    console.error("Failed to generate PDF blob:", error);
+    throw new Error("Failed to generate PDF");
+  }
 }
