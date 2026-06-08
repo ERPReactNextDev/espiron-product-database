@@ -100,6 +100,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     return value.trim().replace(/\s+/g, "").toUpperCase();
   }, []);
 
+  // Chat notification functions
+  const recalcChatUnreadTotal = useCallback(() => {
+    let total = 0;
+    chatUnreadMapRef.current.forEach((count) => {
+      total += count;
+    });
+    setUnreadChatCount(total);
+  }, []);
+
   const persistReadMap = useCallback((uid: string, map: Map<string, string>) => {
     const payload = Object.fromEntries(map.entries());
     localStorage.setItem(getStorageKey(uid), JSON.stringify(payload));
@@ -170,7 +179,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       unreadCountMapRef.current = new Map();
       latestCreationStatusRef.current = new Map();
       lastSeenCreationRef.current = new Map();
+      chatUnreadMapRef.current = new Map();
       queueMicrotask(() => setUnreadCount(0));
+      queueMicrotask(() => setUnreadChatCount(0));
       return;
     }
 
@@ -321,18 +332,22 @@ currentSignatureMap.set(
       const legacyKey = getLegacyStorageKey(userId);
       const knownKey = getKnownSignatureKey(userId);
       const unreadCountKey = getUnreadCountKey(userId);
+      const chatUnreadKey = getChatUnreadKey(userId);
       const initialized = localStorage.getItem(initKey) === "1";
       const rawReadMap = localStorage.getItem(storageKey);
       const rawLegacy = localStorage.getItem(legacyKey);
       const rawKnownSignatureMap = localStorage.getItem(knownKey);
       const rawUnreadCountMap = localStorage.getItem(unreadCountKey);
+      const rawChatUnreadMap = localStorage.getItem(chatUnreadKey);
       const parsedReadMap = rawReadMap ? JSON.parse(rawReadMap) : {};
       const parsedLegacy = rawLegacy ? JSON.parse(rawLegacy) : [];
       const parsedKnownSignatureMap = rawKnownSignatureMap ? JSON.parse(rawKnownSignatureMap) : {};
       const parsedUnreadCountMap = rawUnreadCountMap ? JSON.parse(rawUnreadCountMap) : {};
+      const parsedChatUnreadMap = rawChatUnreadMap ? JSON.parse(rawChatUnreadMap) : {};
       const readMap = new Map<string, string>();
       const knownMap = new Map<string, string>();
       const unreadCountMap = new Map<string, number>();
+      const chatUnreadMap = new Map<string, number>();
       if (parsedReadMap && typeof parsedReadMap === "object" && !Array.isArray(parsedReadMap)) {
         Object.entries(parsedReadMap).forEach(([spf, signature]) => {
           const normalizedSPF = normalizeSPFNumber(spf);
@@ -356,6 +371,12 @@ currentSignatureMap.set(
           const normalizedSPF = normalizeSPFNumber(spf);
           if (!normalizedSPF || typeof count !== "number" || !Number.isFinite(count) || count <= 0) return;
           unreadCountMap.set(normalizedSPF, count);
+        });
+      }
+      if (parsedChatUnreadMap && typeof parsedChatUnreadMap === "object" && !Array.isArray(parsedChatUnreadMap)) {
+        Object.entries(parsedChatUnreadMap).forEach(([requestId, count]) => {
+          if (!requestId || typeof count !== "number" || !Number.isFinite(count) || count <= 0) return;
+          chatUnreadMap.set(requestId, count);
         });
       }
       if (Array.isArray(parsedLegacy)) {
@@ -415,11 +436,14 @@ currentSignatureMap.set(
       readSPFRef.current = activeReadMap;
       knownSignatureRef.current = activeKnownMap;
       unreadCountMapRef.current = activeUnreadCountMap;
+      chatUnreadMapRef.current = chatUnreadMap;
 
       applyEffectiveUnreadAggregates();
       persistReadMap(userId, activeReadMap);
       persistKnownSignatureMap(userId, activeKnownMap);
       persistUnreadCountMap(userId, activeUnreadCountMap);
+      persistChatUnreadMap(userId, chatUnreadMap);
+      recalcChatUnreadTotal();
       setLastUpdated(new Date());
       setIsLoading(false);
     };
@@ -429,15 +453,17 @@ currentSignatureMap.set(
     // Cross-tab synchronization: Listen for storage events from other tabs
     const handleStorageChange = (event: StorageEvent) => {
       if (!userId) return;
-      
+
       const storageKey = getStorageKey(userId);
       const knownKey = getKnownSignatureKey(userId);
       const unreadCountKey = getUnreadCountKey(userId);
       const lastSeenCreationKey = getLastSeenCreationKey(userId);
+      const chatUnreadKey = getChatUnreadKey(userId);
 
       // Only handle events related to this user's notification storage
-      if (event.key === storageKey || event.key === knownKey || 
-          event.key === unreadCountKey || event.key === lastSeenCreationKey) {
+      if (event.key === storageKey || event.key === knownKey ||
+          event.key === unreadCountKey || event.key === lastSeenCreationKey ||
+          event.key === chatUnreadKey) {
         // Re-sync notification state when another tab updates storage
         void syncUnreadState();
       }
@@ -511,13 +537,16 @@ currentSignatureMap.set(
     getLegacyStorageKey,
     getKnownSignatureKey,
     getUnreadCountKey,
+    getChatUnreadKey,
     persistReadMap,
     persistKnownSignatureMap,
     persistUnreadCountMap,
+    persistChatUnreadMap,
     normalizeSPFNumber,
     playNotificationSound,
     getLastSeenCreationKey,
     applyEffectiveUnreadAggregates,
+    recalcChatUnreadTotal,
     setIsLoading,
     setLastUpdated,
   ]);
@@ -574,14 +603,6 @@ currentSignatureMap.set(
   }, [normalizeSPFNumber]);
 
   // Chat notification functions
-  const recalcChatUnreadTotal = useCallback(() => {
-    let total = 0;
-    chatUnreadMapRef.current.forEach((count) => {
-      total += count;
-    });
-    setUnreadChatCount(total);
-  }, []);
-
   const markChatAsRead = useCallback((requestId: string) => {
     if (!userId || !requestId) return;
     chatUnreadMapRef.current.delete(requestId);
@@ -615,6 +636,8 @@ currentSignatureMap.set(
     if (!userId) {
       unreadSPFRef.current = new Set();
       setUnreadCount(0);
+      chatUnreadMapRef.current = new Map();
+      setUnreadChatCount(0);
       return;
     }
     latestSignatureRef.current.forEach((signature, spf) => {
@@ -623,18 +646,23 @@ currentSignatureMap.set(
       lastSeenCreationRef.current.set(spf, creation);
     });
     unreadCountMapRef.current.clear();
+    chatUnreadMapRef.current.clear();
     persistReadMap(userId, readSPFRef.current);
     persistKnownSignatureMap(userId, knownSignatureRef.current);
     persistUnreadCountMap(userId, unreadCountMapRef.current);
     persistLastSeenCreationMap(userId, lastSeenCreationRef.current);
+    persistChatUnreadMap(userId, chatUnreadMapRef.current);
     applyEffectiveUnreadAggregates();
+    recalcChatUnreadTotal();
   }, [
     persistReadMap,
     persistKnownSignatureMap,
     persistUnreadCountMap,
     persistLastSeenCreationMap,
+    persistChatUnreadMap,
     userId,
     applyEffectiveUnreadAggregates,
+    recalcChatUnreadTotal,
   ]);
 
   return (

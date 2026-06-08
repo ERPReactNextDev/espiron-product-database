@@ -37,8 +37,8 @@ export function CollaborationHubRowTrigger({
     userDepartment?: string;
   } | null>(null);
 
-  // Use spfNumber as effective doc ID when requestId is empty (document was deleted)
-  const effectiveDocId = requestId || spfNumber;
+  // Always use spfNumber as document ID for chat to ensure consistency with dialog
+  const effectiveDocId = spfNumber;
 
   const unreadCount = effectiveDocId ? getChatUnreadCount(effectiveDocId) : 0;
   const hasUnread = unreadCount > 0;
@@ -107,7 +107,7 @@ export function CollaborationHubRowTrigger({
           <CollaborationHubDialog
             open={open}
             onOpenChange={handleOpenChange}
-            requestId={requestId}
+            requestId={effectiveDocId}
             spfNumber={spfNumber}
             collectionName={collectionName}
             currentUserId={userId || ""}
@@ -147,7 +147,7 @@ export function CollaborationHubRowTrigger({
         <CollaborationHubDialog
           open={open}
           onOpenChange={handleOpenChange}
-          requestId={requestId}
+          requestId={effectiveDocId}
           spfNumber={spfNumber}
           collectionName={collectionName}
           currentUserId={userId || ""}
