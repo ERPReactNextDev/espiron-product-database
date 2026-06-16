@@ -18,8 +18,10 @@ export function middleware(req: NextRequest) {
   const session = req.cookies.get("session")?.value;
 
   const isLoginPage = pathname === "/login";
+  const isRootPath = pathname === "/";
 
-  if (!session && !isLoginPage) {
+  // Allow root path to pass through - let page.tsx handle the redirect
+  if (!session && !isLoginPage && !isRootPath) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
