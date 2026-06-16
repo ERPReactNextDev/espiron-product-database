@@ -28,22 +28,17 @@ interface SeenByDialogProps {
 }
 
 export function SeenByDialog({ seenByIds, userNamesMap, isMe, currentUserId }: SeenByDialogProps) {
-  // Filter to only show users with valid Supabase IDs (exist in userNamesMap or are current user)
-  const validSeenByIds = seenByIds.filter(userId => 
-    userId === currentUserId || userNamesMap[userId]
-  );
-
-  if (validSeenByIds.length === 0) return null;
+  if (seenByIds.length === 0) return null;
 
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <button 
+        <button
           className="flex items-center gap-0.5 ml-1 hover:opacity-100 transition-opacity cursor-pointer"
           onClick={(e) => e.stopPropagation()}
         >
           <Eye size={10} />
-          <span>{validSeenByIds.length}</span>
+          <span>{seenByIds.length}</span>
         </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -51,10 +46,10 @@ export function SeenByDialog({ seenByIds, userNamesMap, isMe, currentUserId }: S
           <DialogTitle className="text-lg font-bold">Seen by</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 max-h-[400px] overflow-y-auto">
-          {validSeenByIds.map((userId) => {
+          {seenByIds.map((userId) => {
             const isCurrentUser = userId === currentUserId;
             const user = userNamesMap[userId];
-            
+
             // Show "You" for current user, or user data from map
             if (isCurrentUser) {
               return (
@@ -63,8 +58,8 @@ export function SeenByDialog({ seenByIds, userNamesMap, isMe, currentUserId }: S
                   className="flex items-center gap-3 p-2 rounded-lg bg-[#be2d2d]/5 border border-[#be2d2d]/20"
                 >
                   <Avatar className="h-12 w-12 border-2 border-[#be2d2d]">
-                    <AvatarImage 
-                      src={user?.profilePicture} 
+                    <AvatarImage
+                      src={user?.profilePicture}
                       alt="You"
                       className="object-cover"
                     />
@@ -86,32 +81,55 @@ export function SeenByDialog({ seenByIds, userNamesMap, isMe, currentUserId }: S
               );
             }
 
-            if (!user) return null;
+            // Show user data from map, or fallback to ID if not found
+            if (user) {
+              return (
+                <div
+                  key={userId}
+                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  <Avatar className="h-12 w-12 border-2 border-slate-200">
+                    <AvatarImage
+                      src={user.profilePicture}
+                      alt={`${user.firstName} ${user.lastName}`}
+                      className="object-cover"
+                    />
+                    <AvatarFallback className="bg-[#be2d2d] text-white font-semibold">
+                      {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-slate-900 truncate">
+                      {user.firstName} {user.lastName}
+                    </p>
+                    {user.department && (
+                      <p className="text-xs text-slate-500 truncate">
+                        @{user.department}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            }
 
+            // Fallback for users not in the map
             return (
               <div
                 key={userId}
-                className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors"
+                className="flex items-center gap-3 p-2 rounded-lg bg-slate-100 border border-slate-200"
               >
-                <Avatar className="h-12 w-12 border-2 border-slate-200">
-                  <AvatarImage 
-                    src={user.profilePicture} 
-                    alt={`${user.firstName} ${user.lastName}`}
-                    className="object-cover"
-                  />
-                  <AvatarFallback className="bg-[#be2d2d] text-white font-semibold">
-                    {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                <Avatar className="h-12 w-12 border-2 border-slate-300">
+                  <AvatarFallback className="bg-slate-400 text-white font-semibold">
+                    ?
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-slate-900 truncate">
-                    {user.firstName} {user.lastName}
+                  <p className="font-semibold text-sm text-slate-600 truncate">
+                    Unknown User (ID: {userId})
                   </p>
-                  {user.department && (
-                    <p className="text-xs text-slate-500 truncate">
-                      @{user.department}
-                    </p>
-                  )}
+                  <p className="text-xs text-slate-400 truncate">
+                    User data not found
+                  </p>
                 </div>
               </div>
             );
