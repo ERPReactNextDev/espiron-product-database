@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const { Password, password, ...userData } = user;
           return res.status(200).json({
             ...userData,
-            _id: user.UserId || user.id.toString(),
+            _id: user.id.toString(),
           });
         } else {
           return res.status(404).json({ error: "User not found" });
@@ -34,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const { Password, password, ...userData } = user;
           return res.status(200).json({
             ...userData,
-            _id: user.UserId || user.id.toString(),
+            _id: user.id.toString(),
           });
         } else {
           return res.status(404).json({ error: "User not found" });
@@ -60,7 +60,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const { Password, password, ...userData } = user;
           return {
             ...userData,
-            _id: user.UserId || user.id.toString(),
+            _id: user.id.toString(),
           };
         });
 

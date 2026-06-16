@@ -36,14 +36,14 @@ function getSupabaseAdmin() {
 export { getSupabaseAdmin };
 
 /**
- * Get a user by UserId (stored in Supabase users table)
+ * Get a user by id (stored in Supabase users table)
  */
 export async function getUserById(userId: string) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("users")
     .select("*")
-    .eq("UserId", userId)
+    .eq("id", parseInt(userId))
     .single();
 
   if (error) {
@@ -104,7 +104,7 @@ export async function getUsersByIds(userIds: string[]) {
   const { data, error } = await supabase
     .from("users")
     .select("id, UserId, Firstname, Lastname, userName, profilePicture, Department")
-    .in("UserId", userIds);
+    .in("id", userIds.map(id => parseInt(id)));
 
   if (error) {
     console.error("Error fetching users by IDs:", error);
@@ -160,7 +160,7 @@ export async function updateUser(userId: string, updates: Record<string, any>) {
       ...updates,
       updatedAt: new Date().toISOString(),
     })
-    .eq("UserId", userId)
+    .eq("id", parseInt(userId))
     .select();
 
   if (error) {

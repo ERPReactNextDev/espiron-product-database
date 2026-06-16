@@ -89,7 +89,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     LockUntil: null,
   });
 
-  const userId = user.UserId || user.id.toString();
+  const userId = user.id.toString();
 
   // Create session cookie
   res.setHeader(
