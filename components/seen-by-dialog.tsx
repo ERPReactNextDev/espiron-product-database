@@ -28,7 +28,12 @@ interface SeenByDialogProps {
 }
 
 export function SeenByDialog({ seenByIds, userNamesMap, isMe, currentUserId }: SeenByDialogProps) {
-  if (seenByIds.length === 0) return null;
+  // Filter to only show users with valid Supabase IDs (exist in userNamesMap or are current user)
+  const validSeenByIds = seenByIds.filter(userId => 
+    userId === currentUserId || userNamesMap[userId]
+  );
+
+  if (validSeenByIds.length === 0) return null;
 
   return (
     <Dialog>
@@ -38,7 +43,7 @@ export function SeenByDialog({ seenByIds, userNamesMap, isMe, currentUserId }: S
           onClick={(e) => e.stopPropagation()}
         >
           <Eye size={10} />
-          <span>{seenByIds.length}</span>
+          <span>{validSeenByIds.length}</span>
         </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -46,7 +51,7 @@ export function SeenByDialog({ seenByIds, userNamesMap, isMe, currentUserId }: S
           <DialogTitle className="text-lg font-bold">Seen by</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 max-h-[400px] overflow-y-auto">
-          {seenByIds.map((userId) => {
+          {validSeenByIds.map((userId) => {
             const isCurrentUser = userId === currentUserId;
             const user = userNamesMap[userId];
             
