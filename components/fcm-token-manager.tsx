@@ -8,10 +8,15 @@ import { useUser } from "@/contexts/UserContext";
 
 export function FCMTokenManager() {
   const [token, setToken] = useState<string | null>(null);
-  const { userId } = useUser();
+  const { userId, loading } = useUser();
 
   useEffect(() => {
-    // Only register FCM token if user is logged in
+    // Only register FCM token if user is logged in and loading is complete
+    if (loading) {
+      console.log("⏳ Loading user context, waiting...");
+      return;
+    }
+
     if (!userId) {
       console.log("🔒 User not logged in, skipping FCM token registration");
       return;
@@ -90,7 +95,7 @@ export function FCMTokenManager() {
     });
 
     return () => unsubscribe();
-  }, [userId]);
+  }, [userId, loading]);
 
   return (
     <div className="hidden">

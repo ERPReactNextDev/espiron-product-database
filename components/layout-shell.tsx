@@ -16,11 +16,12 @@ import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 function TitleUpdater({ pathname }: { pathname: string | null }) {
-  const { userId } = useUser();
+  const { userId, loading } = useUser();
   const { activeNotificationCount, unreadChatCount } = useNotifications();
   const [forApprovalCount, setForApprovalCount] = useState(0);
 
   useEffect(() => {
+    if (loading) return;
     if (!userId) {
       setForApprovalCount(0);
       return;
@@ -36,7 +37,7 @@ function TitleUpdater({ pathname }: { pathname: string | null }) {
       }
     );
     return () => unsub();
-  }, [userId]);
+  }, [userId, loading]);
 
   useEffect(() => {
     const titles: Record<string, string> = {

@@ -31,10 +31,15 @@ interface GlobalNotification {
 export function useGlobalNotifications() {
   const [notifications, setNotifications] = useState<GlobalNotification[]>([]);
   const { settings } = useNotificationSettings();
-  const { userId } = useUser();
+  const { userId, loading } = useUser();
 
   useEffect(() => {
-    // Only listen for notifications if user is logged in
+    // Only listen for notifications if user is logged in and loading is complete
+    if (loading) {
+      console.log("⏳ Loading user context, waiting...");
+      return;
+    }
+
     if (!userId) {
       console.log("🔒 User not logged in, skipping notification listener");
       return;
@@ -119,7 +124,7 @@ export function useGlobalNotifications() {
     return () => {
       unsubscribes.forEach(unsubscribe => unsubscribe());
     };
-  }, [settings, userId]);
+  }, [settings, userId, loading]);
 
   const clearNotifications = () => {
     setNotifications([]);
