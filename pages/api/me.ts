@@ -44,7 +44,7 @@ export default async function handler(
     }
 
     return res.status(200).json({
-      userId: user.UserId || user.id.toString(),
+      userId: user.id.toString(),
     });
   } catch (err) {
     console.error("ME API ERROR:", err);
