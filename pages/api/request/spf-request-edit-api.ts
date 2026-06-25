@@ -16,8 +16,18 @@ type StoredCommercial = {
   packaging: string;
 };
 
-const buildStoredCommercial = (commercialDetails: any): StoredCommercial => {
-  const commercialType = String(commercialDetails?.commercialType || "BASIC").toUpperCase();
+const buildStoredCommercial = (commercialDetails: any, productName?: string): StoredCommercial => {
+  let commercialType = String(commercialDetails?.commercialType || "BASIC").toUpperCase();
+
+  // Derive commercial type from product name if it contains "Lights (multiple)" or "Lights (single)"
+  if (productName) {
+    const productNameLower = productName.toLowerCase();
+    if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
+      commercialType = "LIGHT";
+    } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
+      commercialType = "LIGHT";
+    }
+  }
 
   if (commercialType === "POLE") {
     return { commercialType: "Pole", pcsPerCarton: "-", packaging: "-" };
@@ -29,7 +39,18 @@ const buildStoredCommercial = (commercialDetails: any): StoredCommercial => {
       ? commercialDetails.multiRows
       : [];
 
-    if (useArrayInput && multiRows.length) {
+    // Check product name to determine if it should be Multiple or Single
+    let isMultiple = useArrayInput && multiRows.length > 0;
+    if (productName) {
+      const productNameLower = productName.toLowerCase();
+      if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
+        isMultiple = true;
+      } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
+        isMultiple = false;
+      }
+    }
+
+    if (isMultiple) {
       const packagingLines: string[] = [];
       for (const row of multiRows) {
         const itemName = row?.itemName ?? "";
@@ -282,7 +303,8 @@ export default async function handler(
         const port         = p?.commercialDetails?.portOfDischarge   || "-";
         const subtotal     = qty * unitCost;
         const warranty = p?.commercialDetails?.warranty || "-";
-        const storedCommercial = buildStoredCommercial(p?.commercialDetails);
+        const productName = p?.__tdsProductName ?? p?.productName;
+        const storedCommercial = buildStoredCommercial(p?.commercialDetails, productName);
 
         // price_validity: store as-is (text column, delimited string)
         const rawPV = p?.price_validity;

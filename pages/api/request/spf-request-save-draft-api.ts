@@ -178,7 +178,19 @@ export default async function handler(
         const p = rowProducts[optIdx];
 
         const qty          = Number(p.qty || 0);
-        const commercialType = (p?.commercialDetails?.commercialType || "BASIC").toUpperCase();
+        const productName = p?.__tdsProductName ?? p?.productName;
+        let commercialType = (p?.commercialDetails?.commercialType || "BASIC").toUpperCase();
+
+        // Derive commercial type from product name if it contains "Lights (multiple)" or "Lights (single)"
+        if (productName) {
+          const productNameLower = productName.toLowerCase();
+          if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
+            commercialType = "LIGHT";
+          } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
+            commercialType = "LIGHT";
+          }
+        }
+
         const useArrayInput =
           commercialType === "LIGHT" && p?.commercialDetails?.useArrayInput === true;
         
@@ -276,13 +288,24 @@ export default async function handler(
         pcsPerCartons.push(pcsPerCarton);
         packaging.push(packagingStr);
         warranties.push(warranty);
-        
+
         // Determine commercial type label
         let commercialTypeLabel = "Basic";
         if (commercialType === "POLE") {
           commercialTypeLabel = "Pole";
         } else if (commercialType === "LIGHT") {
-          if (useArrayInput && Array.isArray(p?.commercialDetails?.multiRows) && p.commercialDetails.multiRows.length > 0) {
+          // Check product name to determine if it should be Multiple or Single
+          let isMultiple = useArrayInput && Array.isArray(p?.commercialDetails?.multiRows) && p.commercialDetails.multiRows.length > 0;
+          if (productName) {
+            const productNameLower = productName.toLowerCase();
+            if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
+              isMultiple = true;
+            } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
+              isMultiple = false;
+            }
+          }
+
+          if (isMultiple) {
             commercialTypeLabel = "Light (Multiple)";
           } else {
             commercialTypeLabel = "Light (Single)";

@@ -392,8 +392,20 @@ function formatCommercialDetailsForView(
   commercialTypeRaw: string | undefined,
   packagingStr: string | undefined,
   pcsPerCartonStr: string | undefined,
+  productName?: string,
 ): { qtyCtn: React.ReactNode; commercialType: React.ReactNode; packaging: React.ReactNode } {
-  const ct = (commercialTypeRaw || "BASIC").toUpperCase();
+  let ct = (commercialTypeRaw || "BASIC").toUpperCase();
+
+  // Derive commercial type from product name if it contains "Lights (multiple)" or "Lights (single)"
+  if (productName) {
+    const productNameLower = productName.toLowerCase();
+    if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
+      ct = "LIGHT";
+    } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
+      ct = "LIGHT";
+    }
+  }
+
   const pack = packagingStr && packagingStr !== "" ? packagingStr : "-";
   const pcs = pcsPerCartonStr && pcsPerCartonStr !== "" ? pcsPerCartonStr : "-";
 
@@ -403,7 +415,19 @@ function formatCommercialDetailsForView(
 
   if (ct === "LIGHT") {
     const multi = parseHumanReadableMultiPackaging(pack);
-    if (multi?.rows?.length) {
+
+    // Check product name to determine if it should be Multiple or Single
+    let isMultiple = multi?.rows ? multi.rows.length > 0 : false;
+    if (productName) {
+      const productNameLower = productName.toLowerCase();
+      if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
+        isMultiple = true;
+      } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
+        isMultiple = false;
+      }
+    }
+
+    if (isMultiple && multi?.rows && multi.rows.length > 0) {
       const rows = multi.rows;
       return {
         qtyCtn: (
@@ -1912,7 +1936,19 @@ useEffect(() => {
                       {offers.map((prod: any, i: number) => {
                         const unitCost =
                           prod?.commercialDetails?.unitCost || "-";
-                        const commercialType = prod?.commercialDetails?.commercialType || "BASIC";
+                        const productName = prod?.__tdsProductName ?? prod?.productName ?? "";
+                        let commercialType = prod?.commercialDetails?.commercialType || "BASIC";
+
+                        // Derive commercial type from product name if it contains "Lights (multiple)" or "Lights (single)"
+                        if (productName) {
+                          const productNameLower = productName.toLowerCase();
+                          if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
+                            commercialType = "LIGHT";
+                          } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
+                            commercialType = "LIGHT";
+                          }
+                        }
+
                         const useArrayInput = prod?.commercialDetails?.useArrayInput || false;
                         const totalUnitCost = prod?.commercialDetails?.totalUnitCost || 0;
                         const multiRows = prod?.commercialDetails?.multiRows || [];
@@ -1921,12 +1957,12 @@ useEffect(() => {
                           prod?.commercialDetails?.unitCost || 0,
                         );
                         const subtotal = qty * cost;
-                        
+
                         const packagingData = prod?.commercialDetails?.packaging;
                         let packagingDisplay: React.ReactNode = "-";
                         let qtyCtnDisplay: React.ReactNode = "-";
                         let commercialTypeDisplay: React.ReactNode = "-";
-                        
+
                         // Determine commercial type display and packaging display based on type
                         if (commercialType === "BASIC") {
                           commercialTypeDisplay = "Basic";
@@ -1938,7 +1974,18 @@ useEffect(() => {
                             qtyCtnDisplay = prod?.commercialDetails?.pcsPerCarton || "-";
                           }
                         } else if (commercialType === "LIGHT") {
-                          if (useArrayInput) {
+                          // Check product name to determine if it should be Multiple or Single
+                          let isMultiple = useArrayInput;
+                          if (productName) {
+                            const productNameLower = productName.toLowerCase();
+                            if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
+                              isMultiple = true;
+                            } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
+                              isMultiple = false;
+                            }
+                          }
+
+                          if (isMultiple) {
                             // Light Multiple Dimension
                             commercialTypeDisplay = "Light (Multiple)";
                             // Packaging: Show item name, dimensions, and cost per row for each array row
@@ -2848,16 +2895,28 @@ useEffect(() => {
                                   (prod: any, i: number) => {
                                     const unitCost =
                                       prod?.commercialDetails?.unitCost || "-";
-                                    const commercialType = prod?.commercialDetails?.commercialType || "BASIC";
+                                    const productName = prod?.__tdsProductName ?? prod?.productName ?? "";
+                                    let commercialType = prod?.commercialDetails?.commercialType || "BASIC";
+
+                                    // Derive commercial type from product name if it contains "Lights (multiple)" or "Lights (single)"
+                                    if (productName) {
+                                      const productNameLower = productName.toLowerCase();
+                                      if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
+                                        commercialType = "LIGHT";
+                                      } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
+                                        commercialType = "LIGHT";
+                                      }
+                                    }
+
                                     const useArrayInput = prod?.commercialDetails?.useArrayInput || false;
                                     const totalUnitCost = prod?.commercialDetails?.totalUnitCost || 0;
                                     const multiRows = prod?.commercialDetails?.multiRows || [];
-                                    
+
                                     const packagingData = prod?.commercialDetails?.packaging;
                                     let packagingDisplay: React.ReactNode = "-";
                                     let qtyCtnDisplay: React.ReactNode = "-";
                                     let commercialTypeDisplay: React.ReactNode = "-";
-                                    
+
                                     // Determine commercial type display and packaging display based on type
                                     if (commercialType === "BASIC") {
                                       commercialTypeDisplay = "Basic";
@@ -2869,7 +2928,18 @@ useEffect(() => {
                                         qtyCtnDisplay = prod?.commercialDetails?.pcsPerCarton || "-";
                                       }
                                     } else if (commercialType === "LIGHT") {
-                                      if (useArrayInput) {
+                                      // Check product name to determine if it should be Multiple or Single
+                                      let isMultiple = useArrayInput;
+                                      if (productName) {
+                                        const productNameLower = productName.toLowerCase();
+                                        if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
+                                          isMultiple = true;
+                                        } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
+                                          isMultiple = false;
+                                        }
+                                      }
+
+                                      if (isMultiple) {
                                         // Light Multiple Dimension
                                         commercialTypeDisplay = "Light (Multiple)";
                                         // Packaging: Show item name, dimensions, and cost per row for each array row
@@ -3716,10 +3786,12 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                             </div>
                             {(() => {
                               const commercialTypeRaw = (rowCommercialTypes[rowIndex] ?? [])[i];
+                              const productName = prodProductNames[i];
                               const { qtyCtn, commercialType, packaging } = formatCommercialDetailsForView(
                                 commercialTypeRaw,
                                 prodPackaging[i],
                                 prodPcsPerCartons[i],
+                                productName,
                               );
                               return (
                                 <>
@@ -4189,10 +4261,12 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                                     </td>
                                     {(() => {
                                       const commercialTypeRaw = (rowCommercialTypes[rowIndex] ?? [])[i];
+                                      const productName = prodProductNames[i];
                                       const { qtyCtn, commercialType, packaging } = formatCommercialDetailsForView(
                                         commercialTypeRaw,
                                         prodPackaging[i],
                                         prodPcsPerCartons[i],
+                                        productName,
                                       );
                                       return (
                                         <>
