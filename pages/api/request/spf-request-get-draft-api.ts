@@ -283,7 +283,14 @@ export default async function handler(
       let multiRows: LightMultipleRow[] = [];
       let totalUnitCost: number | undefined;
 
-      if (commercialTypeRaw === "LIGHT") {
+      // Normalize DB labels to internal types
+      const isLightMultiple = commercialTypeRaw === "LIGHT (MULTIPLE)" || commercialTypeRaw === "LIGHT_MULTIPLE";
+      const isLightSingle = commercialTypeRaw === "LIGHT (SINGLE)" || commercialTypeRaw === "LIGHT_SINGLE";
+      const isLightType = commercialTypeRaw === "LIGHT" || isLightMultiple || isLightSingle;
+      const isPoleType = commercialTypeRaw === "POLE";
+
+      if (isLightMultiple || (isLightType && !isLightSingle)) {
+        // Try to parse as Light Multiple first
         const decodedMulti = parseHumanReadableMultiPackaging(rawPackaging);
         if (decodedMulti?.rows?.length) {
           useArrayInput = true;
@@ -300,9 +307,11 @@ export default async function handler(
             0,
           );
         } else {
+          // Light Single or undetected — parse as dimensions
           packagingData = parsePackagingDimensions(rawPackaging);
         }
       } else {
+        // BASIC or POLE — parse as dimensions
         packagingData = parsePackagingDimensions(rawPackaging);
       }
 
@@ -322,7 +331,8 @@ export default async function handler(
           warranty: flatWarranties[flatIdx] || "-",
           factoryAddress: flatFactories[flatIdx] || "-",
           portOfDischarge: flatPorts[flatIdx] || "-",
-          commercialType: flatCommercialTypes[flatIdx] || "BASIC",
+          // Normalize to internal enum for UI display logic
+          commercialType: isLightMultiple ? "LIGHT" : isLightSingle ? "LIGHT" : isPoleType ? "POLE" : isLightType ? "LIGHT" : "BASIC",
           useArrayInput,
           multiRows,
           ...(typeof totalUnitCost === "number" ? { totalUnitCost } : {}),

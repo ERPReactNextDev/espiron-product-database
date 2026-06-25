@@ -238,21 +238,17 @@ export default async function handler(
           let width = "-";
           let height = "-";
 
-          if (typeof packagingData === "string") {
-            const parts = packagingData
-              .split(/(?:\s*x\s*|\s*×\s*)/i)
-              .map((s) => s.trim())
-              .filter(Boolean);
-            length = parts[0] ?? "-";
-            width = parts[1] ?? "-";
-            height = parts[2] ?? "-";
+          if (typeof packagingData === "string" && packagingData.trim() && packagingData.trim() !== "-") {
+            // Already a formatted string (e.g. "23 cm x 23 cm x 23 cm") — use as-is
+            packagingStr = packagingData.trim();
+          } else if (packagingData && typeof packagingData === "object") {
+            length = String(packagingData?.length || "-");
+            width = String(packagingData?.width || "-");
+            height = String(packagingData?.height || "-");
+            packagingStr = `${length} x ${width} x ${height}`;
           } else {
-            length = packagingData?.length || "-";
-            width = packagingData?.width || "-";
-            height = packagingData?.height || "-";
+            packagingStr = "- x - x -";
           }
-
-          packagingStr = `${length} x ${width} x ${height}`;
         }
         const warranty = p?.commercialDetails?.warranty || "-";
 

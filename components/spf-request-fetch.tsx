@@ -1009,38 +1009,54 @@ useEffect(() => {
         const rawPackaging = packs[i] || "-";
         const rawPcsPerCarton = pcsPerCartons[i] || "-";
 
+        // Normalize DB labels ("Light (Multiple)", "Basic", "Pole") to internal enum
+        const isLightType = commercialTypeRaw === "LIGHT" || commercialTypeRaw.startsWith("LIGHT (");
+        const isPoleType = commercialTypeRaw === "POLE";
+        const isLightMultiple = commercialTypeRaw === "LIGHT (MULTIPLE)";
+
         let packagingData = { length: "-", width: "-", height: "-" };
         let useArrayInput = false;
         let multiRows: any[] = [];
         let totalUnitCost: number | undefined;
 
-        if (commercialTypeRaw === "LIGHT") {
+        if (isLightType) {
           const decodedMulti = parseHumanReadableMultiPackaging(rawPackaging);
-          if (decodedMulti?.rows?.length) {
-            useArrayInput = true;
-            multiRows = decodedMulti.rows.map((r) => ({
-              itemName: r.itemName ?? "",
-              unitCost: Number(r.unitCost ?? 0) || 0,
-              length: Number(r.length ?? 0) || (r.length ?? "-"),
-              width: Number(r.width ?? 0) || (r.width ?? "-"),
-              height: Number(r.height ?? 0) || (r.height ?? "-"),
-              qtyPerCarton: Number(r.qtyPerCarton ?? 0) || 0,
-            }));
-            totalUnitCost = multiRows.reduce(
-              (sum: number, r: any) => sum + (Number(r.unitCost) || 0),
-              0,
-            );
+          if (decodedMulti?.rows?.length && (isLightMultiple || decodedMulti.rows.length > 0)) {
+            useArrayInput = isLightMultiple;
+            if (isLightMultiple) {
+              multiRows = decodedMulti.rows.map((r) => ({
+                itemName: r.itemName ?? "",
+                unitCost: Number(r.unitCost ?? 0) || 0,
+                length: Number(r.length ?? 0) || (r.length ?? "-"),
+                width: Number(r.width ?? 0) || (r.width ?? "-"),
+                height: Number(r.height ?? 0) || (r.height ?? "-"),
+                qtyPerCarton: Number(r.qtyPerCarton ?? 0) || 0,
+              }));
+              totalUnitCost = multiRows.reduce(
+                (sum: number, r: any) => sum + (Number(r.unitCost) || 0),
+                0,
+              );
+            } else {
+              // Light (Single) — parse as dimensions
+              const [length, width, height] = (rawPackaging || "- x - x -")
+                .split(/\s*[x×]\s*/i)
+                .map((v) => v.trim());
+              packagingData = { length: length || "-", width: width || "-", height: height || "-" };
+            }
           } else {
             const [length, width, height] = (rawPackaging || "- x - x -")
-              .split(" x ")
+              .split(/\s*[x×]\s*/i)
               .map((v) => v.trim());
-            packagingData = { length, width, height };
+            packagingData = { length: length || "-", width: width || "-", height: height || "-" };
           }
         } else {
-          const [length, width, height] = (rawPackaging || "- x - x -")
-            .split(" x ")
-            .map((v) => v.trim());
-          packagingData = { length, width, height };
+          // BASIC or POLE — parse packaging dimensions if present
+          if (rawPackaging && rawPackaging !== "-") {
+            const [length, width, height] = rawPackaging
+              .split(/\s*[x×]\s*/i)
+              .map((v) => v.trim());
+            packagingData = { length: length || "-", width: width || "-", height: height || "-" };
+          }
         }
 
         const originalQty = Number(qtys[i] || 1);
@@ -1064,7 +1080,8 @@ useEffect(() => {
             portOfDischarge: ports[i] || "-",
             packaging: packagingData,
             warranty: warranties[i] || "-",
-            commercialType: commercialTypes[i] || "BASIC",
+            // Normalize stored label back to internal enum for UI display logic
+            commercialType: isLightType ? "LIGHT" : isPoleType ? "POLE" : "BASIC",
             useArrayInput,
             multiRows,
             ...(typeof totalUnitCost === "number" ? { totalUnitCost } : {}),
@@ -4835,4 +4852,3 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
     </>
   );
 }
-//hey
