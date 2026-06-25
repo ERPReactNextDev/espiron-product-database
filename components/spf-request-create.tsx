@@ -17,13 +17,28 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
-import { Funnel, Plus, Trash2, ChevronDown, ChevronUp, Pencil, Save } from "lucide-react";
+import { Funnel, Plus, Trash2, ChevronDown, ChevronUp, Pencil, Save, Copy } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { logProductEvent } from "@/lib/auditlogger";
+
+const escapeRegExp = (string: string) => {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
 import { ForPoolingButton } from "@/components/for-pooling-button";
 import { toast } from "sonner";
 import FilteringComponent from "@/components/filtering-component-v2";
 import AddProductComponent from "@/components/add-product-component";
 import EditProductComponent from "@/components/edit-product-component";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, onSnapshot, addDoc, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import CardDetails from "@/components/spf/dialog/card-details";
 import SPFTimer from "@/components/spf-timer";
@@ -318,6 +333,10 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   /* ── Row Selection modal ── */
   const [showRowSelectModal, setShowRowSelectModal] = useState(false);
   const [pendingRowSelectProduct, setPendingRowSelectProduct] = useState<any | null>(null);
+
+/* ── Duplicate state ── */
+  const [duplicateTarget, setDuplicateTarget] = useState<{ id: string; name: string } | null>(null);
+  const [duplicating, setDuplicating] = useState(false);
 
   /* ── Submit loading state ── */
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -776,6 +795,83 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
       toast.error("Something went wrong while creating SPF");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  /* ── Duplicate Product ── */
+  const handleDuplicate = async () => {
+    if (!duplicateTarget || !userId) return;
+    setDuplicating(true);
+    try {
+      const productRef = doc(db, "products", duplicateTarget.id);
+      const productSnap = await getDoc(productRef);
+      if (productSnap.exists()) {
+        const productData = productSnap.data();
+        const originalName = productData.productName;
+        const baseNameMatch = originalName.match(/^(.*?)\s*\(\d+\)$/);
+        const baseName = baseNameMatch ? baseNameMatch[1] : originalName;
+        const allProductsQuery = query(collection(db, "products"), where("isActive", "==", true));
+        const allProductsSnap = await getDocs(allProductsQuery);
+        const existingNumbers = new Set<number>();
+        allProductsSnap.docs.forEach((d: any) => {
+          const name = d.data().productName;
+          if (!name) return;
+          const match = name.match(new RegExp(`^${escapeRegExp(baseName)}\\s*\\((\\d+)\\)$`));
+          if (match) existingNumbers.add(parseInt(match[1]));
+        });
+        let nextNumber = 2;
+        while (existingNumbers.has(nextNumber)) nextNumber++;
+        const newProductName = `${baseName} (${nextNumber})`;
+        const newDocRef = await addDoc(collection(db, "products"), {
+          ...productData,
+          productName: newProductName,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        let userReferenceID = userId;
+        try {
+          const userRes = await fetch(`/api/users?id=${encodeURIComponent(userId)}`);
+          if (userRes.ok) {
+            const userData = await userRes.json();
+            userReferenceID = userData?.ReferenceID || userId;
+          }
+        } catch (err) {
+          console.error("Failed to fetch user referenceID:", err);
+        }
+        try {
+          await logProductEvent({
+            whatHappened: "Product Duplicated",
+            productId: newDocRef.id,
+            productReferenceID: productData.productReferenceID,
+            productClass: productData.productClass,
+            pricePoint: productData.pricePoint,
+            brandOrigin: productData.brandOrigin,
+            supplier: productData.supplier,
+            categoryTypes: productData.categoryTypes,
+            productFamilies: productData.productFamilies,
+            mainImage: productData.mainImage,
+            dimensionalDrawing: productData.dimensionalDrawing,
+            illuminanceDrawing: productData.illuminanceDrawing,
+            technicalSpecifications: productData.technicalSpecifications,
+            referenceID: userReferenceID,
+            userId: userId,
+            extra: {
+              originalProductId: duplicateTarget.id,
+              originalProductName: originalName,
+              newProductName,
+            },
+          });
+        } catch (auditErr) {
+          console.error("Audit log error for product duplication:", auditErr);
+        }
+        setDuplicateTarget(null);
+        toast.success(`Duplicated as "${newProductName}"`);
+      }
+    } catch (err) {
+      console.error("Error duplicating product:", err);
+      toast.error("Failed to duplicate product");
+    } finally {
+      setDuplicating(false);
     }
   };
 
@@ -1387,7 +1483,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                           specs={p.technicalSpecifications ?? []}
                         />
                       </div>
-                      <div className="shrink-0 flex items-center">
+<div className="shrink-0 flex flex-col items-center gap-1">
                         <div
                           className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
                             activeRowIndex !== null
@@ -1397,6 +1493,17 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                         >
                           <Plus size={16} />
                         </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDuplicateTarget({ id: p.id, name: p.productName });
+                          }}
+                          className="w-8 h-8 rounded-full bg-white border flex items-center justify-center shadow"
+                          title="Duplicate product"
+                        >
+                          <Copy size={14} className="text-green-600" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -2308,6 +2415,19 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
     <Plus size={14} className="text-green-600" />
   </button>
 
+  {/* 🔥 DUPLICATE BUTTON */}
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      setDuplicateTarget({ id: p.id, name: p.productName });
+    }}
+    className="absolute top-2 right-10 z-10 bg-white border rounded-full p-1 hover:bg-gray-100 shadow"
+    title="Duplicate product"
+  >
+    <Copy size={14} className="text-green-600" />
+  </button>
+
   {/* 🔥 EDIT BUTTON */}
 {canEditProduct && (
   <button
@@ -2668,6 +2788,24 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+{/* DUPLICATE CONFIRMATION DIALOG */}
+      <AlertDialog open={!!duplicateTarget} onOpenChange={(open) => !open && setDuplicateTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Duplicate Product</AlertDialogTitle>
+            <AlertDialogDescription>
+              Do you want to duplicate &quot;{duplicateTarget?.name}&quot;?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={duplicating}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDuplicate} disabled={duplicating}>
+              {duplicating ? "Duplicating..." : "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── Generate TDS Dialog ── */}
       <SPFGenerateTDSDialog

@@ -74,6 +74,7 @@ export type ProductEventPayload = {
     | "Product Added"
     | "Product Edited"
     | "Product Deleted"
+    | "Product Duplicated"
     | "Product Bulk Upload"
     | "Product For Approval Requested"
     | "Product For Approval Approved"

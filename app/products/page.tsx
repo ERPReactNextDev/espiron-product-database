@@ -7,7 +7,7 @@ import { useUser } from "@/contexts/UserContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useWallpaper } from "@/contexts/WallpaperContext";
 import { AccessGuard } from "@/components/AccessGuard";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { collection, onSnapshot, query, where, addDoc, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,18 @@ import FilteringComponentV2 from "@/components/filtering-component-v2";
 import UploadProductModal from "@/components/upload-product";
 import DownloadProduct from "@/components/download-product";
 import ViewProduct from "@/components/view-product";
-import { Pencil, Trash2, Eye, SlidersHorizontal, X, Plus, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { logProductEvent } from "@/lib/auditlogger";
+import { Pencil, Trash2, Eye, SlidersHorizontal, X, Plus, Search, ChevronLeft, ChevronRight, Copy } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const convertDriveToThumbnail = (url: string) => {
   if (!url) return url;
@@ -26,6 +37,10 @@ const convertDriveToThumbnail = (url: string) => {
     return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`;
   }
   return url;
+};
+
+const escapeRegExp = (string: string) => {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
 export default function ProductsPage() {
@@ -43,6 +58,8 @@ export default function ProductsPage() {
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [viewTarget, setViewTarget] = useState<string | null>(null);
+  const [duplicateTarget, setDuplicateTarget] = useState<{ id: string; name: string } | null>(null);
+  const [duplicating, setDuplicating] = useState(false);
 
   const [cardScale, setCardScale] = useState(() => {
     if (typeof window !== "undefined") {
@@ -157,6 +174,102 @@ export default function ProductsPage() {
   useEffect(() => { setCurrentPage(1); }, [searchTerm, filteredProducts]);
 
   const isFiltered = filteredProducts.length !== products.length;
+
+  const handleDuplicate = async () => {
+    if (!duplicateTarget || !userId) return;
+    
+    setDuplicating(true);
+    try {
+      const productRef = doc(db, "products", duplicateTarget.id);
+      const productSnap = await getDoc(productRef);
+      
+      if (productSnap.exists()) {
+        const productData = productSnap.data();
+        const originalName = productData.productName;
+        
+        // Extract base name (remove any existing (N) suffix)
+        const baseNameMatch = originalName.match(/^(.*?)\s*\(\d+\)$/);
+        const baseName = baseNameMatch ? baseNameMatch[1] : originalName;
+        
+        // Find all products with this base name to determine next number
+        const allProductsQuery = query(collection(db, "products"), where("isActive", "==", true));
+        const allProductsSnap = await getDocs(allProductsQuery);
+        
+        // Extract existing numbers from products with matching base name
+        const existingNumbers = new Set<number>();
+        allProductsSnap.docs.forEach((doc: any) => {
+          const data = doc.data();
+          const name = data.productName;
+          if (!name) return;
+          const match = name.match(new RegExp(`^${escapeRegExp(baseName)}\\s*\\((\\d+)\\)$`));
+          if (match) {
+            existingNumbers.add(parseInt(match[1]));
+          }
+        });
+        
+        // Find the next available number starting from 2
+        let nextNumber = 2;
+        while (existingNumbers.has(nextNumber)) {
+          nextNumber++;
+        }
+        
+        const newProductName = `${baseName} (${nextNumber})`;
+        
+        const newDocRef = await addDoc(collection(db, "products"), {
+          ...productData,
+          productName: newProductName,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        
+        // Fetch user's referenceID for audit logging
+        let userReferenceID = userId;
+        try {
+          const userRes = await fetch(`/api/users?id=${encodeURIComponent(userId)}`);
+          if (userRes.ok) {
+            const userData = await userRes.json();
+            userReferenceID = userData?.ReferenceID || userId;
+          }
+        } catch (err) {
+          console.error("Failed to fetch user referenceID:", err);
+        }
+        
+        // Audit log for product duplication
+        try {
+          await logProductEvent({
+            whatHappened: "Product Duplicated",
+            productId: newDocRef.id,
+            productReferenceID: productData.productReferenceID,
+            productClass: productData.productClass,
+            pricePoint: productData.pricePoint,
+            brandOrigin: productData.brandOrigin,
+            supplier: productData.supplier,
+            categoryTypes: productData.categoryTypes,
+            productFamilies: productData.productFamilies,
+            mainImage: productData.mainImage,
+            dimensionalDrawing: productData.dimensionalDrawing,
+            illuminanceDrawing: productData.illuminanceDrawing,
+            technicalSpecifications: productData.technicalSpecifications,
+            referenceID: userReferenceID,
+            userId: userId,
+            extra: {
+              originalProductId: duplicateTarget.id,
+              originalProductName: originalName,
+              newProductName: newProductName,
+            },
+          });
+        } catch (auditErr) {
+          console.error("Audit log error for product duplication:", auditErr);
+        }
+        
+        setDuplicateTarget(null);
+      }
+    } catch (err) {
+      console.error("Error duplicating product:", err);
+    } finally {
+      setDuplicating(false);
+    }
+  };
 
   return (
     <AccessGuard accessKey="page:products">
@@ -306,6 +419,7 @@ export default function ProductsPage() {
                           <div className="absolute top-2 right-2 flex-col gap-1.5 hidden md:flex opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                             {[
                               { icon: <Eye className="w-3.5 h-3.5 text-gray-700" />, label: "View", action: () => setViewTarget(p.id) },
+                              { icon: <Copy className="w-3.5 h-3.5 text-green-600" />, label: "Duplicate", action: () => setDuplicateTarget({ id: p.id, name: p.productName }) },
                               { icon: <Pencil className="w-3.5 h-3.5 text-blue-600" />, label: "Edit", action: () => router.push(`/edit-product?id=${p.id}`) },
                               { icon: <Trash2 className="w-3.5 h-3.5 text-red-500" />, label: "Delete", action: () => setDeleteTarget({ id: p.id, name: p.productName }) },
                             ].map(({ icon, label, action }) => (
@@ -327,6 +441,9 @@ export default function ProductsPage() {
                           <div className="absolute bottom-2 right-2 flex gap-1.5 md:hidden">
                             <button className="w-7 h-7 rounded-full bg-white/95 shadow flex items-center justify-center" onClick={(e) => { e.stopPropagation(); setViewTarget(p.id); }}>
                               <Eye className="w-3.5 h-3.5 text-gray-700" />
+                            </button>
+                            <button className="w-7 h-7 rounded-full bg-white/95 shadow flex items-center justify-center" onClick={(e) => { e.stopPropagation(); setDuplicateTarget({ id: p.id, name: p.productName }); }}>
+                              <Copy className="w-3.5 h-3.5 text-green-600" />
                             </button>
                             <button className="w-7 h-7 rounded-full bg-white/95 shadow flex items-center justify-center" onClick={(e) => { e.stopPropagation(); router.push(`/edit-product?id=${p.id}`); }}>
                               <Pencil className="w-3.5 h-3.5 text-blue-600" />
@@ -426,6 +543,24 @@ export default function ProductsPage() {
           </div>
         </div>
       </div>
+
+      {/* DUPLICATE CONFIRMATION DIALOG */}
+      <AlertDialog open={!!duplicateTarget} onOpenChange={(open) => !open && setDuplicateTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Duplicate Product</AlertDialogTitle>
+            <AlertDialogDescription>
+              Do you want to duplicate "{duplicateTarget?.name}"?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={duplicating}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDuplicate} disabled={duplicating}>
+              {duplicating ? "Duplicating..." : "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* DELETE MODAL */}
       {deleteTarget && (
