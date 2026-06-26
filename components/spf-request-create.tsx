@@ -352,6 +352,9 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [selectedRowIndexForTDS, setSelectedRowIndexForTDS] = useState<number | null>(null);
   const [selectedOptionIndexForTDS, setSelectedOptionIndexForTDS] = useState<number | null>(null);
 
+  /* ── Expanded product cards state ── */
+  const [expandedProductCards, setExpandedProductCards] = useState<Record<string, boolean>>({});
+
   /* ── Sync formData when rowData changes ── */
   useEffect(() => {
     if (!open) return;
@@ -1704,648 +1707,467 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
             <h3 className="text-sm font-bold">{formData.spf_number || "-"}</h3>
           </div>
 
-          <div className="mt-4 overflow-y-auto relative">
-            {formData.item_description?.length ? (
-              <table className="w-full table-fixed border text-[10px]">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border px-1 py-1 text-center w-15">#</th>
-                    <th className="border px-1 py-1 text-center w-28">Image</th>
-                    <th className="border px-1 py-1 text-center w-24">Item Qty</th>
-                    <th className="border px-1 py-1 text-center w-30">
-                      Item Description
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(formData.item_description || []).map((desc, index) => (
-                    <React.Fragment key={`row-${index}`}>
-                      <tr
-                        className="text-[10px]"
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => {
-                          if (viewMode || !draggedProduct) return;
-                          const frozen =
-                            draggedProduct.__fromRow !== undefined
-                              ? draggedProduct
-                              : freezeSpecs(draggedProduct);
-                          if (hasMultipleSpecValues(frozen)) {
-                            if (draggedProduct.__fromRow !== undefined) {
+<div className="mt-4 space-y-4">
+  {formData.item_description?.length ? (
+    (formData.item_description || []).map((desc, index) => (
+      <div
+        key={`row-${index}`}
+        className="flex gap-3 border rounded-lg overflow-hidden"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={() => {
+          if (viewMode || !draggedProduct) return;
+          const frozen =
+            draggedProduct.__fromRow !== undefined
+              ? draggedProduct
+              : freezeSpecs(draggedProduct);
+          if (hasMultipleSpecValues(frozen)) {
+            if (draggedProduct.__fromRow !== undefined) {
+              setProductOffers((prev) => {
+                const copy = { ...prev };
+                const original = [...(copy[draggedProduct.__fromRow] || [])];
+                original.splice(draggedProduct.__fromIndex, 1);
+                copy[draggedProduct.__fromRow] = original;
+                return copy;
+              });
+            }
+            setPendingPipeProduct(frozen);
+            setPendingPipeRowIndex(index);
+            setShowPipeModal(true);
+            setDraggedProduct(null);
+            setShowTrash(false);
+          } else {
+            setProductOffers((prev) => {
+              const copy = { ...prev };
+              if (draggedProduct.__fromRow !== undefined) {
+                const original = [...(copy[draggedProduct.__fromRow] || [])];
+                original.splice(draggedProduct.__fromIndex, 1);
+                copy[draggedProduct.__fromRow] = original;
+              }
+              copy[index] = [
+                ...(copy[index] || []),
+                { ...frozen, qty: frozen.qty ?? 1 },
+              ];
+              return copy;
+            });
+            setDraggedProduct(null);
+          }
+        }}
+      >
+        {/* LEFT: Item Info Panel */}
+        <div className="w-[220px] shrink-0 bg-green-50 border-r p-3 flex flex-col gap-2">
+          <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">
+            Item {index + 1}
+          </div>
+          <div className="text-[11px] font-semibold text-gray-700 font-mono bg-white border px-2 py-1 rounded">
+            {formData.spf_number
+              ? `${formData.spf_number}-${String(index + 1).padStart(3, "0")}`
+              : "-"}
+          </div>
+          {formData.item_photo?.[index] ? (
+            <img
+              src={formData.item_photo[index]}
+              alt={desc}
+              className="w-full h-28 object-contain cursor-pointer hover:opacity-80 transition-opacity rounded border bg-white"
+              onClick={() => openImagePreview(formData.item_photo?.[index])}
+            />
+          ) : (
+            <div className="w-full h-28 bg-white border rounded flex items-center justify-center text-[10px] text-gray-400">
+              No Image
+            </div>
+          )}
+          <div>
+            <div className="text-[9px] text-gray-400 uppercase font-semibold mb-0.5">Item Qty</div>
+            <div className="text-[11px] font-medium text-gray-700">
+              {(() => {
+                const qtys = (formData.item_qty || "").split(",").map((q: string) => q.trim());
+                return qtys[index] || "-";
+              })()}
+            </div>
+          </div>
+          <div>
+            <div className="text-[9px] text-gray-400 uppercase font-semibold mb-0.5">Description</div>
+            <div className="text-[10px] text-gray-700 leading-snug whitespace-pre-wrap">
+              {desc.replace(/\|/g, "\n")}
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT: Product Offers */}
+        <div className="flex-1 p-3 overflow-x-auto">
+          {(productOffers[index] || []).length === 0 ? (
+            <div className="h-full flex items-center justify-center text-[11px] text-gray-400 border-2 border-dashed rounded-lg min-h-[120px]">
+              Drag a product here or use the + button
+            </div>
+          ) : (
+            <div className="flex gap-3">
+              {(productOffers[index] || []).map((prod: any, i: number) => {
+                const cardKey = `${index}-${i}`;
+                const isExpanded = expandedProductCards[cardKey] || false;
+                const unitCost = prod?.commercialDetails?.unitCost || "-";
+                const productName = prod?.__tdsProductName ?? prod?.productName ?? "";
+                let commercialType = prod?.commercialDetails?.commercialType || "BASIC";
+                if (productName) {
+                  const n = productName.toLowerCase();
+                  if (n.includes("lights (multiple)") || n.includes("light (multiple)")) commercialType = "LIGHT";
+                  else if (n.includes("lights (single)") || n.includes("light (single)")) commercialType = "LIGHT";
+                }
+                const useArrayInput = prod?.commercialDetails?.useArrayInput || false;
+                const totalUnitCost = prod?.commercialDetails?.totalUnitCost || 0;
+                const multiRows = prod?.commercialDetails?.multiRows || [];
+                const packagingData = prod?.commercialDetails?.packaging;
+                let packagingDisplay: React.ReactNode = "-";
+                let qtyCtnDisplay: React.ReactNode = "-";
+                let commercialTypeDisplay: React.ReactNode = "-";
+                if (commercialType === "BASIC") {
+                  commercialTypeDisplay = "Basic";
+                  if (packagingData) {
+                    packagingDisplay = `${packagingData.length || "-"} × ${packagingData.width || "-"} × ${packagingData.height || "-"}`;
+                    qtyCtnDisplay = prod?.commercialDetails?.pcsPerCarton || "-";
+                  }
+                } else if (commercialType === "LIGHT") {
+                  let isMultiple = useArrayInput;
+                  if (productName) {
+                    const n = productName.toLowerCase();
+                    if (n.includes("lights (multiple)") || n.includes("light (multiple)")) isMultiple = true;
+                    else if (n.includes("lights (single)") || n.includes("light (single)")) isMultiple = false;
+                  }
+                  if (isMultiple) {
+                    commercialTypeDisplay = "Light (Multiple)";
+                    packagingDisplay = (
+                      <div className="space-y-1">
+                        {multiRows.map((row: any, idx: number) => (
+                          <div key={idx} className="text-[8px] leading-tight">
+                            <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
+                            <div>{row.length || "-"} × {row.width || "-"} × {row.height || "-"}</div>
+                            <div className="text-gray-500">{row.unitCost?.toFixed(2) || "0.00"} USD</div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                    qtyCtnDisplay = (
+                      <div className="space-y-1">
+                        {multiRows.map((row: any, idx: number) => (
+                          <div key={idx} className="text-[8px] leading-tight">
+                            <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
+                            <div>Qty: {row.qtyPerCarton || "-"}</div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  } else {
+                    commercialTypeDisplay = "Light (Single)";
+                    if (packagingData) packagingDisplay = `${packagingData.length || "-"} × ${packagingData.width || "-"} × ${packagingData.height || "-"}`;
+                    qtyCtnDisplay = prod?.commercialDetails?.pcsPerCarton || "-";
+                  }
+                } else if (commercialType === "POLE") {
+                  commercialTypeDisplay = "Pole";
+                  packagingDisplay = "-";
+                  qtyCtnDisplay = "-";
+                }
+                const factory = prod?.commercialDetails?.factoryAddress || "-";
+                const warranty = prod?.commercialDetails?.warranty || "-";
+                const port = prod?.commercialDetails?.portOfDischarge || "-";
+                const brand = prod?.supplier?.supplierBrand || prod?.supplier?.supplierBrandName || "-";
+                const availableCountries = prod.countries || [];
+                const selectedBranch = prod.__selectedBranch || (availableCountries.length === 1 ? availableCountries[0] : "");
+                const qty = prod.qty ?? 1;
+                const cost = Number(prod.commercialDetails?.unitCost || 0);
+                const subtotal = (qty * cost).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                return (
+                  <div
+                    key={i}
+                    draggable={!viewMode}
+                    className="relative border rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing bg-white shrink-0 w-[280px] flex flex-col"
+                    onDragStart={(e) => {
+                      if (viewMode) return;
+                      e.dataTransfer.setData("text/plain", "dragging");
+                      setDraggedProduct({ ...prod, __fromRow: index, __fromIndex: i });
+                      setShowTrash(true);
+                    }}
+                    onDragEnd={() => {
+                      if (viewMode) return;
+                      setDraggedProduct(null);
+                      setShowTrash(false);
+                    }}
+                  >
+                    {/* Header bar */}
+                    <div className="flex items-center justify-between px-3 py-2 bg-blue-600 rounded-t-lg">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedProductCards((prev) => ({ ...prev, [cardKey]: !prev[cardKey] }))}
+                          className="text-white/80 hover:text-white"
+                        >
+                          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </button>
+                        <span className="text-[11px] font-semibold text-white">
+                          {brand !== "-" ? brand : `Option ${i + 1}`}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-white/70 font-mono">Offer #{i + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeProduct(index, i)}
+                          className="ml-1 text-white/70 hover:text-red-300"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Product image */}
+                    <div className="flex justify-center px-3 pt-3">
+                      {prod.mainImage?.url ? (
+                        <img
+                          src={prod.mainImage.url}
+                          className="w-24 h-24 object-contain cursor-pointer hover:opacity-80 transition-opacity"
+                          alt=""
+                          onClick={() => openImagePreview(prod.mainImage?.url)}
+                        />
+                      ) : (
+                        <div className="w-24 h-24 bg-gray-100 flex items-center justify-center text-[10px] text-gray-400 rounded">
+                          No Image
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Product name */}
+                    <div className="px-3 pt-2 pb-1">
+                      <input
+                        disabled
+                        value={productName}
+                        className="w-full border rounded px-2 py-1 text-[10px] text-center font-medium"
+                        placeholder="Product name"
+                      />
+                    </div>
+
+                    {/* Core fields */}
+                    <div className="px-3 pb-2 space-y-1.5 text-[10px]">
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div>
+                          <div className="text-gray-400 mb-0.5">Branch</div>
+                          {availableCountries.length === 0 ? (
+                            <span className="font-medium">-</span>
+                          ) : availableCountries.length === 1 ? (
+                            <span className="font-medium">{availableCountries[0]}</span>
+                          ) : (
+                            <select
+                              className="border rounded px-1 py-0.5 text-[8px] w-full"
+                              value={selectedBranch}
+                              onChange={(e) => {
+                                const branch = e.target.value;
+                                setProductOffers((prev) => {
+                                  const copy = { ...prev };
+                                  const row = [...(copy[index] || [])];
+                                  row[i] = { ...row[i], __selectedBranch: branch };
+                                  copy[index] = row;
+                                  return copy;
+                                });
+                              }}
+                            >
+                              <option value="">-- Select --</option>
+                              {availableCountries.map((country: string) => (
+                                <option key={country} value={country}>{country}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-gray-400 mb-0.5">Qty</div>
+                          <input
+                            type="number"
+                            min={1}
+                            className="w-full border rounded px-1 py-0.5 text-[10px]"
+                            value={prod.qty || 1}
+                            onChange={(e) => {
+                              let qty = Number(e.target.value);
+                              if (qty < 1) qty = 1;
                               setProductOffers((prev) => {
                                 const copy = { ...prev };
-                                const original = [
-                                  ...(copy[draggedProduct.__fromRow] || []),
-                                ];
-                                original.splice(draggedProduct.__fromIndex, 1);
-                                copy[draggedProduct.__fromRow] = original;
+                                const row = [...(copy[index] || [])];
+                                row[i] = { ...row[i], qty };
+                                copy[index] = row;
                                 return copy;
                               });
-                            }
-                            setPendingPipeProduct(frozen);
-                            setPendingPipeRowIndex(index);
-                            setShowPipeModal(true);
-                            setDraggedProduct(null);
-                            setShowTrash(false);
-                          } else {
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <div className="text-gray-400 mb-0.5">Unit Cost</div>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="w-full border rounded px-1 py-0.5 text-[10px]"
+                            value={commercialType === "LIGHT" && useArrayInput ? totalUnitCost : (prod?.commercialDetails?.unitCost || "0")}
+                            onChange={(e) => {
+                              const cost = Number(e.target.value);
+                              setProductOffers((prev) => {
+                                const copy = { ...prev };
+                                const row = [...(copy[index] || [])];
+                                row[i] = { ...row[i], commercialDetails: { ...row[i].commercialDetails, unitCost: cost.toString() } };
+                                copy[index] = row;
+                                return copy;
+                              });
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <div className="text-gray-400 mb-0.5">Subtotal</div>
+                          <div className="font-semibold text-gray-800">${subtotal}</div>
+                        </div>
+                      </div>
+
+                      {/* Price Validity */}
+                      <div>
+                        <div className="text-gray-400 mb-0.5">Price Validity</div>
+                        <input
+                          type="datetime-local"
+                          className="w-full border rounded px-1 py-0.5 text-[10px]"
+                          value={prod.__priceValidity ?? ""}
+                          onChange={(e) => {
                             setProductOffers((prev) => {
                               const copy = { ...prev };
-                              if (draggedProduct.__fromRow !== undefined) {
-                                const original = [
-                                  ...(copy[draggedProduct.__fromRow] || []),
-                                ];
-                                original.splice(draggedProduct.__fromIndex, 1);
-                                copy[draggedProduct.__fromRow] = original;
-                              }
-                              copy[index] = [
-                                ...(copy[index] || []),
-                                { ...frozen, qty: frozen.qty ?? 1 },
-                              ];
+                              const row = [...(copy[index] || [])];
+                              row[i] = { ...row[i], __priceValidity: e.target.value, price_validity: e.target.value };
+                              copy[index] = row;
                               return copy;
                             });
-                            setDraggedProduct(null);
-                          }
-                        }}
-                      >
-                        <td className="border px-1 py-1 font-medium text-center align-middle text-[10px]">
-                          {formData.spf_number
-                            ? `${formData.spf_number}-${String(index + 1).padStart(3, "0")}`
-                            : "-"}
-                        </td>
-                        <td className="border px-1 py-1 align-middle">
-                          <div className="flex justify-center items-center">
-                            {formData.item_photo?.[index] ? (
-                              <img
-                                src={formData.item_photo[index]}
-                                alt={desc}
-                                className="w-12 h-12 object-contain cursor-pointer hover:opacity-80 transition-opacity"
-                                onClick={() => openImagePreview(formData.item_photo?.[index])}
-                              />
-                            ) : (
-                              <span className="text-[10px]">-</span>
+                          }}
+                        />
+                      </div>
+
+                      {/* TDS Brand */}
+                      <div>
+                        <div className="text-gray-400 mb-0.5">TDS Brand</div>
+                        <select
+                          className="w-full border rounded px-1 py-0.5 text-[10px]"
+                          value={prod.__tdsBrand ?? ""}
+                          onChange={(e) => {
+                            const brand = e.target.value;
+                            setProductOffers((prev) => {
+                              const copy = { ...prev };
+                              const row = [...(copy[index] || [])];
+                              row[i] = { ...row[i], __tdsBrand: brand };
+                              copy[index] = row;
+                              return copy;
+                            });
+                          }}
+                        >
+                          <option value="">-- Brand --</option>
+                          {["Lit", "Lumera", "Ecoshift"].map((b) => (
+                            <option key={b} value={b}>{b}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="mt-1 text-[10px] text-green-600 underline"
+                          onClick={() => {
+                            const rowBase = `${formData.spf_number}-${String(index + 1).padStart(3, "0")}`;
+                            const optionIndexToLetters = (idx: number) => {
+                              let n = idx; let s = "";
+                              while (n >= 0) { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; }
+                              return s;
+                            };
+                            const rowOffers = productOffers[index] || [];
+                            const itemCode = rowOffers.length > 1 ? `${rowBase}-${optionIndexToLetters(i)}` : rowBase;
+                            setSelectedRowIndexForTDS(index);
+                            setSelectedOptionIndexForTDS(i);
+                            setSelectedProductForTDS({
+                              ...prod,
+                              productName: prod.__tdsProductName ?? prod.productName,
+                              __tdsBrand: prod.__tdsBrand ?? "",
+                              dimensionalDrawing: prod.dimensionalDrawing ?? null,
+                              illuminanceDrawing: prod.illuminanceDrawing ?? null,
+                              itemCode,
+                            });
+                            setTdsDialogOpen(true);
+                          }}
+                        >
+                          Generate TDS
+                        </button>
+                        {prod.__tdsPdfUrl && (
+                          <a href={prod.__tdsPdfUrl} target="_blank" rel="noopener noreferrer" className="mt-0.5 text-[10px] text-blue-600 underline block">
+                            View TDS
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Expandable details */}
+                    {isExpanded && (
+                      <div className="border-t mx-3 pt-2 pb-3 space-y-2 text-[10px]">
+                        {/* Technical Specs */}
+                        <div>
+                          <div className="text-gray-400 font-semibold mb-1">Technical Specs</div>
+                          <div className="space-y-1">
+                            {prod.technicalSpecifications
+                              ?.map((g: any) => ({ ...g, specs: g.specs?.filter((s: any) => s.value?.trim()) }))
+                              .filter((g: any) => g.specs?.length > 0)
+                              .map((g: any, gi: number) => (
+                                <div key={gi}>
+                                  <b className="text-[9px]">{g.title}</b>
+                                  {g.specs.map((s: any, si: number) => (
+                                    <div key={si} className="text-[9px] text-gray-600">{s.specId}: {s.value}</div>
+                                  ))}
+                                </div>
+                              ))}
+                            {hasMultipleSpecValues({ technicalSpecifications: prod.__originalTechnicalSpecifications || prod.technicalSpecifications }) && (
+                              <button
+                                type="button"
+                                onClick={() => openSpecsRevision(index, i)}
+                                className="mt-1 px-2 py-1 text-[10px] bg-blue-50 text-blue-600 border border-blue-200 rounded hover:bg-blue-100"
+                              >
+                                Edit Specs
+                              </button>
                             )}
                           </div>
-                        </td>
-                        <td className="border px-1 py-1 text-center align-middle text-[10px]">
-                          {(() => {
-                            const qtys = (formData.item_qty || "").split(",").map((q: string) => q.trim());
-                            return qtys[index] || "-";
-                          })()}
-                        </td>
-                        <td className="border px-1 py-1 whitespace-pre-wrap text-center align-middle text-[10px] leading-tight select-none">
-                          {desc.replace(/\|/g, "\n")}
-                        </td>
-                      </tr>
-                      <tr
-                        className="text-[10px]"
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => {
-                          if (viewMode || !draggedProduct) return;
-                          const frozen =
-                            draggedProduct.__fromRow !== undefined
-                              ? draggedProduct
-                              : freezeSpecs(draggedProduct);
-                          if (hasMultipleSpecValues(frozen)) {
-                            if (draggedProduct.__fromRow !== undefined) {
+                        </div>
+
+                        {/* Commercial Details */}
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div><div className="text-gray-400">Qty/Ctn</div><div>{qtyCtnDisplay}</div></div>
+                          <div><div className="text-gray-400">Comm. Type</div><div>{commercialTypeDisplay}</div></div>
+                          <div><div className="text-gray-400">Packaging</div><div>{packagingDisplay}</div></div>
+                          <div><div className="text-gray-400">Warranty</div><div>{warranty}</div></div>
+                          <div><div className="text-gray-400">Factory</div><div className="truncate">{factory}</div></div>
+                          <div><div className="text-gray-400">Port</div><div>{port}</div></div>
+                        </div>
+
+                        {/* PD Remarks */}
+                        <div>
+                          <div className="text-gray-400 mb-0.5">PD Remarks</div>
+                          <textarea
+                            className="w-full border rounded px-1 py-0.5 text-[8px] resize-none"
+                            rows={2}
+                            placeholder="Remarks..."
+                            value={prod.__spfRemarksPD || ""}
+                            onChange={(e) => {
                               setProductOffers((prev) => {
                                 const copy = { ...prev };
-                                const original = [
-                                  ...(copy[draggedProduct.__fromRow] || []),
-                                ];
-                                original.splice(draggedProduct.__fromIndex, 1);
-                                copy[draggedProduct.__fromRow] = original;
+                                const row = [...(copy[index] || [])];
+                                row[i] = { ...row[i], __spfRemarksPD: e.target.value };
+                                copy[index] = row;
                                 return copy;
                               });
-                            }
-                            setPendingPipeProduct(frozen);
-                            setPendingPipeRowIndex(index);
-                            setShowPipeModal(true);
-                            setDraggedProduct(null);
-                            setShowTrash(false);
-                          } else {
-                            setProductOffers((prev) => {
-                              const copy = { ...prev };
-                              if (draggedProduct.__fromRow !== undefined) {
-                                const original = [
-                                  ...(copy[draggedProduct.__fromRow] || []),
-                                ];
-                                original.splice(draggedProduct.__fromIndex, 1);
-                                copy[draggedProduct.__fromRow] = original;
-                              }
-                              copy[index] = [
-                                ...(copy[index] || []),
-                                { ...frozen, qty: frozen.qty ?? 1 },
-                              ];
-                              return copy;
-                            });
-                            setDraggedProduct(null);
-                          }
-                        }}
-                      >
-                        <td colSpan={4} className="border px-2 py-1 text-center align-middle">
-                          {(productOffers[index] || []).length > 0 && (
-                            <div className="border rounded mb-2 overflow-hidden">
-                              <div className="max-h-64 overflow-y-auto">
-                              <table className="w-full table-fixed text-[9px]">
-                              <thead className="bg-muted sticky top-0 z-10">
-                                <tr>
-                                  <th colSpan={19} className="border px-0.5 py-0.5 text-center text-[9px] font-bold bg-orange-100 text-orange-700">
-                                    Product Offer
-                                  </th>
-                                </tr>
-                                <tr>
-                                  <th className="border px-0.5 py-0.5 text-center w-6 text-[9px]">
-                                    Actions
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-10">
-                                    Opt
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-32">
-                                    Product Name
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-12.5">
-                                    Brand
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-12.5">
-                                    Branch
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-20">
-                                    Image
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-7.5">
-                                    Qty
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-16.25">
-                                    Price Validity
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-8.75">
-                                    TDS
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-22.5">
-                                    Technical Specs
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-10">
-                                    Unit Cost
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-7.5">
-                                    Qty/Ctn
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-8">
-                                    Commercial Type
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-11.25">
-                                    Packaging
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-11.25">
-                                    Warranty
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-11.25">
-                                    Factory
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-8.75">
-                                    Port
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-10">
-                                    Subtotal
-                                  </th>
-                                  <th className="border px-0.5 py-0.5 text-center w-20">
-                                    PD Remarks
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(productOffers[index] || []).map(
-                                  (prod: any, i: number) => {
-                                    const unitCost =
-                                      prod?.commercialDetails?.unitCost || "-";
-                                    const productName = prod?.__tdsProductName ?? prod?.productName ?? "";
-                                    let commercialType = prod?.commercialDetails?.commercialType || "BASIC";
-
-                                    // Derive commercial type from product name if it contains "Lights (multiple)" or "Lights (single)"
-                                    if (productName) {
-                                      const productNameLower = productName.toLowerCase();
-                                      if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
-                                        commercialType = "LIGHT";
-                                      } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
-                                        commercialType = "LIGHT";
-                                      }
-                                    }
-
-                                    const useArrayInput = prod?.commercialDetails?.useArrayInput || false;
-                                    const totalUnitCost = prod?.commercialDetails?.totalUnitCost || 0;
-                                    const multiRows = prod?.commercialDetails?.multiRows || [];
-
-                                    const packagingData = prod?.commercialDetails?.packaging;
-                                    let packagingDisplay: React.ReactNode = "-";
-                                    let qtyCtnDisplay: React.ReactNode = "-";
-                                    let commercialTypeDisplay: React.ReactNode = "-";
-
-                                    // Determine commercial type display and packaging display based on type
-                                    if (commercialType === "BASIC") {
-                                      commercialTypeDisplay = "Basic";
-                                      if (packagingData) {
-                                        const length = packagingData.length || "-";
-                                        const width = packagingData.width || "-";
-                                        const height = packagingData.height || "-";
-                                        packagingDisplay = `${length} × ${width} × ${height}`;
-                                        qtyCtnDisplay = prod?.commercialDetails?.pcsPerCarton || "-";
-                                      }
-                                    } else if (commercialType === "LIGHT") {
-                                      // Check product name to determine if it should be Multiple or Single
-                                      let isMultiple = useArrayInput;
-                                      if (productName) {
-                                        const productNameLower = productName.toLowerCase();
-                                        if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
-                                          isMultiple = true;
-                                        } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
-                                          isMultiple = false;
-                                        }
-                                      }
-
-                                      if (isMultiple) {
-                                        // Light Multiple Dimension
-                                        commercialTypeDisplay = "Light (Multiple)";
-                                        // Packaging: Show item name, dimensions, and cost per row for each array row
-                                        packagingDisplay = (
-                                          <div className="space-y-1">
-                                            {multiRows.map((row: any, idx: number) => (
-                                              <div key={idx} className="text-[8px] leading-tight">
-                                                <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
-                                                <div>{row.length || "-"} × {row.width || "-"} × {row.height || "-"}</div>
-                                                <div className="text-gray-500">{row.unitCost?.toFixed(2) || "0.00"} USD</div>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        );
-                                        // Qty/Ctn: Show item name and qty/box for each row
-                                        qtyCtnDisplay = (
-                                          <div className="space-y-1">
-                                            {multiRows.map((row: any, idx: number) => (
-                                              <div key={idx} className="text-[8px] leading-tight">
-                                                <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
-                                                <div>Qty: {row.qtyPerCarton || "-"}</div>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        );
-                                      } else {
-                                        // Light Single Dimension
-                                        commercialTypeDisplay = "Light (Single)";
-                                        // Packaging: Show length, width, height
-                                        if (packagingData) {
-                                          const length = packagingData.length || "-";
-                                          const width = packagingData.width || "-";
-                                          const height = packagingData.height || "-";
-                                          packagingDisplay = `${length} × ${width} × ${height}`;
-                                        }
-                                        // Qty/Ctn: Show qty/box
-                                        qtyCtnDisplay = prod?.commercialDetails?.pcsPerCarton || "-";
-                                      }
-                                    } else if (commercialType === "POLE") {
-                                      commercialTypeDisplay = "Pole";
-                                      // Pole: No packaging
-                                      packagingDisplay = "-";
-                                      qtyCtnDisplay = "-";
-                                    }
-                                    const factory =
-                                      prod?.commercialDetails?.factoryAddress ||
-                                      "-";
-                                    const warranty =
-                                      prod?.commercialDetails?.warranty || "-";
-                                    const port =
-                                      prod?.commercialDetails
-                                        ?.portOfDischarge || "-";
-                                    const brand =
-                                      prod?.supplier?.supplierBrand ||
-                                      prod?.supplier?.supplierBrandName ||
-                                      "-";
-
-                                    return (
-                                      <tr
-                                        key={i}
-                                        draggable={!viewMode}
-                                        className={`bg-orange-50 ${
-                                          viewMode
-                                            ? "cursor-default"
-                                            : "cursor-grab active:cursor-grabbing"
-                                        }`}
-
-                                        onDragStart={(e) => {
-                                          if (viewMode) return;
-                                          e.dataTransfer.setData(
-                                            "text/plain",
-                                            "dragging",
-                                          );
-                                          setDraggedProduct({
-                                            ...prod,
-                                            __fromRow: index,
-                                            __fromIndex: i,
-                                          });
-                                          setShowTrash(true);
-                                        }}
-                                        onDragEnd={() => {
-                                          if (viewMode) return;
-                                          setDraggedProduct(null);
-                                          setShowTrash(false);
-                                        }}
-                                      >
-                                        <td className="border px-0.5 py-0.5 text-center align-middle">
-                                          <button
-                                            type="button"
-                                            onClick={() => removeProduct(index, i)}
-                                            className="text-destructive/60 hover:text-destructive transition-colors"
-                                            title="Delete this option"
-                                          >
-                                            <Trash2 size={14} />
-                                          </button>
-                                        </td>
-                                        <td className="border px-0.5 py-0.5 text-center align-middle">
-                                          <span className="inline-flex items-center text-[9px] font-semibold px-1 py-0 rounded-full bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
-                                            {i + 1}
-                                          </span>
-                                        </td>
-                                        <td className="border px-0.5 py-0.5 align-middle">
-                                          {viewMode ? (
-                                            <span className="text-[9px]">{prod.__tdsProductName ?? prod.productName ?? "-"}</span>
-                                          ) : (
-                                            <Input
-                                              disabled
-                                              value={prod.__tdsProductName ?? prod.productName ?? ""}
-                                              onChange={(e) => {
-                                                const name = e.target.value;
-                                                setProductOffers((prev) => {
-                                                  const copy = { ...prev };
-                                                  const row = [...(copy[index] || [])];
-                                                  row[i] = { ...row[i], __tdsProductName: name };
-                                                  copy[index] = row;
-                                                  return copy;
-                                                });
-                                              }}
-                                              className="h-6 text-[9px] px-1"
-                                              placeholder="Product name"
-                                            />
-                                          )}
-                                        </td>
-                                        <td className="border px-0.5 py-0.5 text-center align-middle font-medium text-[9px]">
-                                          {brand}
-                                        </td>
-                                        <td className="border px-0.5 py-0.5 text-center align-middle text-[9px]">
-                                          {(() => {
-                                            const availableCountries = prod.countries || [];
-                                            const selectedBranch = prod.__selectedBranch || (availableCountries.length === 1 ? availableCountries[0] : "");
-                                            
-                                            if (availableCountries.length === 0) {
-                                              return <span>-</span>;
-                                            }
-                                            
-                                            if (availableCountries.length === 1) {
-                                              return <span className="font-medium">{availableCountries[0]}</span>;
-                                            }
-                                            
-                                            // Multiple countries - show dropdown
-                                            return (
-                                              <select
-                                                className="border rounded px-0.5 py-0.5 text-[8px] w-full"
-                                                value={selectedBranch}
-                                                onChange={(e) => {
-                                                  const branch = e.target.value;
-                                                  setProductOffers((prev) => {
-                                                    const copy = { ...prev };
-                                                    const row = [...(copy[index] || [])];
-                                                    row[i] = { ...row[i], __selectedBranch: branch };
-                                                    copy[index] = row;
-                                                    return copy;
-                                                  });
-                                                }}
-                                              >
-                                                <option value="">-- Select --</option>
-                                                {availableCountries.map((country: string) => (
-                                                  <option key={country} value={country}>{country}</option>
-                                                ))}
-                                              </select>
-                                            );
-                                          })()}
-                                        </td>
-                                        <td className="border px-0.5 py-0.5 text-center align-middle">
-                                          {prod.mainImage?.url ? (
-                                            <img
-                                              src={prod.mainImage.url}
-                                              className="w-16 h-16 object-contain mx-auto cursor-pointer hover:opacity-80 transition-opacity"
-                                              alt=""
-                                              onClick={() => openImagePreview(prod.mainImage?.url)}
-                                            />
-                                          ) : (
-                                            <span className="text-[9px]">-</span>
-                                          )}
-                                        </td>
-                                        <td className="border px-0.5 py-0.5 text-center align-middle">
-                                          <input
-                                            type="number"
-                                            min={1}
-                                            className="w-full border px-0.5 text-[9px]"
-                                            placeholder="Qty"
-                                            value={prod.qty ?? 1}
-                                            onChange={(e) => {
-                                              let qty = Number(e.target.value);
-                                              if (qty < 1) qty = 1;
-                                              setProductOffers((prev) => {
-                                                const copy = { ...prev };
-                                                const row = [...(copy[index] || [])];
-                                                row[i] = { ...row[i], qty };
-                                                copy[index] = row;
-                                                return copy;
-                                              });
-                                            }}
-                                          />
-                                        </td>
-                                          <td className="border px-0.5 py-0.5 text-center align-middle">
-                                            <input
-                                              type="datetime-local"
-                                              className="border px-0.5 py-0.5 text-[8px] w-full"
-                                              value={prod.__priceValidity ?? ""}
-                                              onChange={(e) => {
-                                                setProductOffers((prev) => {
-                                                  const copy = { ...prev };
-                                                  const row = [...(copy[index] || [])];
-                                                  row[i] = { ...row[i], __priceValidity: e.target.value, price_validity: e.target.value };
-                                                  copy[index] = row;
-                                                  return copy;
-                                                });
-                                              }}
-                                            />
-                                          </td>
-                                          <td className="border px-0.5 py-0.5 text-center align-middle text-[9px]">
-                                            <select
-                                              className="border rounded px-0.5 py-0.5 text-[8px] w-full"
-                                              value={prod.__tdsBrand ?? ""}
-                                              onChange={(e) => {
-                                                const brand = e.target.value;
-                                                setProductOffers((prev) => {
-                                                  const copy = { ...prev };
-                                                  const row = [...(copy[index] || [])];
-                                                  row[i] = { ...row[i], __tdsBrand: brand };
-                                                  copy[index] = row;
-                                                  return copy;
-                                                });
-                                              }}
-                                            >
-                                              <option value="">--</option>
-                                              {["Lit", "Lumera", "Ecoshift"].map((b) => (
-                                                <option key={b} value={b}>{b}</option>
-                                              ))}
-                                            </select>
-                                            {prod.__tdsBrand && (
-                                              <button
-                                                type="button"
-                                                className="mt-0.5 text-[8px] text-green-600 underline block"
-                                                onClick={() => {
-                                                  const rowBase = `${formData.spf_number}-${String(index + 1).padStart(3, "0")}`;
-                                                  const optionIndexToLetters = (idx: number) => {
-                                                    let n = idx;
-                                                    let s = "";
-                                                    while (n >= 0) {
-                                                      s = String.fromCharCode(65 + (n % 26)) + s;
-                                                      n = Math.floor(n / 26) - 1;
-                                                    }
-                                                    return s;
-                                                  };
-                                                  const rowOffers = productOffers[index] || [];
-                                                  const itemCode =
-                                                    rowOffers.length > 1
-                                                      ? `${rowBase}-${optionIndexToLetters(i)}`
-                                                      : rowBase;
-                                                  setSelectedRowIndexForTDS(index);
-                                                  setSelectedOptionIndexForTDS(i);
-                                                  setSelectedProductForTDS({
-                                                    ...prod,
-                                                    productName: prod.__tdsProductName ?? prod.productName,
-                                                    __tdsBrand: prod.__tdsBrand ?? "",
-                                                    dimensionalDrawing: prod.dimensionalDrawing ?? null,
-                                                    illuminanceDrawing: prod.illuminanceDrawing ?? null,
-                                                    itemCode,
-                                                  });
-                                                  setTdsDialogOpen(true);
-                                                }}
-                                              >
-                                                Generate TDS
-                                              </button>
-                                            )}
-                                            {prod.__tdsPdfUrl && (
-                                              <a
-                                                href={prod.__tdsPdfUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="mt-0.5 text-[8px] text-blue-600 underline block"
-                                              >
-                                                View TDS
-                                              </a>
-                                            )}
-                                          </td>
-                                          <td className="border px-0.5 py-0.5 text-center align-middle text-[9px] leading-tight">
-                                            {prod.technicalSpecifications
-                                              ?.map((g: any) => ({
-                                              ...g,
-                                              specs: g.specs?.filter(
-                                                (s: any) =>
-                                                  s.value &&
-                                                  s.value.trim() !== "",
-                                              ),
-                                            }))
-                                            .filter(
-                                              (g: any) =>
-                                                g.specs && g.specs.length > 0,
-                                            )
-                                            .map((g: any, gi: number) => (
-                                              <div key={gi} className="mb-1">
-                                                <b className="text-[8px]">{g.title}</b>
-                                                <div className="text-[9px]">
-                                                  {g.specs.map(
-                                                    (s: any, si: number) => (
-                                                      <div key={si}>
-                                                        {s.specId}: {s.value}
-                                                      </div>
-                                                    ),
-                                                  )}
-                                                </div>
-                                              </div>
-                                            ))}
-                                            {hasMultipleSpecValues({ 
-                                              technicalSpecifications: prod.__originalTechnicalSpecifications || prod.technicalSpecifications 
-                                            }) && (
-                                              <button
-                                                type="button"
-                                                onClick={() => openSpecsRevision(index, i)}
-                                                className="mt-1 px-1 py-0.5 text-[8px] bg-blue-50 text-blue-600 border border-blue-200 rounded hover:bg-blue-100"
-                                              >
-                                                Edit Specs
-                                              </button>
-                                            )}
-                                        </td>
-                                        <td className="border px-0.5 py-0.5 text-center align-middle text-[9px]">
-                                          {commercialType === "LIGHT" && useArrayInput ? totalUnitCost : unitCost}
-                                        </td>
-                                        <td className="border px-0.5 py-0.5 text-center align-middle text-[9px] leading-tight">
-                                          {qtyCtnDisplay}
-                                        </td>
-                                        <td className="border px-0.5 py-0.5 text-center align-middle text-[9px] leading-tight">
-                                          {commercialTypeDisplay}
-                                        </td>
-                                        <td className="border px-0.5 py-0.5 text-center align-middle text-[9px] leading-tight">
-                                          {packagingDisplay}
-                                        </td>
-                                        <td className="border px-0.5 py-0.5 text-center align-middle text-[9px] leading-tight">
-                                          {warranty}
-                                        </td>
-                                        <td className="border px-0.5 py-0.5 text-center align-middle text-[9px] leading-tight">
-                                          {factory}
-                                        </td>
-                                        <td className="border px-0.5 py-0.5 text-center align-middle text-[9px]">
-                                          {port}
-                                        </td>
-                                        <td className="border px-0.5 py-0.5 text-center align-middle text-[9px] font-semibold">
-                                          ${(() => {
-                                            const qty = prod.qty ?? 1;
-                                            const cost = Number(prod?.commercialDetails?.unitCost || 0);
-                                            return (qty * cost).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                                          })()}
-                                        </td>
-                                        <td className="border px-0.5 py-0.5 text-center align-middle">
-                                          <textarea
-                                            className="w-full border px-0.5 py-0.5 text-[8px] resize-none"
-                                            rows={2}
-                                            placeholder="Remarks..."
-                                            value={prod.__spfRemarksPD || ""}
-                                            onChange={(e) => {
-                                              setProductOffers((prev) => {
-                                                const copy = { ...prev };
-                                                const row = [...(copy[index] || [])];
-                                                row[i] = { ...row[i], __spfRemarksPD: e.target.value };
-                                                copy[index] = row;
-                                                return copy;
-                                              });
-                                            }}
-                                          />
-                                        </td>
-                                      </tr>
-                                    );
-                                  },
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  </React.Fragment>
-                ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No items added yet.
-              </p>
-            )}
-          </div>
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    ))
+  ) : (
+    <p className="text-sm text-muted-foreground">No items added yet.</p>
+  )}
+</div>
         </Card>
 
         {/* RIGHT: Draggable product cards */}
