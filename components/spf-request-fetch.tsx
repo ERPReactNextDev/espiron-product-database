@@ -2786,12 +2786,98 @@ useEffect(() => {
             <h3 className="text-sm font-bold">{spfNumber}</h3>
           </div>
 
-<div className="space-y-4">
-  {itemDescriptions.length ? (
-    itemDescriptions.map((desc, index) => (
-      <div
-        key={`row-${index}`}
-        className="flex gap-3 border rounded-lg overflow-hidden"
+          <div className="overflow-y-auto relative">
+            {itemDescriptions.length ? (
+              <table className="w-full table-fixed border text-[10px]">
+<thead>
+  <tr className="bg-gray-100">
+    <th className="border px-1 py-1 text-center w-15">#</th>
+    <th className="border px-1 py-1 text-center w-28">Image</th>
+    <th className="border px-1 py-1 text-center w-24">Item Qty</th>
+    <th className="border px-1 py-1 text-center w-30">
+      Item Description
+    </th>
+  </tr>
+</thead>
+<tbody>
+  {itemDescriptions.map((desc, index) => (
+    <React.Fragment key={`row-${index}`}>
+      <tr
+        className="text-[10px]"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={() => {
+                        if (!draggedProduct) return;
+                        const frozen =
+                          draggedProduct.__fromRow !== undefined
+                            ? draggedProduct
+                            : freezeSpecs(draggedProduct);
+                        if (hasMultipleSpecValues(frozen)) {
+                          // Remove from source row if dragged from another row
+                          if (draggedProduct.__fromRow !== undefined) {
+                            setProductOffers((prev) => {
+                              const copy = { ...prev };
+                              const original = [
+                                ...(copy[draggedProduct.__fromRow] || []),
+                              ];
+                              original.splice(draggedProduct.__fromIndex, 1);
+                              copy[draggedProduct.__fromRow] = original;
+                              return copy;
+                            });
+                          }
+                          setPendingPipeProduct(frozen);
+                          setPendingPipeRowIndex(index);
+                          setShowPipeModal(true);
+                          setDraggedProduct(null);
+                          setShowTrash(false);
+                        } else {
+                          setProductOffers((prev) => {
+                            const copy = { ...prev };
+                            if (draggedProduct.__fromRow !== undefined) {
+                              const original = [
+                                ...(copy[draggedProduct.__fromRow] || []),
+                              ];
+                              original.splice(draggedProduct.__fromIndex, 1);
+                              copy[draggedProduct.__fromRow] = original;
+                            }
+                            copy[index] = [
+                              ...(copy[index] || []),
+                              { ...frozen, qty: frozen.qty ?? 1 },
+                            ];
+                            return copy;
+                          });
+                          setDraggedProduct(null);
+                        }
+                      }}
+                    >
+                      <td className="border px-1 py-1 font-medium text-center align-middle text-[10px]">
+                        {`${spfNumber}-${String(index + 1).padStart(3, "0")}`}
+                      </td>
+                      <td className="border px-1 py-1 align-middle">
+                        <div className="flex justify-center items-center">
+                          {itemImages[index] ? (
+                            <img
+                              src={itemImages[index]}
+                              alt={desc}
+                              className="w-12 h-12 object-contain cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => openImagePreview(itemImages[index])}
+                            />
+                          ) : (
+                            <span className="text-[10px]">-</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="border px-1 py-1 text-center align-middle text-[10px]">
+                        {(() => {
+                          const qtys = (requestData?.item_qty || "").split(",").map((q: string) => q.trim());
+                          return qtys[index] || "-";
+                        })()}
+                      </td>
+        <td className="border px-1 py-1 whitespace-pre-wrap text-center align-middle text-[10px] leading-tight select-none">
+          {desc.replace(/\|/g, "\n")}
+        </td>
+      </tr>
+      <tr
+        className="text-[10px]"
         onDragOver={(e) => e.preventDefault()}
         onDrop={() => {
           if (!draggedProduct) return;
@@ -2824,7 +2910,11 @@ useEffect(() => {
               }
               copy[index] = [
                 ...(copy[index] || []),
-                { ...frozen, qty: frozen.qty ?? 1, __tdsProductName: frozen.__tdsProductName ?? frozen.productName ?? "" },
+                {
+                  ...frozen,
+                  qty: frozen.qty ?? 1,
+                  __tdsProductName: frozen.__tdsProductName ?? frozen.productName ?? "",
+                },
               ];
               return copy;
             });
@@ -2832,430 +2922,520 @@ useEffect(() => {
           }
         }}
       >
-        {/* LEFT: Item Info Panel */}
-        <div className="w-[220px] shrink-0 bg-green-50 border-r p-3 flex flex-col gap-2">
-          <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">
-            Item {index + 1}
-          </div>
-          <div className="text-[11px] font-semibold text-gray-700 font-mono bg-white border px-2 py-1 rounded">
-            {`${spfNumber}-${String(index + 1).padStart(3, "0")}`}
-          </div>
-          {itemImages[index] ? (
-            <img
-              src={itemImages[index]}
-              alt={desc}
-              className="w-full h-28 object-contain cursor-pointer hover:opacity-80 transition-opacity rounded border bg-white"
-              onClick={() => openImagePreview(itemImages[index])}
-            />
-          ) : (
-            <div className="w-full h-28 bg-white border rounded flex items-center justify-center text-[10px] text-gray-400">
-              No Image
-            </div>
-          )}
-          <div>
-            <div className="text-[9px] text-gray-400 uppercase font-semibold mb-0.5">Item Qty</div>
-            <div className="text-[11px] font-medium text-gray-700">
-              {(() => {
-                const qtys = (requestData?.item_qty || "").split(",").map((q: string) => q.trim());
-                return qtys[index] || "-";
-              })()}
-            </div>
-          </div>
-          <div>
-            <div className="text-[9px] text-gray-400 uppercase font-semibold mb-0.5">Description</div>
-            <div className="text-[10px] text-gray-700 leading-snug whitespace-pre-wrap">
-              {desc.replace(/\|/g, "\n")}
-            </div>
-          </div>
-        </div>
+        <td colSpan={4} className="border px-2 py-1 text-center align-middle">
+          {(productOffers[index] || []).length > 0 && (
+                          <div className="grid grid-cols-2 gap-3 p-2">
+                            {(productOffers[index] || []).map(
+                              (prod: any, i: number) => {
+                                const cardKey = `${index}-${i}`;
+                                const isExpanded = expandedProductCards[cardKey] || false;
+                                const unitCost = prod?.commercialDetails?.unitCost || "-";
+                                const productName = prod?.__tdsProductName ?? prod?.productName ?? "";
+                                let commercialType = prod?.commercialDetails?.commercialType || "BASIC";
 
-        {/* RIGHT: Product Offers */}
-        <div className="flex-1 p-3 overflow-x-auto">
-          {(productOffers[index] || []).length === 0 ? (
-            <div className="h-full flex items-center justify-center text-[11px] text-gray-400 border-2 border-dashed rounded-lg min-h-[120px]">
-              Drag a product here or use the + button
-            </div>
-          ) : (
-            <div className="flex gap-3">
-              {(productOffers[index] || []).map((prod: any, i: number) => {
-                const cardKey = `${index}-${i}`;
-                const isExpanded = expandedProductCards[cardKey] || false;
-                const unitCost = prod?.commercialDetails?.unitCost || "-";
-                const productName = prod?.__tdsProductName ?? prod?.productName ?? "";
-                let commercialType = prod?.commercialDetails?.commercialType || "BASIC";
-                if (productName) {
-                  const n = productName.toLowerCase();
-                  if (n.includes("lights (multiple)") || n.includes("light (multiple)")) commercialType = "LIGHT";
-                  else if (n.includes("lights (single)") || n.includes("light (single)")) commercialType = "LIGHT";
-                }
-                const useArrayInput = prod?.commercialDetails?.useArrayInput || false;
-                const totalUnitCost = prod?.commercialDetails?.totalUnitCost || 0;
-                const multiRows = prod?.commercialDetails?.multiRows || [];
-                const packagingData = prod?.commercialDetails?.packaging;
-                let packagingDisplay: React.ReactNode = "-";
-                let qtyCtnDisplay: React.ReactNode = "-";
-                let commercialTypeDisplay: React.ReactNode = "-";
-                if (commercialType === "BASIC") {
-                  commercialTypeDisplay = "Basic";
-                  if (packagingData) {
-                    packagingDisplay = `${packagingData.length || "-"} × ${packagingData.width || "-"} × ${packagingData.height || "-"}`;
-                    qtyCtnDisplay = prod?.commercialDetails?.pcsPerCarton || "-";
-                  }
-                } else if (commercialType === "LIGHT") {
-                  let isMultiple = useArrayInput;
-                  if (productName) {
-                    const n = productName.toLowerCase();
-                    if (n.includes("lights (multiple)") || n.includes("light (multiple)")) isMultiple = true;
-                    else if (n.includes("lights (single)") || n.includes("light (single)")) isMultiple = false;
-                  }
-                  if (isMultiple) {
-                    commercialTypeDisplay = "Light (Multiple)";
-                    packagingDisplay = (
-                      <div className="space-y-1">
-                        {multiRows.map((row: any, idx: number) => (
-                          <div key={idx} className="text-[8px] leading-tight">
-                            <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
-                            <div>{row.length || "-"} × {row.width || "-"} × {row.height || "-"}</div>
-                            <div className="text-gray-500">{row.unitCost?.toFixed(2) || "0.00"} USD</div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                    qtyCtnDisplay = (
-                      <div className="space-y-1">
-                        {multiRows.map((row: any, idx: number) => (
-                          <div key={idx} className="text-[8px] leading-tight">
-                            <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
-                            <div>Qty: {row.qtyPerCarton || "-"}</div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  } else {
-                    commercialTypeDisplay = "Light (Single)";
-                    if (packagingData) packagingDisplay = `${packagingData.length || "-"} × ${packagingData.width || "-"} × ${packagingData.height || "-"}`;
-                    qtyCtnDisplay = prod?.commercialDetails?.pcsPerCarton || "-";
-                  }
-                } else if (commercialType === "POLE") {
-                  commercialTypeDisplay = "Pole";
-                  packagingDisplay = "-";
-                  qtyCtnDisplay = "-";
-                }
-                const factory = prod?.commercialDetails?.factoryAddress || "-";
-                const warranty = prod?.commercialDetails?.warranty || "-";
-                const port = prod?.commercialDetails?.portOfDischarge || "-";
-                const availableCountries = prod.countries || [];
-                const selectedBranch = prod.__selectedBranch || (availableCountries.length === 1 ? availableCountries[0] : "");
-                const qty = prod.qty ?? 1;
-                const cost = Number(prod.commercialDetails?.unitCost || 0);
-                const subtotal = (qty * cost).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                // Derive commercial type from product name if it contains "Lights (multiple)" or "Lights (single)"
+                                if (productName) {
+                                  const productNameLower = productName.toLowerCase();
+                                  if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
+                                    commercialType = "LIGHT";
+                                  } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
+                                    commercialType = "LIGHT";
+                                  }
+                                }
 
-                return (
-                  <div
-                    key={i}
-                    draggable
-                    className="relative border rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing bg-white shrink-0 w-[280px] flex flex-col"
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData("text/plain", "dragging");
-                      setDraggedProduct({ ...prod, __fromRow: index, __fromIndex: i });
-                      setShowTrash(true);
-                    }}
-                    onDragEnd={() => {
-                      setDraggedProduct(null);
-                      setShowTrash(false);
-                    }}
-                  >
-                    {/* Header bar */}
-                    <div className="flex items-center justify-between px-3 py-2 bg-blue-600 rounded-t-lg">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setExpandedProductCards((prev) => ({ ...prev, [cardKey]: !prev[cardKey] }))}
-                          className="text-white/80 hover:text-white"
-                        >
-                          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                        </button>
-                        <span className="text-[11px] font-semibold text-white">
-                          {prod?.supplier?.supplierBrand || prod?.supplier?.supplierBrandName || `Option ${i + 1}`}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-white/70 font-mono">Offer #{i + 1}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeProduct(index, i)}
-                          className="ml-1 text-white/70 hover:text-red-300"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
+                                const useArrayInput = prod?.commercialDetails?.useArrayInput || false;
+                                const totalUnitCost = prod?.commercialDetails?.totalUnitCost || 0;
+                                const multiRows = prod?.commercialDetails?.multiRows || [];
 
-                    {/* Product image */}
-                    <div className="flex justify-center px-3 pt-3">
-                      {prod.mainImage?.url ? (
-                        <img
-                          src={prod.mainImage.url}
-                          className="w-24 h-24 object-contain cursor-pointer hover:opacity-80 transition-opacity"
-                          alt=""
-                          onClick={() => openImagePreview(prod.mainImage?.url)}
-                        />
-                      ) : (
-                        <div className="w-24 h-24 bg-gray-100 flex items-center justify-center text-[10px] text-gray-400 rounded">
-                          No Image
-                        </div>
-                      )}
-                    </div>
+                                const packagingData = prod?.commercialDetails?.packaging;
+                                let packagingDisplay: React.ReactNode = "-";
+                                let qtyCtnDisplay: React.ReactNode = "-";
+                                let commercialTypeDisplay: React.ReactNode = "-";
 
-                    {/* Product name */}
-                    <div className="px-3 pt-2 pb-1">
-                      <input
-                        disabled
-                        value={productName}
-                        className="w-full border rounded px-2 py-1 text-[10px] text-center font-medium"
-                        placeholder="Product name"
-                      />
-                    </div>
+                                // Determine commercial type display and packaging display based on type
+                                if (commercialType === "BASIC") {
+                                  commercialTypeDisplay = "Basic";
+                                  if (packagingData) {
+                                    const length = packagingData.length || "-";
+                                    const width = packagingData.width || "-";
+                                    const height = packagingData.height || "-";
+                                    packagingDisplay = `${length} × ${width} × ${height}`;
+                                    qtyCtnDisplay = prod?.commercialDetails?.pcsPerCarton || "-";
+                                  }
+                                } else if (commercialType === "LIGHT") {
+                                  let isMultiple = useArrayInput;
+                                  if (productName) {
+                                    const productNameLower = productName.toLowerCase();
+                                    if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
+                                      isMultiple = true;
+                                    } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
+                                      isMultiple = false;
+                                    }
+                                  }
 
-                    {/* Core fields */}
-                    <div className="px-3 pb-2 space-y-1.5 text-[10px]">
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <div>
-                          <div className="text-gray-400 mb-0.5">Branch</div>
-                          {availableCountries.length === 0 ? (
-                            <span className="font-medium">-</span>
-                          ) : availableCountries.length === 1 ? (
-                            <span className="font-medium">{availableCountries[0]}</span>
-                          ) : (
-                            <select
-                              className="border rounded px-1 py-0.5 text-[8px] w-full"
-                              value={selectedBranch}
-                              onChange={(e) => {
-                                const branch = e.target.value;
-                                setProductOffers((prev) => {
-                                  const copy = { ...prev };
-                                  const row = [...(copy[index] || [])];
-                                  row[i] = { ...row[i], __selectedBranch: branch };
-                                  copy[index] = row;
-                                  return copy;
+                                  if (isMultiple) {
+                                    commercialTypeDisplay = "Light (Multiple)";
+                                    packagingDisplay = (
+                                      <div className="space-y-1">
+                                        {multiRows.map((row: any, idx: number) => (
+                                          <div key={idx} className="text-[8px] leading-tight">
+                                            <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
+                                            <div>{row.length || "-"} × {row.width || "-"} × {row.height || "-"}</div>
+                                            <div className="text-gray-500">{row.unitCost?.toFixed(2) || "0.00"} USD</div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                    qtyCtnDisplay = (
+                                      <div className="space-y-1">
+                                        {multiRows.map((row: any, idx: number) => (
+                                          <div key={idx} className="text-[8px] leading-tight">
+                                            <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
+                                            <div>Qty: {row.qtyPerCarton || "-"}</div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  } else {
+                                    commercialTypeDisplay = "Light (Single)";
+                                    if (packagingData) {
+                                      const length = packagingData.length || "-";
+                                      const width = packagingData.width || "-";
+                                      const height = packagingData.height || "-";
+                                      packagingDisplay = `${length} × ${width} × ${height}`;
+                                    }
+                                    qtyCtnDisplay = prod?.commercialDetails?.pcsPerCarton || "-";
+                                  }
+                                } else if (commercialType === "POLE") {
+                                  commercialTypeDisplay = "Pole";
+                                  packagingDisplay = "-";
+                                  qtyCtnDisplay = "-";
+                                }
+
+                                const factory = prod?.commercialDetails?.factoryAddress || "-";
+                                const warranty = prod?.commercialDetails?.warranty || "-";
+                                const port = prod?.commercialDetails?.portOfDischarge || "-";
+                                const availableCountries = prod.countries || [];
+                                const selectedBranch = prod.__selectedBranch || (availableCountries.length === 1 ? availableCountries[0] : "");
+                                const qty = prod.qty ?? 1;
+                                const cost = Number(prod.commercialDetails.unitCost || 0);
+                                const subtotal = (qty * cost).toLocaleString("en-PH", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
                                 });
-                              }}
-                            >
-                              <option value="">-- Select --</option>
-                              {availableCountries.map((country: string) => (
-                                <option key={country} value={country}>{country}</option>
-                              ))}
-                            </select>
-                          )}
-                        </div>
-                        <div>
-                          <div className="text-gray-400 mb-0.5">Qty</div>
-                          {revisionType === "price" ? (
-                            <span className="font-medium">{prod.qty || 1}</span>
-                          ) : (
-                            <input
-                              type="number"
-                              min={getMinQty(index, i)}
-                              className="w-full border rounded px-1 py-0.5 text-[10px]"
-                              value={prod.qty || 1}
-                              onChange={(e) => {
-                                const minQty = getMinQty(index, i);
-                                let qty = Number(e.target.value);
-                                if (qty < minQty) qty = minQty;
-                                setProductOffers((prev) => {
-                                  const copy = { ...prev };
-                                  const row = [...(copy[index] || [])];
-                                  row[i] = { ...row[i], qty };
-                                  copy[index] = row;
-                                  return copy;
-                                });
-                              }}
-                            />
-                          )}
-                        </div>
-                        <div>
-                          <div className="text-gray-400 mb-0.5">Unit Cost</div>
-                          {revisionType === "specs" ? (
-                            <span className="font-medium">{commercialType === "LIGHT" && useArrayInput ? totalUnitCost : unitCost}</span>
-                          ) : (
-                            <input
-                              type="number"
-                              min={getMinUnitCost(index, i)}
-                              step="0.01"
-                              className="w-full border rounded px-1 py-0.5 text-[10px]"
-                              value={commercialType === "LIGHT" && useArrayInput ? totalUnitCost : (prod?.commercialDetails?.unitCost || "0")}
-                              onChange={(e) => {
-                                const minCost = getMinUnitCost(index, i);
-                                let cost = Number(e.target.value);
-                                if (cost < minCost) cost = minCost;
-                                setProductOffers((prev) => {
-                                  const copy = { ...prev };
-                                  const row = [...(copy[index] || [])];
-                                  row[i] = { ...row[i], commercialDetails: { ...row[i].commercialDetails, unitCost: cost.toString() } };
-                                  copy[index] = row;
-                                  return copy;
-                                });
-                              }}
-                            />
-                          )}
-                        </div>
-                        <div>
-                          <div className="text-gray-400 mb-0.5">Subtotal</div>
-                          <div className="font-semibold text-gray-800">${subtotal}</div>
-                        </div>
-                      </div>
 
-                      {/* Price Validity */}
-                      <div>
-                        <div className="text-gray-400 mb-0.5">Price Validity</div>
-                        <input
-                          type="datetime-local"
-                          className="w-full border rounded px-1 py-0.5 text-[10px]"
-                          value={prod.__priceValidity ?? ""}
-                          onChange={(e) => {
-                            setProductOffers((prev) => {
-                              const copy = { ...prev };
-                              const row = [...(copy[index] || [])];
-                              row[i] = { ...row[i], __priceValidity: e.target.value, price_validity: e.target.value };
-                              copy[index] = row;
-                              return copy;
-                            });
-                          }}
-                        />
-                      </div>
+                                return (
+                                  <Card
+                                    key={i}
+                                    draggable={true}
+                                    className="relative border shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
+                                    onDragStart={(e) => {
+                                      e.dataTransfer.setData("text/plain", "dragging");
+                                      setDraggedProduct({
+                                        ...prod,
+                                        __fromRow: index,
+                                        __fromIndex: i,
+                                      });
+                                      setShowTrash(true);
+                                    }}
+                                    onDragEnd={() => {
+                                      setDraggedProduct(null);
+                                      setShowTrash(false);
+                                    }}
+                                  >
+                                    {/* Delete button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => removeProduct(index, i)}
+                                      className="absolute top-2 right-2 z-10 bg-white border rounded-full p-1 hover:bg-red-50 shadow"
+                                      title="Delete this option"
+                                    >
+                                      <Trash2 size={14} className="text-destructive" />
+                                    </button>
 
-                      {/* TDS Brand */}
-                      <div>
-                        <div className="text-gray-400 mb-0.5">TDS Brand</div>
-                        <select
-                          className="w-full border rounded px-1 py-0.5 text-[10px]"
-                          value={prod.__tdsBrand ?? ""}
-                          onChange={(e) => {
-                            const brand = e.target.value;
-                            setProductOffers((prev) => {
-                              const copy = { ...prev };
-                              const row = [...(copy[index] || [])];
-                              row[i] = { ...row[i], __tdsBrand: brand };
-                              copy[index] = row;
-                              return copy;
-                            });
-                          }}
-                        >
-                          <option value="">-- Brand --</option>
-                          {["Lit", "Lumera", "Ecoshift"].map((b) => (
-                            <option key={b} value={b}>{b}</option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          className="mt-1 text-[10px] text-green-600 underline"
-                          onClick={() => {
-                            const rowBase = `${spfNumber}-${String(index + 1).padStart(3, "0")}`;
-                            const optionIndexToLetters = (idx: number) => {
-                              let n = idx; let s = "";
-                              while (n >= 0) { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; }
-                              return s;
-                            };
-                            const rowOffers = productOffers[index] || [];
-                            const itemCode = rowOffers.length > 1 ? `${rowBase}-${optionIndexToLetters(i)}` : rowBase;
-                            setSelectedRowIndexForTDS(index);
-                            setSelectedOptionIndexForTDS(i);
-                            setSelectedProductForTDS({ ...prod, itemCode });
-                            setTdsDialogOpen(true);
-                          }}
-                        >
-                          Generate TDS
-                        </button>
-                        {prod.__tdsPdfUrl && (
-                          <a href={prod.__tdsPdfUrl} target="_blank" rel="noopener noreferrer" className="mt-0.5 text-[10px] text-blue-600 underline block">
-                            View TDS
-                          </a>
-                        )}
-                      </div>
-                    </div>
+                                    {/* Expand/Collapse floating button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setExpandedProductCards((prev) => ({
+                                          ...prev,
+                                          [cardKey]: !prev[cardKey],
+                                        }));
+                                      }}
+                                      className="absolute top-2 left-2 z-10 bg-white border rounded-full p-1 hover:bg-gray-100 shadow"
+                                      title={isExpanded ? "Collapse" : "Expand"}
+                                    >
+                                      {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                    </button>
 
-                    {/* Expandable details */}
-                    {isExpanded && (
-                      <div className="border-t mx-3 pt-2 pb-3 space-y-2 text-[10px]">
-                        {/* Technical Specs */}
-                        <div>
-                          <div className="text-gray-400 font-semibold mb-1">Technical Specs</div>
-                          <div className="space-y-1">
-                            {prod.technicalSpecifications
-                              ?.map((g: any) => ({ ...g, specs: g.specs?.filter((s: any) => s.value?.trim()) }))
-                              .filter((g: any) => g.specs?.length > 0)
-                              .map((g: any, gi: number) => (
-                                <div key={gi}>
-                                  <b className="text-[9px]">{g.title}</b>
-                                  {g.specs.map((s: any, si: number) => (
-                                    <div key={si} className="text-[9px] text-gray-600">{s.specId}: {s.value}</div>
-                                  ))}
-                                </div>
-                              ))}
-                            {(revisionType === "specs" || revisionType === "both") && hasMultipleSpecValues({
-                              technicalSpecifications: prod.__originalTechnicalSpecifications || prod.technicalSpecifications
-                            }) && (
-                              <button
-                                type="button"
-                                onClick={() => openSpecsRevision(index, i)}
-                                className="mt-1 px-2 py-1 text-[10px] bg-blue-50 text-blue-600 border border-blue-200 rounded hover:bg-blue-100"
-                              >
-                                Edit Specs
-                              </button>
-                            )}
+                                    {/* Option badge */}
+                                    <div className="absolute top-2 left-12 z-10">
+                                      <span className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
+                                        Option {i + 1}
+                                      </span>
+                                    </div>
+
+                                    {/* Card content */}
+                                    <div className="p-3 pt-10">
+                                      {/* Product image */}
+                                      <div className="flex justify-center mb-2">
+                                        {prod.mainImage?.url ? (
+                                          <img
+                                            src={prod.mainImage.url}
+                                            className="w-20 h-20 object-contain cursor-pointer hover:opacity-80 transition-opacity"
+                                            alt=""
+                                            onClick={() => openImagePreview(prod.mainImage?.url)}
+                                          />
+                                        ) : (
+                                          <div className="w-20 h-20 bg-gray-100 flex items-center justify-center text-xs text-gray-400">
+                                            No Image
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Product name */}
+                                      <div className="mb-2">
+                                        {viewMode ? (
+                                          <span className="text-xs font-semibold line-clamp-2">
+                                            {productName}
+                                          </span>
+                                        ) : (
+                                          <input
+                                            disabled
+                                            className="border rounded px-2 py-1 text-xs w-full"
+                                            value={productName}
+                                            onChange={(e) => {
+                                              const name = e.target.value;
+                                              setProductOffers((prev) => {
+                                                const copy = { ...prev };
+                                                const row = [...(copy[index] || [])];
+                                                row[i] = { ...row[i], __tdsProductName: name };
+                                                copy[index] = row;
+                                                return copy;
+                                              });
+                                            }}
+                                            placeholder="Product name"
+                                          />
+                                        )}
+                                      </div>
+
+                                      {/* Always visible basic info */}
+                                      <div className="grid grid-cols-2 gap-2 text-[10px] mb-2">
+                                        <div>
+                                          <span className="font-medium">Brand:</span> {prod?.supplier?.supplierBrand || prod?.supplier?.supplierBrandName || "-"}
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Branch:</span>
+                                          {availableCountries.length === 0 ? (
+                                            <span>-</span>
+                                          ) : availableCountries.length === 1 ? (
+                                            <span className="font-medium">{availableCountries[0]}</span>
+                                          ) : (
+                                            <select
+                                              className="border rounded px-1 py-0.5 text-[8px] w-full"
+                                              value={selectedBranch}
+                                              onChange={(e) => {
+                                                const branch = e.target.value;
+                                                setProductOffers((prev) => {
+                                                  const copy = { ...prev };
+                                                  const row = [...(copy[index] || [])];
+                                                  row[i] = { ...row[i], __selectedBranch: branch };
+                                                  copy[index] = row;
+                                                  return copy;
+                                                });
+                                              }}
+                                            >
+                                              <option value="">-- Select --</option>
+                                              {availableCountries.map((country: string) => (
+                                                <option key={country} value={country}>{country}</option>
+                                              ))}
+                                            </select>
+                                          )}
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Qty:</span>
+                                          {revisionType === "price" ? (
+                                            <span className="ml-1">{prod.qty || 1}</span>
+                                          ) : (
+                                            <input
+                                              type="number"
+                                              min={getMinQty(index, i)}
+                                              className="w-16 border px-1 text-[10px] ml-1"
+                                              value={prod.qty || 1}
+                                              onChange={(e) => {
+                                                const minQty = getMinQty(index, i);
+                                                let qty = Number(e.target.value);
+                                                if (qty < minQty) qty = minQty;
+                                                setProductOffers((prev) => {
+                                                  const copy = { ...prev };
+                                                  const row = [...(copy[index] || [])];
+                                                  row[i] = { ...row[i], qty };
+                                                  copy[index] = row;
+                                                  return copy;
+                                                });
+                                              }}
+                                            />
+                                          )}
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">Unit Cost:</span>
+                                          {revisionType === "specs" ? (
+                                            <span className="ml-1">{commercialType === "LIGHT" && useArrayInput ? totalUnitCost : unitCost}</span>
+                                          ) : (
+                                            <input
+                                              type="number"
+                                              min={getMinUnitCost(index, i)}
+                                              step="0.01"
+                                              className="w-20 border px-1 text-[10px] ml-1"
+                                              value={commercialType === "LIGHT" && useArrayInput ? totalUnitCost : (prod?.commercialDetails?.unitCost || "0")}
+                                              onChange={(e) => {
+                                                const minCost = getMinUnitCost(index, i);
+                                                let cost = Number(e.target.value);
+                                                if (cost < minCost) cost = minCost;
+                                                setProductOffers((prev) => {
+                                                  const copy = { ...prev };
+                                                  const row = [...(copy[index] || [])];
+                                                  row[i] = { 
+                                                    ...row[i], 
+                                                    commercialDetails: {
+                                                      ...row[i].commercialDetails,
+                                                      unitCost: cost.toString()
+                                                    }
+                                                  };
+                                                  copy[index] = row;
+                                                  return copy;
+                                                });
+                                              }}
+                                            />
+                                          )}
+                                        </div>
+                                        <div className="col-span-2">
+                                          <span className="font-medium">Subtotal:</span>
+                                          <span className="font-semibold ml-1">${subtotal}</span>
+                                        </div>
+                                      </div>
+
+                                      {/* Expandable details */}
+                                      {isExpanded && (
+                                        <div className="border-t pt-2 mt-2 space-y-2 text-[10px]">
+                                          {/* Price Validity */}
+                                          <div>
+                                            <label className="font-medium block mb-1">Price Validity:</label>
+                                            <input
+                                              type="datetime-local"
+                                              className="border px-1 py-0.5 text-xs w-full"
+                                              value={prod.__priceValidity ?? ""}
+                                              onChange={(e) => {
+                                                setProductOffers((prev) => {
+                                                  const copy = { ...prev };
+                                                  const row = [...(copy[index] || [])];
+                                                  row[i] = { ...row[i], __priceValidity: e.target.value, price_validity: e.target.value };
+                                                  copy[index] = row;
+                                                  return copy;
+                                                });
+                                              }}
+                                            />
+                                          </div>
+
+                                          {/* TDS */}
+                                          <div>
+                                            <label className="font-medium block mb-1">TDS Brand:</label>
+                                            <select
+                                              className="border rounded px-1 py-0.5 text-xs w-full"
+                                              value={prod.__tdsBrand ?? ""}
+                                              onChange={(e) => {
+                                                const brand = e.target.value;
+                                                setProductOffers((prev) => {
+                                                  const copy = { ...prev };
+                                                  const row = [...(copy[index] || [])];
+                                                  row[i] = { ...row[i], __tdsBrand: brand };
+                                                  copy[index] = row;
+                                                  return copy;
+                                                });
+                                              }}
+                                            >
+                                              <option value="">-- Brand --</option>
+                                              {["Lit", "Lumera", "Ecoshift"].map((b) => (
+                                                <option key={b} value={b}>{b}</option>
+                                              ))}
+                                            </select>
+                                            <button
+                                              type="button"
+                                              className="mt-1 text-[10px] text-green-600 underline block"
+                                              onClick={() => {
+                                                const rowBase = `${spfNumber}-${String(index + 1).padStart(3, "0")}`;
+                                                const optionIndexToLetters = (idx: number) => {
+                                                  let n = idx;
+                                                  let s = "";
+                                                  while (n >= 0) {
+                                                    s = String.fromCharCode(65 + (n % 26)) + s;
+                                                    n = Math.floor(n / 26) - 1;
+                                                  }
+                                                  return s;
+                                                };
+                                                const rowOffers = productOffers[index] || [];
+                                                const itemCode = rowOffers.length > 1 ? `${rowBase}-${optionIndexToLetters(i)}` : rowBase;
+                                                setSelectedRowIndexForTDS(index);
+                                                setSelectedOptionIndexForTDS(i);
+                                                setSelectedProductForTDS({ ...prod, itemCode });
+                                                setTdsDialogOpen(true);
+                                              }}
+                                            >
+                                              Generate TDS
+                                            </button>
+                                            {prod.__tdsPdfUrl && (
+                                              <a
+                                                href={prod.__tdsPdfUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="mt-1 text-[10px] text-blue-600 underline block"
+                                              >
+                                                View TDS
+                                              </a>
+                                            )}
+                                          </div>
+
+                                          {/* Technical Specs */}
+                                          <div>
+                                            <label className="font-medium block mb-1">Technical Specs:</label>
+                                            <div className="space-y-1">
+                                              {prod.technicalSpecifications
+                                                ?.map((g: any) => ({
+                                                  ...g,
+                                                  specs: g.specs?.filter((s: any) => s.value && s.value.trim() !== ""),
+                                                }))
+                                                .filter((g: any) => g.specs && g.specs.length > 0)
+                                                .map((g: any, gi: number) => (
+                                                  <div key={gi} className="mb-1">
+                                                    <b className="text-[9px]">{g.title}</b>
+                                                    <div className="text-[9px]">
+                                                      {g.specs.map((s: any, si: number) => (
+                                                        <div key={si}>
+                                                          {s.specId}: {s.value}
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  </div>
+                                                ))}
+                                              {(revisionType === "specs" || revisionType === "both") && hasMultipleSpecValues({ 
+                                                technicalSpecifications: prod.__originalTechnicalSpecifications || prod.technicalSpecifications 
+                                              }) && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => openSpecsRevision(index, i)}
+                                                  className="mt-1 px-2 py-1 text-[10px] bg-blue-50 text-blue-600 border border-blue-200 rounded hover:bg-blue-100"
+                                                >
+                                                  Edit Specs
+                                                </button>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          {/* Commercial Details */}
+                                          <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                              <span className="font-medium">Qty/Ctn:</span>
+                                              <div className="text-[9px]">{qtyCtnDisplay}</div>
+                                            </div>
+                                            <div>
+                                              <span className="font-medium">Comm. Type:</span>
+                                              <div className="text-[9px]">{commercialTypeDisplay}</div>
+                                            </div>
+                                            <div>
+                                              <span className="font-medium">Packaging:</span>
+                                              <div className="text-[9px]">{packagingDisplay}</div>
+                                            </div>
+                                            <div>
+                                              <span className="font-medium">Warranty:</span>
+                                              <div className="text-[9px]">{warranty}</div>
+                                            </div>
+                                            <div>
+                                              <span className="font-medium">Factory:</span>
+                                              <div className="text-[9px]">{factory}</div>
+                                            </div>
+                                            <div>
+                                              <span className="font-medium">Port:</span>
+                                              <div className="text-[9px]">{port}</div>
+                                            </div>
+                                          </div>
+
+                                          {/* PD Remarks */}
+                                          <div>
+                                            <label className="font-medium block mb-1">PD Remarks:</label>
+                                            <textarea
+                                              className="w-full border px-1 py-0.5 text-[8px] resize-none"
+                                              rows={2}
+                                              placeholder="Remarks..."
+                                              value={prod.__spfRemarksPD || ""}
+                                              onChange={(e) => {
+                                                setProductOffers((prev) => {
+                                                  const copy = { ...prev };
+                                                  const row = [...(copy[index] || [])];
+                                                  row[i] = { ...row[i], __spfRemarksPD: e.target.value };
+                                                  copy[index] = row;
+                                                  return copy;
+                                                });
+                                              }}
+                                            />
+                                          </div>
+
+                                          {showProcurementRemarks && (
+                                            <div>
+                                              <span className="font-medium">Procurement Remarks:</span>
+                                              <div className="text-[8px]">{prod.__spfRemarksProcurement || "-"}</div>
+                                            </div>
+                                          )}
+
+                                          {!editMode && (
+                                            <div className="grid grid-cols-2 gap-2 border-t pt-2">
+                                              <div>
+                                                <span className="font-medium">Company:</span>
+                                                <div className="text-[8px]">{prod.__spfRemarksCompany || "-"}</div>
+                                              </div>
+                                              <div>
+                                                <span className="font-medium">Contact Name:</span>
+                                                <div className="text-[8px]">{prod.__spfRemarksContactName || "-"}</div>
+                                              </div>
+                                              <div>
+                                                <span className="font-medium">Contact No.:</span>
+                                                <div className="text-[8px]">{prod.__spfRemarksContactNumber || "-"}</div>
+                                              </div>
+                                              <div>
+                                                <span className="font-medium">Lead Time:</span>
+                                                <div className="text-[8px]">{prod.__spfRemarksLeadTime || "-"}</div>
+                                              </div>
+                                              <div>
+                                                <span className="font-medium">Selling Cost:</span>
+                                                <div className="text-[8px]">{prod.__spfRemarksSellingCost || "-"}</div>
+                                              </div>
+                                              <div>
+                                                <span className="font-medium">Final Unit Cost:</span>
+                                                <div className="text-[8px]">{prod.__spfRemarksFinalUnitCost || "-"}</div>
+                                              </div>
+                                              <div className="col-span-2">
+                                                <span className="font-medium">Final Subtotal:</span>
+                                                <div className="text-[8px]">{prod.__spfRemarksFinalSubtotal || "-"}</div>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </Card>
+                                );
+                              })}
                           </div>
-                        </div>
-
-                        {/* Commercial Details */}
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <div><div className="text-gray-400">Qty/Ctn</div><div>{qtyCtnDisplay}</div></div>
-                          <div><div className="text-gray-400">Comm. Type</div><div>{commercialTypeDisplay}</div></div>
-                          <div><div className="text-gray-400">Packaging</div><div>{packagingDisplay}</div></div>
-                          <div><div className="text-gray-400">Warranty</div><div>{warranty}</div></div>
-                          <div><div className="text-gray-400">Factory</div><div className="truncate">{factory}</div></div>
-                          <div><div className="text-gray-400">Port</div><div>{port}</div></div>
-                        </div>
-
-                        {/* PD Remarks */}
-                        <div>
-                          <div className="text-gray-400 mb-0.5">PD Remarks</div>
-                          <textarea
-                            className="w-full border rounded px-1 py-0.5 text-[8px] resize-none"
-                            rows={2}
-                            placeholder="Remarks..."
-                            value={prod.__spfRemarksPD || ""}
-                            onChange={(e) => {
-                              setProductOffers((prev) => {
-                                const copy = { ...prev };
-                                const row = [...(copy[index] || [])];
-                                row[i] = { ...row[i], __spfRemarksPD: e.target.value };
-                                copy[index] = row;
-                                return copy;
-                              });
-                            }}
-                          />
-                        </div>
-
-                        {showProcurementRemarks && (
-                          <div>
-                            <div className="text-gray-400 mb-0.5">Procurement Remarks</div>
-                            <div className="text-[9px]">{prod.__spfRemarksProcurement || "-"}</div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    ))
-  ) : (
-    <p className="text-sm text-muted-foreground">No items.</p>
-  )}
-</div>
+                          )}
+                  </td>
+                        </tr>
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+              </table>
+            ) : (
+              <p className="text-sm text-muted-foreground">No items.</p>
+            )}
+          </div>
         </Card>
 
         {/* RIGHT: Draggable product cards */}
@@ -3866,8 +4046,7 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
   /* ════════════════════════════════════════════════════════════ */
   /* VIEW MODE — DESKTOP TABLE                                   */
   /* ════════════════════════════════════════════════════════════ */
-  const renderViewDesktop = () => 
-    (
+  const renderViewDesktop = () => (
     <Card className="p-4 overflow-x-auto">
       <table className="w-full table-auto border text-sm">
         <thead>
