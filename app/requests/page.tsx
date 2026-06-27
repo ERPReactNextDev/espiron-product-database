@@ -38,8 +38,7 @@ function getStatusLabel(status: string | undefined): string {
 /* ALLOWED STATUSES                                                */
 /* ─────────────────────────────────────────────────────────────── */
 const ALLOWED_STATUSES = [
-  "approved by tsm",
-  "approved by sales head",
+  "Approved By Sales Head",
 ];
 
 /* ─────────────────────────────────────────────────────────────── */

@@ -31,9 +31,9 @@ export default async function handler(
       const statusArray = Array.isArray(status) ? status : [status];
       const validStatuses = statusArray.filter((s): s is string => typeof s === "string" && s.length > 0);
       if (validStatuses.length === 1) {
-        query = query.ilike("status", validStatuses[0]);
+        query = query.ilike("status", `%${validStatuses[0]}%`);
       } else if (validStatuses.length > 1) {
-        const orConditions = validStatuses.map((s) => `status.ilike.${s}`).join(",");
+        const orConditions = validStatuses.map((s) => `status.ilike.%${s}%`).join(",");
         query = query.or(orConditions);
       }
     }
@@ -46,11 +46,8 @@ export default async function handler(
       );
     }
 
-    // PAGINATION (server-side)
-    const fromIndex = (pageNum - 1) * PAGE_SIZE;
-    const toIndex   = fromIndex + PAGE_SIZE - 1;
-
-    const { data, error, count } = await query.range(fromIndex, toIndex);
+    // Fetch all records without pagination limit
+    const { data, error, count } = await query;
 
     if (error) {
       console.error("Supabase error:", error);
