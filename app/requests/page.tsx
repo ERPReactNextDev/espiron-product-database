@@ -285,12 +285,18 @@ export default function RequestsPage() {
   const filteredRequests = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
     
-    // Apply search filter
+    // Apply search filter - search across all columns
     let filtered = requests.filter(
       (r) =>
         !term ||
         (r.spf_number || "").toLowerCase().includes(term) ||
-        (r.customer_name || "").toLowerCase().includes(term)
+        (r.customer_name || "").toLowerCase().includes(term) ||
+        (r.special_instructions || "").toLowerCase().includes(term) ||
+        (r.prepared_by || "").toLowerCase().includes(term) ||
+        (r.approved_by || "").toLowerCase().includes(term) ||
+        (r.date_approved_sales_head || "").toLowerCase().includes(term) ||
+        (r.date_updated || "").toLowerCase().includes(term) ||
+        (r.date_created || "").toLowerCase().includes(term)
     );
 
     // Apply status filter
@@ -408,7 +414,7 @@ export default function RequestsPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Search SPF, customer..."
+                placeholder="Search all columns..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="h-9 w-64 rounded-md border pl-9 pr-3 text-sm bg-white/70"
@@ -500,7 +506,7 @@ export default function RequestsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search SPF, customer..."
+            placeholder="Search all columns..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full h-10 pl-9 pr-3 bg-white/70 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-300"
