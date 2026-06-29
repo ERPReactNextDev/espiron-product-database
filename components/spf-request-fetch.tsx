@@ -4438,7 +4438,8 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                 </div>
               )}
 
-              {canEditOffer && (
+              {/* Hidden for now */}
+              {/* {canEditOffer && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -4473,7 +4474,7 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                   <Pencil size={12} />
                   Edit (Revise)
                 </Button>
-              )}
+              )} */}
             </div>
 
             {/* Speech balloon for revision remarks */}
