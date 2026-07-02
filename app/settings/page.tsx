@@ -6,7 +6,7 @@ import { useWallpaper } from "@/contexts/WallpaperContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Palette, Sparkles, Building2, Wrench } from "lucide-react";
+import { Palette, Sparkles, Building2, Wrench, ChevronDown, Bell } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NotificationSettings } from "@/components/notifications/NotificationSettings";
 
@@ -15,7 +15,8 @@ export default function SettingsPage() {
   const { userId } = useUser();
   const { wallpaper } = useWallpaper();
   const isEngineer = theme === "engineer";
-  const [mounted, setMounted] = useState(false);
+const [mounted, setMounted] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -26,7 +27,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className={`container mx-auto max-w-4xl p-6 space-y-6 min-h-screen ${
+    <div className={`container mx-auto max-w-4xl p-6 space-y-6 pb-12 ${
       isEngineer && !wallpaper ? "engineer-blueprint-bg" : ""
     }`}>
       {/* Header */}
@@ -170,9 +171,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Notification Settings */}
-      <NotificationSettings />
-
       {/* Preview Section */}
       <Card className={theme === "comic" ? "comic-card" : theme === "engineer" ? "engineer-card" : "formal-card"}>
         <CardHeader>
@@ -237,6 +235,43 @@ export default function SettingsPage() {
             </p>
           </div>
         </CardContent>
+      </Card>
+
+      {/* Notification Settings — collapsible */}
+      <Card className={theme === "comic" ? "comic-card" : theme === "engineer" ? "engineer-card" : "formal-card"}>
+        <button
+          type="button"
+          onClick={() => setIsNotifOpen((v) => !v)}
+          className="w-full text-left touch-auto"
+        >
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${theme === "comic" ? "comic-card-primary" : theme === "engineer" ? "engineer-card-primary" : "formal-card-primary"}`}>
+                  <Bell className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <CardTitle className={theme === "comic" ? "font-comic-title" : theme === "engineer" ? "font-engineer-title" : "font-formal-title"}>
+                    Notification Settings
+                  </CardTitle>
+                  <CardDescription className={theme === "comic" ? "font-comic" : theme === "engineer" ? "font-engineer" : "font-formal"}>
+                    Manage alerts, sounds, and vibration
+                  </CardDescription>
+                </div>
+              </div>
+              <ChevronDown
+                className={`h-5 w-5 shrink-0 transition-transform ${
+                  isNotifOpen ? "rotate-180" : ""
+                }`}
+              />
+            </div>
+          </CardHeader>
+        </button>
+        {isNotifOpen && (
+          <CardContent>
+            <NotificationSettings />
+          </CardContent>
+        )}
       </Card>
 
       {/* Info Section */}

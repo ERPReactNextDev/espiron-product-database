@@ -633,7 +633,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
         <table className="w-full text-sm border-collapse">
           <thead className="bg-red-50/80 backdrop-blur-sm sticky top-0 z-30">
             <tr>
-              {["SPF Number", "Customer Name", "Special Instructions", "Prepared By", "Approved By", "Date Received", "Date Updated", "Queue Button Stopper", "Action"].map((h, index) => (
+              {["SPF Number", "Customer Name", "Special Instructions", "Prepared By", "Approved By", "Date Received", "Date Updated", "Action"].map((h, index) => (
                 <th key={h} className={`px-4 py-3 text-left font-bold border-b whitespace-nowrap ${index === 0 ? 'sticky left-0 bg-red-50/80 backdrop-blur-sm z-20' : ''}`}>{h}</th>
               ))}
             </tr>
@@ -641,11 +641,11 @@ const [isRefreshing, setIsRefreshing] = useState(false);
           <tbody>
             {isRefreshing ? (
               <tr>
-                <td colSpan={9} className="text-center py-10 text-muted-foreground">Loading...</td>
+                <td colSpan={8} className="text-center py-10 text-muted-foreground">Loading...</td>
               </tr>
             ) : filteredRequests.length === 0 ? (
               <tr>
-                <td colSpan={9} className="text-center py-10 text-muted-foreground">No SPF requests yet.</td>
+                <td colSpan={8} className="text-center py-10 text-muted-foreground">No SPF requests yet.</td>
               </tr>
             ) : (
               paginatedRequests.map((req) => {
@@ -735,14 +735,12 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                     <td className="px-4 py-3 uppercase">{req.approved_by || "-"}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formattedDateApprovedSalesHead}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formattedDate}</td>
-                    <td className="px-4 py-3 text-center">
-                      <ForPoolingButton
-                        show={!isProcurementStatus(req.spf_number) || spfStatus?.toLowerCase() === "for revision"}
-                        spfNumber={req.spf_number}
-                      />
-                    </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2 flex-nowrap items-center">
+                        <ForPoolingButton
+                         show={spfStatus?.toLowerCase() === "approved by procurement"}
+                          spfNumber={req.spf_number}
+                        />
                         <CollaborationHubRowTrigger
                           requestId={String(createdSPFIds[req.spf_number] || "")}
                           spfNumber={req.spf_number}
@@ -765,7 +763,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                               triggerMode={
                                 reviseTargetSpfNumber === req.spf_number ? "edit" : "view"
                               }
-                              showPoolingButton={!isProcurementStatus(req.spf_number) || spfStatus?.toLowerCase() === "for revision"}
+                              showPoolingButton={spfStatus?.toLowerCase() === "approved by procurement"}
                               onRefresh={handleRefresh}
                             />
                           </div>
@@ -867,7 +865,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                       <SPFRequestFetch
                         spfNumber={req.spf_number}
                         onOpen={() => markSPFRequestAsRead(req.spf_number)}
-                        showPoolingButton={!isProcurementStatus(req.spf_number) || spfStatus?.toLowerCase() === "for revision"}
+                        showPoolingButton={spfStatus?.toLowerCase() === "approved by procurement"}
                         onRefresh={handleRefresh}
                       />
                     </div>
@@ -919,7 +917,10 @@ const [isRefreshing, setIsRefreshing] = useState(false);
           processBy={processBy}
           isMobile={isMobile}
           onSuccess={fetchRequests}
-          showPoolingButton={!isProcurementStatus(selectedRow.spf_number) || createdSPF[selectedRow.spf_number]?.toLowerCase() === "for revision"}
+          showPoolingButton={
+  createdSPF[selectedRow.spf_number]?.toLowerCase() ===
+  "approved by procurement"
+}
         />
       )}
 
