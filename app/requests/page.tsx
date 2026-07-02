@@ -25,6 +25,7 @@ import { ForPoolingButton } from "@/components/for-pooling-button";
 import SPFRequestDownloadAll from "@/components/spf-request-download-all";
 import SpecialInstructionsDialog from "@/components/special-instructions-dialog";
 
+
 /* ─────────────────────────────────────────────────────────────── */
 /* STATUS LABEL MAPPING                                            */
 /* ─────────────────────────────────────────────────────────────── */
@@ -40,6 +41,7 @@ function getStatusLabel(status: string | undefined): string {
 const ALLOWED_STATUSES = [
   "Approved By Sales Head",
 ];
+const ALLOWED_STATUSES_LOWER = ALLOWED_STATUSES.map((s) => s.toLowerCase());
 
 /* ─────────────────────────────────────────────────────────────── */
 /* CREATION NOTIFICATION STATUSES                                  */
@@ -62,17 +64,32 @@ function StatusBadge({ status, isCancelled }: { status: string | undefined; isCa
     );
   }
   if (!status) return null;
-  const isSalesHead = status.toLowerCase().includes("sales head");
-  const isCancelledStatus = status.toLowerCase() === "cancelled";
+
+  const statusLower = status.toLowerCase();
+  const isSalesHead = statusLower.includes("sales head");
+  const isCancelledStatus = statusLower === "cancelled";
+  const isForProcurement = statusLower === "for procurement costing";
+  const isProcessingByPD = statusLower === "processing by pd";
+  const isReadyForQuotation = statusLower === "ready for quotation";
+  const isForRevision = statusLower === "for revision";
+
+  const colorClass = isCancelledStatus
+    ? "bg-red-100 text-red-700"
+    : isForProcurement
+    ? "bg-yellow-100 text-yellow-700"
+    : isProcessingByPD
+    ? "bg-blue-100 text-blue-700"
+    : isReadyForQuotation
+    ? "bg-green-100 text-green-700"
+    : isForRevision
+    ? "bg-orange-100 text-orange-700"
+    : isSalesHead
+    ? "bg-purple-100 text-purple-700"
+    : "bg-blue-100 text-blue-700";
+
   return (
     <span
-      className={`text-xs px-2 py-1 rounded uppercase font-semibold whitespace-nowrap ${
-        isCancelledStatus
-          ? "bg-red-100 text-red-700"
-          : isSalesHead
-          ? "bg-purple-100 text-purple-700"
-          : "bg-blue-100 text-blue-700"
-      }`}
+      className={`text-xs px-2 py-1 rounded uppercase font-semibold whitespace-nowrap ${colorClass}`}
     >
       {status}
     </span>
@@ -252,29 +269,77 @@ const [isRefreshing, setIsRefreshing] = useState(false);
     fetchRequests();
     const channel = supabase
       .channel("spf-all")
-      .on("postgres_changes", { event: "*", schema: "public", table: "spf_request" }, async (payload: any) => {
-        // Only refresh if the record has a status that appears in the UI
-        if (payload.new && typeof payload.new === 'object' && 'status' in payload.new && payload.new.status) {
-          const normalizedStatus = String(payload.new.status).trim().toLowerCase();
-          if (ALLOWED_STATUSES.includes(normalizedStatus)) {
-            fetchRequests();
+      .on("postgres_changes", { event: "*", schema: "public", table: "spf_request" }, (payload: any) => {
+        // DELETE: remove the row directly from state
+        if (payload.eventType === "DELETE") {
+          const oldId = payload.old?.id;
+          if (oldId != null) {
+            setRequests((prev) => prev.filter((r) => r.id !== oldId));
           }
-        } else if (payload.old) {
-          // For deletions, always refresh to update the list
-          fetchRequests();
+          return;
         }
+
+        const newRow = payload.new;
+        if (!newRow || typeof newRow !== "object") return;
+
+        const normalizedStatus = String(newRow.status ?? "").trim().toLowerCase();
+        const isAllowed = ALLOWED_STATUSES_LOWER.includes(normalizedStatus);
+
+        const mappedRow = {
+          ...newRow,
+          date_created: newRow.date_created ? new Date(newRow.date_created).toISOString() : null,
+        };
+
+        setRequests((prev) => {
+          const exists = prev.some((r) => r.id === mappedRow.id);
+
+          // Row no longer qualifies for this view (e.g. status moved away) -> drop it
+          if (!isAllowed) {
+            return exists ? prev.filter((r) => r.id !== mappedRow.id) : prev;
+          }
+
+          // Update existing row in place
+          if (exists) {
+            return prev.map((r) => (r.id === mappedRow.id ? { ...r, ...mappedRow } : r));
+          }
+
+          // New row that qualifies -> add to top of list
+          return [mappedRow, ...prev];
+        });
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "spf_creation" }, async (payload: any) => {
-        // Only refresh if the record has a status that appears in the UI
-        if (payload.new && typeof payload.new === 'object' && 'status' in payload.new && payload.new.status) {
-          const normalizedStatus = String(payload.new.status).trim().toLowerCase();
-          if (CREATION_NOTIFICATION_STATUSES.has(normalizedStatus)) {
-            fetchRequests();
+      .on("postgres_changes", { event: "*", schema: "public", table: "spf_creation" }, (payload: any) => {
+        // DELETE: remove the spf_number's cached creation status
+        if (payload.eventType === "DELETE") {
+          const oldSpfNumber = payload.old?.spf_number;
+          if (typeof oldSpfNumber === "string" && oldSpfNumber) {
+            setCreatedSPF((prev) => {
+              const next = { ...prev };
+              delete next[oldSpfNumber];
+              return next;
+            });
+            setCreatedSPFIds((prev) => {
+              const next = { ...prev };
+              delete next[oldSpfNumber];
+              return next;
+            });
           }
-        } else if (payload.old) {
-          // For deletions, always refresh to update the list
-          fetchRequests();
+          return;
         }
+
+        const newRow = payload.new;
+        if (!newRow || typeof newRow !== "object") return;
+
+        const spfNumber = typeof newRow.spf_number === "string" ? newRow.spf_number : "";
+        if (!spfNumber) return;
+
+        setCreatedSPF((prev) => ({
+          ...prev,
+          [spfNumber]: typeof newRow.status === "string" ? newRow.status : "unknown",
+        }));
+        setCreatedSPFIds((prev) => ({
+          ...prev,
+          [spfNumber]: typeof newRow.id === "number" ? newRow.id : (prev[spfNumber] ?? 0),
+        }));
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -633,7 +698,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
         <table className="w-full text-sm border-collapse">
           <thead className="bg-red-50/80 backdrop-blur-sm sticky top-0 z-30">
             <tr>
-              {["SPF Number", "Customer Name", "Special Instructions", "Prepared By", "Approved By", "Date Received", "Date Updated", "Action"].map((h, index) => (
+              {["SPF Number", "Customer Name", "Special Instructions", "Prepared By", "Approved By", "Date Received", "Date Updated", "Status", "Action"].map((h, index) => (
                 <th key={h} className={`px-4 py-3 text-left font-bold border-b whitespace-nowrap ${index === 0 ? 'sticky left-0 bg-red-50/80 backdrop-blur-sm z-20' : ''}`}>{h}</th>
               ))}
             </tr>
@@ -641,11 +706,11 @@ const [isRefreshing, setIsRefreshing] = useState(false);
           <tbody>
             {isRefreshing ? (
               <tr>
-                <td colSpan={8} className="text-center py-10 text-muted-foreground">Loading...</td>
+                <td colSpan={9} className="text-center py-10 text-muted-foreground">Loading...</td>
               </tr>
             ) : filteredRequests.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center py-10 text-muted-foreground">No SPF requests yet.</td>
+                <td colSpan={9} className="text-center py-10 text-muted-foreground">No SPF requests yet.</td>
               </tr>
             ) : (
               paginatedRequests.map((req) => {
@@ -735,6 +800,13 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                     <td className="px-4 py-3 uppercase">{req.approved_by || "-"}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formattedDateApprovedSalesHead}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formattedDate}</td>
+                    <td className="px-4 py-3">
+                      {spfStatus ? (
+                        <StatusBadge status={getStatusLabel(spfStatus)} isCancelled={spfStatus?.toLowerCase() === "cancelled"} />
+                      ) : (
+                        <span className="text-xs text-gray-400">-</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2 flex-nowrap items-center">
                         <ForPoolingButton
