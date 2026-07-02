@@ -122,7 +122,8 @@ export default function RequestsPage() {
   const [searchTerm, setSearchTerm]   = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 20;
-  const [isRefreshing, setIsRefreshing] = useState(false);
+const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   /* ── Filter / sort ── */
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -512,73 +513,19 @@ export default function RequestsPage() {
             className="w-full h-10 pl-9 pr-3 bg-white/70 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-300"
           />
         </div>
-        <div className="flex flex-wrap gap-2 mb-2">
-          <span className="text-xs text-gray-500 font-medium self-center">Status:</span>
-          <Button
-            size="sm"
-            variant={statusFilter === null ? "default" : "outline"}
-            onClick={() => setStatusFilter(null)}
-            className="text-xs h-7 px-2"
-          >
-            All
-          </Button>
-          <Button
-            size="sm"
-            variant={statusFilter === "For Procurement Costing" ? "default" : "outline"}
-            onClick={() => setStatusFilter("For Procurement Costing")}
-            className="text-xs h-7 px-2"
-          >
-            Procurement
-          </Button>
-          <Button
-            size="sm"
-            variant={statusFilter === "Ready For Quotation" ? "default" : "outline"}
-            onClick={() => setStatusFilter("Ready For Quotation")}
-            className="text-xs h-7 px-2"
-          >
-            Quotation
-          </Button>
-          <Button
-            size="sm"
-            variant={statusFilter === "For Revision" ? "default" : "outline"}
-            onClick={() => setStatusFilter("For Revision")}
-            className="text-xs h-7 px-2"
-          >
-            Revision
-          </Button>
-          <Button
-            size="sm"
-            variant={statusFilter === "No Status Yet" ? "default" : "outline"}
-            onClick={() => setStatusFilter("No Status Yet")}
-            className="text-xs h-7 px-2"
-          >
-            No Status
-          </Button>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 font-medium">Sort:</span>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as "date_updated" | "date_received" | "alphabetical")}
-            className="h-7 px-2 rounded-md border text-xs bg-white/70"
-          >
-            <option value="date_updated">Date Updated</option>
-            <option value="date_received">Date Received</option>
-            <option value="alphabetical">Alphabetical</option>
-          </select>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-            className="text-xs h-7 px-2"
-          >
-            {sortOrder === "asc" ? "↑" : "↓"}
-          </Button>
-        </div>
+
         <div className="flex items-center justify-between">
-          <p className="text-xs text-gray-400">
+          <button
+            onClick={() => setShowMobileFilters((v) => !v)}
+            className="flex items-center gap-1 text-xs text-gray-400 font-medium"
+          >
             {filteredRequests.length} result{filteredRequests.length !== 1 ? "s" : ""}
-          </p>
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${
+                showMobileFilters ? "rotate-180" : ""
+              }`}
+            />
+          </button>
           {(searchTerm !== "" || statusFilter !== null) && (
             <Button
               variant="ghost"
@@ -589,6 +536,76 @@ export default function RequestsPage() {
             </Button>
           )}
         </div>
+
+        {showMobileFilters && (
+          <div className="mt-2">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs text-gray-500 font-medium shrink-0">Status:</span>
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+                <Button
+                  size="sm"
+                  variant={statusFilter === null ? "default" : "outline"}
+                  onClick={() => setStatusFilter(null)}
+                  className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
+                >
+                  All
+                </Button>
+                <Button
+                  size="sm"
+                  variant={statusFilter === "For Procurement Costing" ? "default" : "outline"}
+                  onClick={() => setStatusFilter("For Procurement Costing")}
+                  className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
+                >
+                  Procurement
+                </Button>
+                <Button
+                  size="sm"
+                  variant={statusFilter === "Ready For Quotation" ? "default" : "outline"}
+                  onClick={() => setStatusFilter("Ready For Quotation")}
+                  className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
+                >
+                  Quotation
+                </Button>
+                <Button
+                  size="sm"
+                  variant={statusFilter === "For Revision" ? "default" : "outline"}
+                  onClick={() => setStatusFilter("For Revision")}
+                  className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
+                >
+                  Revision
+                </Button>
+                <Button
+                  size="sm"
+                  variant={statusFilter === "No Status Yet" ? "default" : "outline"}
+                  onClick={() => setStatusFilter("No Status Yet")}
+                  className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
+                >
+                  No Status
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 font-medium">Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as "date_updated" | "date_received" | "alphabetical")}
+                className="h-7 px-2 rounded-md border text-xs bg-white/70"
+              >
+                <option value="date_updated">Date Updated</option>
+                <option value="date_received">Date Received</option>
+                <option value="alphabetical">Alphabetical</option>
+              </select>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                className="text-xs h-7 px-2"
+              >
+                {sortOrder === "asc" ? "↑" : "↓"}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── DESKTOP PAGINATION BAR ── */}
@@ -731,7 +748,7 @@ export default function RequestsPage() {
                           spfNumber={req.spf_number}
                           status={spfStatus}
                         />
-                        {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && (
+                        {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && (
                           <Button className="rounded-none h-9 px-4 shrink-0" variant="outline" onClick={() => handleCreateFromRow(req)} disabled={req.is_cancelled}>
                             Create
                           </Button>
@@ -749,6 +766,7 @@ export default function RequestsPage() {
                                 reviseTargetSpfNumber === req.spf_number ? "edit" : "view"
                               }
                               showPoolingButton={!isProcurementStatus(req.spf_number) || spfStatus?.toLowerCase() === "for revision"}
+                              onRefresh={handleRefresh}
                             />
                           </div>
                         )}
@@ -836,7 +854,7 @@ export default function RequestsPage() {
                     spfNumber={req.spf_number}
                     status={spfStatus}
                   />
-                  {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && (
+                  {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && (
                     <Button size="sm" className="rounded-xl flex-1 h-9" variant="outline" onClick={() => handleCreateFromRow(req)} disabled={req.is_cancelled}>
                       Create
                     </Button>
@@ -850,6 +868,7 @@ export default function RequestsPage() {
                         spfNumber={req.spf_number}
                         onOpen={() => markSPFRequestAsRead(req.spf_number)}
                         showPoolingButton={!isProcurementStatus(req.spf_number) || spfStatus?.toLowerCase() === "for revision"}
+                        onRefresh={handleRefresh}
                       />
                     </div>
                   )}

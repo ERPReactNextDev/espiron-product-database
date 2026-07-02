@@ -11,6 +11,7 @@ import { supabase } from "@/utils/supabase";
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Search,
   RefreshCw,
   BarChart3,
@@ -249,18 +250,25 @@ function SummaryCard({
   label,
   value,
   sub,
+  valueClassName = "text-xl",
 }: {
   icon: React.ReactNode;
   label: string;
   value: string | number;
   sub?: string;
+  valueClassName?: string;
 }) {
   return (
-    <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl p-4 flex items-start gap-3 shadow-sm">
-      <div className="p-2 rounded-lg bg-red-50 text-red-600 shrink-0">{icon}</div>
-      <div className="min-w-0">
-        <p className="text-xs text-gray-500 uppercase font-medium tracking-wide">{label}</p>
-        <p className="text-xl font-bold text-gray-900 truncate">{value}</p>
+    <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl p-3 sm:p-4 flex items-start gap-2 sm:gap-3 shadow-sm min-w-0">
+      <div className="p-1.5 sm:p-2 rounded-lg bg-red-50 text-red-600 shrink-0">{icon}</div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] sm:text-xs text-gray-500 uppercase font-medium tracking-wide truncate">{label}</p>
+        <p
+          className={`${valueClassName} font-bold text-gray-900 truncate`}
+          title={String(value)}
+        >
+          {value}
+        </p>
         {sub && <p className="text-xs text-gray-400 mt-0.5 truncate">{sub}</p>}
       </div>
     </div>
@@ -282,6 +290,8 @@ export default function AnalyticsPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loadingPage, setLoadingPage] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showMobileSummary, setShowMobileSummary] = useState(false);
+
   const [userMap, setUserMap] = useState<Record<string, { Firstname: string; Lastname: string }>>({});
 
   /* ── Search / pagination ── */
@@ -733,27 +743,29 @@ export default function AnalyticsPage() {
               className="w-full h-10 pl-9 pr-3 bg-white/70 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-300"
             />
           </div>
-          <div className="flex flex-wrap gap-2 mb-2">
-            <span className="text-xs text-gray-500 font-medium self-center">Status:</span>
-            <Button
-              size="sm"
-              variant={statusFilter === null ? "default" : "outline"}
-              onClick={() => setStatusFilter(null)}
-              className="text-xs h-7 px-2"
-            >
-              All
-            </Button>
-            {uniqueStatuses.slice(0, 4).map((s) => (
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs text-gray-500 font-medium shrink-0">Status:</span>
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
               <Button
-                key={s}
                 size="sm"
-                variant={statusFilter === s ? "default" : "outline"}
-                onClick={() => setStatusFilter(s)}
-                className="text-xs h-7 px-2 max-w-28 truncate"
+                variant={statusFilter === null ? "default" : "outline"}
+                onClick={() => setStatusFilter(null)}
+                className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
               >
-                {s}
+                All
               </Button>
-            ))}
+              {uniqueStatuses.map((s) => (
+                <Button
+                  key={s}
+                  size="sm"
+                  variant={statusFilter === s ? "default" : "outline"}
+                  onClick={() => setStatusFilter(s)}
+                  className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
+                >
+                  {s}
+                </Button>
+              ))}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500 font-medium">Sort:</span>
@@ -778,9 +790,17 @@ export default function AnalyticsPage() {
             </Button>
           </div>
           <div className="flex items-center justify-between mt-1">
-            <p className="text-xs text-gray-400">
+            <button
+              onClick={() => setShowMobileSummary((v) => !v)}
+              className="flex items-center gap-1 text-xs text-gray-400 font-medium"
+            >
               {filteredRecords.length} result{filteredRecords.length !== 1 ? "s" : ""}
-            </p>
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform ${
+                  showMobileSummary ? "rotate-180" : ""
+                }`}
+              />
+            </button>
             {(searchTerm !== "" || statusFilter !== null) && (
               <Button variant="ghost" onClick={clearFilters} className="text-xs h-7 px-2">
                 Clear
@@ -970,23 +990,30 @@ export default function AnalyticsPage() {
         </div>
 
         {/* ── MOBILE SUMMARY CARDS ── */}
-        <div className="md:hidden shrink-0 grid grid-cols-3 gap-2 px-3 py-3 bg-white/60 border-b">
-          <SummaryCard
-            icon={<FileText className="h-4 w-4" />}
-            label="Total"
-            value={stats.total}
-          />
-          <SummaryCard
-            icon={<DollarSign className="h-4 w-4" />}
-            label="Total SRP"
-            value={`₱ ${srpFmt.format(stats.totalSrp)}`}
-          />
-          <SummaryCard
-            icon={<Clock className="h-4 w-4" />}
-            label="Avg Time"
-            value={stats.avgDurationStr}
-          />
-        </div>
+        {showMobileSummary && (
+          <div className="md:hidden shrink-0 grid grid-cols-2 gap-2 px-3 py-3 bg-white/60 border-b">
+            <SummaryCard
+              icon={<FileText className="h-4 w-4" />}
+              label="Total"
+              value={stats.total}
+              valueClassName="text-lg"
+            />
+            <SummaryCard
+              icon={<Clock className="h-4 w-4" />}
+              label="Avg Time"
+              value={stats.avgDurationStr}
+              valueClassName="text-lg"
+            />
+            <div className="col-span-2">
+              <SummaryCard
+                icon={<DollarSign className="h-4 w-4" />}
+                label="Total SRP"
+                value={`₱ ${srpFmt.format(stats.totalSrp)}`}
+                valueClassName="text-xl"
+              />
+            </div>
+          </div>
+        )}
 
         {/* ── MOBILE CARD LIST ── */}
         <div className="md:hidden flex-1 overflow-y-auto px-3 pt-3 pb-28 space-y-3 min-h-0">

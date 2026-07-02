@@ -95,50 +95,15 @@ export function SidebarLeft({
   const [forApprovalCount, setForApprovalCount] = React.useState(0);
   const [navOffset, setNavOffset] = React.useState(0);
   const [isNavVisible, setIsNavVisible] = React.useState(externalIsNavVisible);
-  const [lastScrollY, setLastScrollY] = React.useState(0);
   const VISIBLE_COUNT = 4;
 
-  // Sync external nav visibility state
+  // Sync external nav visibility state — scroll detection lives in LayoutShell
+  // (it needs to watch every page's inner scroll container, not just window)
   React.useEffect(() => {
     if (externalSetIsNavVisible) {
       setIsNavVisible(externalIsNavVisible);
     }
   }, [externalIsNavVisible, externalSetIsNavVisible]);
-
-  // Handle scroll behavior for mobile navigation
-  React.useEffect(() => {
-    if (!isMobile) return;
-
-    let scrollTimeout: NodeJS.Timeout;
-
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      
-      // Clear existing timeout
-      if (scrollTimeout) clearTimeout(scrollTimeout);
-      
-      // Set new timeout to debounce scroll events
-      scrollTimeout = setTimeout(() => {
-        // Hide nav when scrolling down, show when scrolling up
-        if (currentScrollY > lastScrollY && currentScrollY > 100) {
-          setIsNavVisible(false);
-          if (externalSetIsNavVisible) externalSetIsNavVisible(false);
-        } else if (currentScrollY < lastScrollY) {
-          setIsNavVisible(true);
-          if (externalSetIsNavVisible) externalSetIsNavVisible(true);
-        }
-        
-        setLastScrollY(currentScrollY);
-      }, 10);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      if (scrollTimeout) clearTimeout(scrollTimeout);
-    };
-  }, [isMobile, lastScrollY, externalSetIsNavVisible]);
 
   React.useEffect(() => {
     if (!userId) return;

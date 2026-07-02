@@ -554,8 +554,8 @@ export default function NotesPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 md:w-64">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <div className="relative flex-1 min-w-37.5 md:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="Search notes..."
@@ -581,7 +581,7 @@ export default function NotesPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap mt-2">
           <p
             className={`text-sm text-gray-600 ${
               isComic ? "font-comic" : "font-formal"
@@ -765,18 +765,18 @@ export default function NotesPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <DialogTitle
-                      className={`flex items-center gap-2 text-xl mb-2 ${
+                      className={`flex items-start gap-2 text-lg sm:text-xl mb-2 ${
                         isComic
                           ? "font-comic-title"
                           : "font-formal-title"
                       }`}
                     >
                       <StickyNote
-                        className={`h-5 w-5 ${
+                        className={`h-5 w-5 shrink-0 mt-0.5 ${
                           isComic ? "text-red-500" : "text-red-600"
                         }`}
                       />
-                      {selectedNote.title || "Untitled Note"}
+                      <span className="break-words">{selectedNote.title || "Untitled Note"}</span>
                     </DialogTitle>
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge
@@ -849,14 +849,14 @@ export default function NotesPage() {
                 </div>
               </div>
 
-              <DialogFooter className="gap-2 flex-wrap">
+              <DialogFooter className="gap-2 flex flex-col sm:flex-row sm:flex-wrap">
                 {(selectedNote.createdByUserId === userId ||
                   hasFullAccess()) && (
                   <>
                     <Button
                       variant="outline"
                       onClick={() => openEditDialog(selectedNote)}
-                      className={isComic ? "font-comic" : ""}
+                      className={`w-full sm:w-auto ${isComic ? "font-comic" : ""}`}
                     >
                       <Edit2 className="h-4 w-4 mr-1" />
                       Edit
@@ -864,7 +864,7 @@ export default function NotesPage() {
                     <Button
                       variant="outline"
                       onClick={() => openCollaboratorDialog(selectedNote)}
-                      className={isComic ? "font-comic" : ""}
+                      className={`w-full sm:w-auto ${isComic ? "font-comic" : ""}`}
                     >
                       <UserPlus className="h-4 w-4 mr-1" />
                       Add Collaborator
@@ -874,7 +874,7 @@ export default function NotesPage() {
                 <Button
                   variant="outline"
                   onClick={() => handleExportPDF(selectedNote)}
-                  className={isComic ? "font-comic" : ""}
+                  className={`w-full sm:w-auto ${isComic ? "font-comic" : ""}`}
                 >
                   <FileDown className="h-4 w-4 mr-1" />
                   Export PDF
@@ -884,7 +884,7 @@ export default function NotesPage() {
                   <Button
                     variant="destructive"
                     onClick={() => openDeleteDialog(selectedNote)}
-                    className={isComic ? "font-comic" : ""}
+                    className={`w-full sm:w-auto ${isComic ? "font-comic" : ""}`}
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
                     Delete
@@ -895,7 +895,7 @@ export default function NotesPage() {
                     setIsDetailsDialogOpen(false);
                     setSelectedNote(null);
                   }}
-                  className={isComic ? "font-comic" : ""}
+                  className={`w-full sm:w-auto ${isComic ? "font-comic" : ""}`}
                 >
                   <X className="h-4 w-4 mr-1" />
                   Close
