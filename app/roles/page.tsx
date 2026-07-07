@@ -46,6 +46,7 @@ export default function RolesPage() {
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
   const [accessDenied, setAccessDenied] = useState(false);
   const [loadingToggles, setLoadingToggles] = useState<Record<string, boolean>>({});
+  const [currentUserData, setCurrentUserData] = useState<User | null>(null);
 
   const itemsPerPage = 10;
 
@@ -107,14 +108,15 @@ export default function RolesPage() {
           return;
         }
 
-        await fetchEngineeringUsers();
+        setCurrentUserData(userData);
+        await fetchEngineeringUsers(userData);
       } catch (error) {
         console.error("Error fetching current user data:", error);
         setLoading(false);
       }
     };
 
-    const fetchEngineeringUsers = async () => {
+    const fetchEngineeringUsers = async (currentUser: User | null) => {
       try {
         const res = await fetch(`/api/users?list=engineering-it&viewerId=${currentUserId}`);
         if (!res.ok) return;
@@ -124,7 +126,12 @@ export default function RolesPage() {
           usersData
           .filter((user) => {
             if (user.Department !== "Engineering") return false;
-            if (user.Role === "Manager") return false;
+            // Include Engineering Managers if current user is IT or Engineering Manager
+            if (user.Role === "Manager") {
+              const isITUser = currentUser?.Department === "IT";
+              const isEngineeringManager = currentUser?.Department === "Engineering" && currentUser?.Role === "Manager";
+              return isITUser || isEngineeringManager;
+            }
             return true;
           })
             .map(async (user) => {
