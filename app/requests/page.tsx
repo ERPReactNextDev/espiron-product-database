@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useUser } from "@/contexts/UserContext";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -49,13 +49,13 @@ const ALLOWED_STATUSES_LOWER = ALLOWED_STATUSES.map((s) => s.toLowerCase());
 const CREATION_NOTIFICATION_STATUSES = new Set([
   "pending for procurement",
   "approved by procurement", 
-  "for revision",
+  "for revision by pd",
 ]);
 
 /* ─────────────────────────────────────────────────────────────── */
 /* STATUS BADGE                                                     */
 /* ─────────────────────────────────────────────────────────────── */
-function StatusBadge({ status, isCancelled }: { status: string | undefined; isCancelled?: boolean }) {
+function StatusBadge({ status, isCancelled, latestRevisionResult }: { status: string | undefined; isCancelled?: boolean; latestRevisionResult?: string }) {
   if (isCancelled) {
     return (
       <span className="text-xs px-2 py-1 rounded uppercase font-semibold whitespace-nowrap bg-red-100 text-red-700">
@@ -65,13 +65,22 @@ function StatusBadge({ status, isCancelled }: { status: string | undefined; isCa
   }
   if (!status) return null;
 
+  // Show revision result if it starts with "Requested By" (pending approval)
+  if (latestRevisionResult?.startsWith("Requested By")) {
+    return (
+      <span className="text-xs px-2 py-1 rounded uppercase font-semibold whitespace-nowrap bg-cyan-100 text-cyan-700">
+        {latestRevisionResult}
+      </span>
+    );
+  }
+
   const statusLower = status.toLowerCase();
   const isSalesHead = statusLower.includes("sales head");
   const isCancelledStatus = statusLower === "cancelled";
   const isForProcurement = statusLower === "for procurement costing";
   const isProcessingByPD = statusLower === "processing by pd";
   const isReadyForQuotation = statusLower === "ready for quotation";
-  const isForRevision = statusLower === "for revision";
+  const isForRevision = statusLower === "for revision by pd";
 
   const colorClass = isCancelledStatus
     ? "bg-red-100 text-red-700"
@@ -129,6 +138,10 @@ export default function RequestsPage() {
 
   /* ── SPF list ── */
   const [requests, setRequests]               = useState<SPFRequest[]>([]);
+  const requestsRef = useRef(requests);
+  useEffect(() => {
+    requestsRef.current = requests;
+  }, [requests]);
   const [fetchError, setFetchError]           = useState<string | null>(null);
   const [loadingPage, setLoadingPage]         = useState(false);
   const [createdSPF, setCreatedSPF]           = useState<Record<string, string>>({});
@@ -164,6 +177,55 @@ const [isRefreshing, setIsRefreshing] = useState(false);
     status: "",
   });
   const [reviseTargetSpfNumber, setReviseTargetSpfNumber] = useState<string | null>(null);
+  const [latestRevisionResults, setLatestRevisionResults] = useState<Record<string, string>>({});
+
+  /* ── Fetch latest revision results for all SPFs ── */
+  useEffect(() => {
+    const fetchLatestRevisions = async () => {
+      if (!requests.length) return;
+
+      const spfNumbers = requests.map(r => r.spf_number);
+      try {
+        const { data, error } = await supabase
+          .from("spf_request_revision_history")
+          .select("spf_number, revision_result, revision_number")
+          .in("spf_number", spfNumbers);
+
+        if (error) {
+          console.error("Error fetching latest revisions:", error);
+          return;
+        }
+
+        // Get the latest revision for each spf_number (highest revision_number)
+        const latestMap: Record<string, { result: string; number: number }> = {};
+        data?.forEach(record => {
+          const spfNumber = record.spf_number;
+          const current = latestMap[spfNumber];
+          const revisionNumber = parseInt(record.revision_number) || 0;
+
+          if (!current || revisionNumber > current.number) {
+            latestMap[spfNumber] = { result: record.revision_result, number: revisionNumber };
+          }
+        });
+
+        // Extract just the revision results
+        const resultsMap: Record<string, string> = {};
+        Object.entries(latestMap).forEach(([spfNumber, data]) => {
+          resultsMap[spfNumber] = data.result;
+        });
+
+        setLatestRevisionResults(resultsMap);
+      } catch (err) {
+        console.error("Error fetching latest revisions:", err);
+      }
+    };
+
+    fetchLatestRevisions();
+    
+    // Poll every 5 seconds as fallback to ensure real-time updates
+    const interval = setInterval(fetchLatestRevisions, 5000);
+    return () => clearInterval(interval);
+  }, [requests]);
 
   /* ─────────────────────── */
   /* Fetch user              */
@@ -298,13 +360,18 @@ const [isRefreshing, setIsRefreshing] = useState(false);
             return exists ? prev.filter((r) => r.id !== mappedRow.id) : prev;
           }
 
-          // Update existing row in place
-          if (exists) {
+          // INSERT: add new row that qualifies
+          if (payload.eventType === "INSERT") {
+            return exists ? prev : [mappedRow, ...prev];
+          }
+
+          // UPDATE: only update if row exists, don't add as new
+          if (payload.eventType === "UPDATE") {
+            if (!exists) return prev;
             return prev.map((r) => (r.id === mappedRow.id ? { ...r, ...mappedRow } : r));
           }
 
-          // New row that qualifies -> add to top of list
-          return [mappedRow, ...prev];
+          return prev;
         });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "spf_creation" }, (payload: any) => {
@@ -340,6 +407,57 @@ const [isRefreshing, setIsRefreshing] = useState(false);
           ...prev,
           [spfNumber]: typeof newRow.id === "number" ? newRow.id : (prev[spfNumber] ?? 0),
         }));
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "spf_request_revision_history" }, (payload: any) => {
+        // When revision history changes, refetch latest revision results
+        const spfNumber = payload.new?.spf_number || payload.old?.spf_number;
+        if (typeof spfNumber === "string" && spfNumber) {
+          console.log("Revision history changed for SPF:", spfNumber, "Event:", payload.eventType);
+          
+          // Refetch latest revisions for all visible requests
+          const fetchLatestRevisions = async () => {
+            try {
+              const currentRequests = requestsRef.current;
+              const spfNumbers = currentRequests.map((r) => r.spf_number).filter(Boolean);
+              if (!spfNumbers.length) return;
+
+              const { data: revisionData, error } = await supabase
+                .from("spf_request_revision_history")
+                .select("spf_number, revision_number, revision_result")
+                .in("spf_number", spfNumbers);
+
+              if (error) {
+                console.error("Error fetching latest revisions:", error);
+                return;
+              }
+
+              const latestMap: Record<string, { result: string; number: number }> = {};
+              revisionData?.forEach((record: any) => {
+                const spfNumber = record.spf_number;
+                if (!spfNumber) return;
+
+                const current = latestMap[spfNumber];
+                const revisionNumber = parseInt(record.revision_number) || 0;
+
+                if (!current || revisionNumber > current.number) {
+                  latestMap[spfNumber] = { result: record.revision_result, number: revisionNumber };
+                }
+              });
+
+              const resultsMap: Record<string, string> = {};
+              Object.entries(latestMap).forEach(([spfNumber, data]) => {
+                resultsMap[spfNumber] = data.result;
+              });
+
+              console.log("Updated latest revision results:", resultsMap);
+              setLatestRevisionResults(resultsMap);
+            } catch (err) {
+              console.error("Error fetching latest revisions:", err);
+            }
+          };
+
+          fetchLatestRevisions();
+        }
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -382,7 +500,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
           return spfStatus.toLowerCase() === "approved by procurement";
         }
         if (statusFilter === "For Revision") {
-          return spfStatus.toLowerCase() === "for revision";
+          return spfStatus.toLowerCase() === "for revision by pd";
         }
         return false;
       });
@@ -802,7 +920,11 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formattedDate}</td>
                     <td className="px-4 py-3">
                       {spfStatus ? (
-                        <StatusBadge status={getStatusLabel(spfStatus)} isCancelled={spfStatus?.toLowerCase() === "cancelled"} />
+                        <StatusBadge
+                          status={getStatusLabel(spfStatus)}
+                          isCancelled={spfStatus?.toLowerCase() === "cancelled"}
+                          latestRevisionResult={latestRevisionResults[req.spf_number]}
+                        />
                       ) : (
                         <span className="text-xs text-gray-400">-</span>
                       )}
@@ -818,7 +940,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                           spfNumber={req.spf_number}
                           status={spfStatus}
                         />
-                        {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && (
+                        {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && spfStatus?.toLowerCase() !== "for revision by pd" && (
                           <Button className="rounded-none h-9 px-4 shrink-0" variant="outline" onClick={() => handleCreateFromRow(req)} disabled={req.is_cancelled}>
                             Create
                           </Button>
@@ -914,9 +1036,17 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                   <p><span className="text-gray-400">Prepared By:</span> {req.prepared_by || "-"}</p>
                   <p><span className="text-gray-400">Approved By:</span> {req.approved_by || "-"}</p>
                 </div>
-                <div>
-                  <StatusBadge status={req.status} />
-                </div>
+                  <div>
+                    {spfStatus ? (
+                      <StatusBadge
+                        status={getStatusLabel(spfStatus)}
+                        isCancelled={spfStatus?.toLowerCase() === "cancelled"}
+                        latestRevisionResult={latestRevisionResults[req.spf_number]}
+                      />
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
+                  </div>
                 <p className="text-xs text-gray-600"><span className="text-gray-400">Date Received:</span> {formattedDateApprovedSalesHead}</p>
                 <div className="flex gap-2 pt-1 flex-wrap items-center">
                   <CollaborationHubRowTrigger
@@ -924,7 +1054,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                     spfNumber={req.spf_number}
                     status={spfStatus}
                   />
-                  {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && (
+                  {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && spfStatus?.toLowerCase() !== "for revision by pd" && (
                     <Button size="sm" className="rounded-xl flex-1 h-9" variant="outline" onClick={() => handleCreateFromRow(req)} disabled={req.is_cancelled}>
                       Create
                     </Button>
