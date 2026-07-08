@@ -168,29 +168,27 @@ export default async function handler(
      * ────────────────────────────────────────────────────────── */
     const rawItemCodes = splitRows(draft.item_code);
 
-    // Strip trailing -A / -B / -C / -AA etc. to get the base row code
-    const getBaseCode = (code: string): string =>
-      code.replace(/-[A-Z]+$/, "").trim();
+    // Extract the numeric row segment (e.g. "007" from "SPF-XXX-007" or "SPF-XXX-007-A")
+    // and use it directly as the row index — walang limit, tama kahit ilang rows pa,
+    // dahil hindi na umaasa sa order of appearance sa flat array.
+    const extractRowNumber = (code: string): number | null => {
+      const match = code.match(/-(\d{3})(?:-[A-Z]+)?$/);
+      if (!match) return null;
+      return parseInt(match[1], 10) - 1; // 0-based index
+    };
 
-    // Build ordered list of unique base codes (preserves row order)
-    const orderedBaseCodes: string[] = [];
-    const baseCodeSet = new Set<string>();
-    for (const code of rawItemCodes) {
-      const base = getBaseCode(code);
-      if (!baseCodeSet.has(base)) {
-        baseCodeSet.add(base);
-        orderedBaseCodes.push(base);
-      }
-    }
+    const parsedRowIndices = rawItemCodes.map(extractRowNumber);
 
-    // rowCount = number of unique base codes = number of item rows
-    const rowCount = orderedBaseCodes.length || splitRows(draft.product_offer_image).length || 1;
+    // rowCount = highest parsed row index + 1 — auto-scales, walang cap
+    const maxParsedRow: number = parsedRowIndices.reduce<number>(
+      (max: number, idx: number | null) => (idx !== null && idx > max ? idx : max),
+      -1,
+    );
+    const rowCount =
+      maxParsedRow >= 0 ? maxParsedRow + 1 : splitRows(draft.product_offer_image).length || 1;
 
-    // Map each flat index → which rowIndex it belongs to
-    const flatIndexToRowIndex: number[] = rawItemCodes.map((code) => {
-      const base = getBaseCode(code);
-      return orderedBaseCodes.indexOf(base);
-    });
+    // Map each flat index → totoong rowIndex batay sa parsed number sa item code
+    const flatIndexToRowIndex: number[] = parsedRowIndices.map((idx) => idx ?? 0);
 
     /* ── Helper to format datetime-local ── */
     const formatDateTimeLocal = (value: string | null): string => {
