@@ -15,7 +15,7 @@ import { useUser } from "@/contexts/UserContext";
 const CREATION_NOTIFICATION_STATUSES = new Set([
   "pending for procurement",
   "approved by procurement",
-  "for revision",
+  "for revision by pd",
 ]);
 
 /** Allowed `spf_request.status` values that should appear in the requests list UI */

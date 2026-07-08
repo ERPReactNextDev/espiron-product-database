@@ -59,6 +59,7 @@ import { generateTDSPdf } from "@/lib/generateTDSPdf";
 import { logProductEvent } from "@/lib/auditlogger";
 import SPFGenerateTDSDialog from "@/components/spf-generate-tds-dialog";
 import RevisionTypeSelector, { RevisionType } from "@/components/revision-type-selector";
+import { RevisionComparisonDialog } from "@/components/revision-comparison-dialog";
 
 /* ─────────────────────────────────────────────────────────────── */
 /* TYPES                                                           */
@@ -70,6 +71,7 @@ type SPFViewProps = {
   triggerDataAttr?: string;
   triggerMode?: "view" | "edit";
   showPoolingButton?: boolean;
+  onRefresh?: () => void;
 };
 
 type SPFData = {
@@ -183,7 +185,8 @@ function getResolvedName(referenceID: string | undefined): string {
 function getStatusLabel(status: string | undefined): string {
   if (status === "Pending For Procurement") return "For Procurement Costing";
   if (status === "Approved By Procurement") return "Ready For Quotation";
-  if (status === "For Revision") return "FOR REVISION";
+  if (status === "For Revision by PD") return "FOR REVISION BY PD";
+  if (status === "Processing by PD") return "Processing by PD";
   return status ?? "";
 }
 
@@ -619,6 +622,7 @@ export default function SPFRequestFetch({
   triggerDataAttr,
   triggerMode = "view",
   showPoolingButton,
+  onRefresh,
 }: SPFViewProps) {
   const { userId } = useUser();
   const { onSPFUpdated } = useNotificationTriggers();
@@ -736,6 +740,14 @@ useEffect(() => {
   /* ── Expanded product cards state ── */
   const [expandedProductCards, setExpandedProductCards] = useState<Record<string, boolean>>({});
 
+  /* ── Revision Comparison Dialog state ── */
+  const [revisionComparisonOpen, setRevisionComparisonOpen] = useState(false);
+
+  /* ── Procurement Revision Confirmation Dialog state ── */
+  const [showProcurementRevisionConfirm, setShowProcurementRevisionConfirm] = useState(false);
+  const [latestRevisionResult, setLatestRevisionResult] = useState<string | null>(null);
+  const [procurementRevisionRemarks, setProcurementRevisionRemarks] = useState<string>("");
+
   useEffect(() => {
     if (!open) return;
     const start = new Date().toISOString();
@@ -745,6 +757,38 @@ useEffect(() => {
     setDraftAutoLoaded(false);
     draftInUseRef.current = false;
   }, [open]);
+
+  /* ── Fetch latest revision result ── */
+  useEffect(() => {
+    if (!open || !spfNumber) return;
+
+    const fetchLatestRevision = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("spf_request_revision_history")
+          .select("revision_result, remarks")
+          .eq("spf_number", spfNumber)
+          .order("revision_number", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (error) {
+          if (error.code === "PGRST116") {
+            // No data found
+            setLatestRevisionResult(null);
+          } else {
+            console.error("Error fetching latest revision:", error);
+          }
+        } else {
+          setLatestRevisionResult(data?.revision_result || null);
+        }
+      } catch (err) {
+        console.error("Error fetching latest revision:", err);
+      }
+    };
+
+    fetchLatestRevision();
+  }, [open, spfNumber]);
 
   /* ── Check for existing draft and restore timer ── */
   useEffect(() => {
@@ -893,8 +937,10 @@ useEffect(() => {
     if (open) fetchSPF();
   }, [open]);
 
-  /* ── Status poll ── */
+  /* ── Status poll (initial) + realtime subscription ── */
   useEffect(() => {
+    if (!spfNumber) return;
+
     const fetchStatus = async () => {
       const { data: d } = await supabase
         .from("spf_creation")
@@ -904,6 +950,36 @@ useEffect(() => {
       if (d) setData((prev: any) => ({ ...prev, status: d.status }));
     };
     fetchStatus();
+
+    // Real-time: keep this row's badge in sync with spf_creation changes,
+    // without needing to reopen the dialog or refresh the page.
+    const channel = supabase
+      .channel(`spf-creation-status-${spfNumber}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "spf_creation",
+          filter: `spf_number=eq.${spfNumber}`,
+        },
+        (payload: any) => {
+          if (payload.eventType === "DELETE") {
+            setData(null);
+            return;
+          }
+          const newRow = payload.new;
+          if (!newRow || typeof newRow !== "object") return;
+          // Merge the incoming row into local state so the trigger badge,
+          // and the open dialog's full data, both stay current.
+          setData((prev: any) => ({ ...(prev ?? {}), ...newRow }));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [spfNumber]);
 
   useEffect(() => {
@@ -917,10 +993,7 @@ useEffect(() => {
     if (editMode) return;
     if (!data) return;
 
-    const allowEdit =
-      data?.status === "For Revision" ||
-      data?.status === "Pending For Procurement" ||
-      data?.status === "Approved By Procurement";
+    const allowEdit = data?.status === "For Revision by PD";
     if (!allowEdit) return;
 
     const existingRevisionType = data?.revision_type;
@@ -1776,10 +1849,11 @@ useEffect(() => {
   /* COMPUTED VALUES (view mode)                                    */
   /* ────────────────────────────────────────────────────────────── */
   const isApproved = data?.status === "Approved By Procurement";
-  const isForRevision = data?.status === "For Revision";
+  const isForRevision = data?.status === "For Revision by PD";
   const isPendingForProcurement = data?.status === "Pending For Procurement";
   const isCancelled = data?.status === "Cancelled";
-  const canEditOffer = isForRevision || isPendingForProcurement || isApproved;
+  const canEditOffer = isForRevision;
+  const canRequestProcurementRevision = isApproved || isPendingForProcurement;
   const showProcurementRemarks = isApproved || isForRevision;
 
   const rowStructure = deriveRowStructure(data?.item_code);
@@ -4332,7 +4406,7 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
         onSelect={handleRevisionTypeSelect}
         spfNumber={spfNumber}
       />
-      {/* ── Trigger button + status badge ── */}
+      {/* ── Trigger button ── */}
       <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
         <Button
           variant="outline"
@@ -4344,29 +4418,18 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
             if (isReviseFromSpecial) {
               setReviseFromSpecial(true);
             }
-            onOpen?.();
-            setOpen(true);
+            // If status is "Processing by PD", open revision comparison dialog
+            if (data?.status === "Processing by PD") {
+              setRevisionComparisonOpen(true);
+            } else {
+              onOpen?.();
+              setOpen(true);
+            }
           }}
           data-spf-fetch={triggerDataAttr}
         >
           View
         </Button>
-
-        {data?.status && (
-          <span
-            className={`text-xs px-2 py-1 rounded uppercase shrink-0 ${
-              isCancelled
-                ? "bg-red-100 text-red-700"
-                : isApproved
-                  ? "bg-green-100 text-green-700"
-                  : isForRevision
-                    ? "bg-orange-100 text-orange-700"
-                    : "bg-yellow-100 text-yellow-700"
-            }`}
-          >
-            {getStatusLabel(data.status)}
-          </span>
-        )}
       </div>
 
       {/* ── Main view dialog ── */}
@@ -4438,8 +4501,7 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                 </div>
               )}
 
-              {/* Hidden for now */}
-              {/* {canEditOffer && (
+              {canEditOffer && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -4474,7 +4536,24 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                   <Pencil size={12} />
                   Edit (Revise)
                 </Button>
-              )} */}
+              )}
+
+              {canRequestProcurementRevision && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
+                  onClick={() => {
+                    setShowProcurementRevisionConfirm(true);
+                  }}
+                  disabled={latestRevisionResult === "Requested By Engineering"}
+                >
+                  <Pencil size={12} />
+                  {latestRevisionResult === "Requested By Engineering"
+                    ? "Request Revision sent to Procurement"
+                    : "Request Revision for Procurement"}
+                </Button>
+              )}
             </div>
 
             {/* Speech balloon for revision remarks */}
@@ -4700,6 +4779,64 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* PROCUREMENT REVISION CONFIRMATION DIALOG */}
+      <AlertDialog open={showProcurementRevisionConfirm} onOpenChange={(open) => {
+        setShowProcurementRevisionConfirm(open);
+        if (!open) setProcurementRevisionRemarks("");
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Request Revision for Procurement</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to request revision for procurement?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2 block">
+              Remarks
+            </label>
+            <textarea
+              value={procurementRevisionRemarks}
+              onChange={(e) => setProcurementRevisionRemarks(e.target.value)}
+              placeholder="Enter remarks for this revision request..."
+              className="w-full min-h-[80px] rounded-md border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                try {
+                  const response = await fetch("/api/request/spf-request-procurement-revision-api", {
+                    method: "PUT",
+                    headers: {
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ spf_number: data?.spf_number, remarks: procurementRevisionRemarks }),
+                  });
+
+                  const result = await response.json();
+
+                  if (response.ok) {
+                    toast.success("Revision requested successfully");
+                    setShowProcurementRevisionConfirm(false);
+                    fetchSPF();
+                    onRefresh?.();
+                  } else {
+                    toast.error(result.message || "Failed to request revision");
+                  }
+                } catch (error) {
+                  console.error("Error requesting revision:", error);
+                  toast.error("Error requesting revision");
+                }
+              }}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* ── Generate TDS Dialog ── */}
       <SPFGenerateTDSDialog
         open={tdsDialogOpen}
@@ -4734,6 +4871,14 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
             return copy;
           });
         }}
+      />
+
+      {/* ── Revision Comparison Dialog ── */}
+      <RevisionComparisonDialog
+        open={revisionComparisonOpen}
+        onClose={() => setRevisionComparisonOpen(false)}
+        spf_number={spfNumber}
+        onRefresh={onRefresh}
       />
     </>
   );

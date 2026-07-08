@@ -253,14 +253,14 @@ function getResolvedName(referenceID: string | undefined): string {
 function getStatusLabel(status: string | undefined): string {
   if (status === "Pending For Procurement") return "For Procurement Costing";
   if (status === "Approved By Procurement") return "Ready For Quotation";
-  if (status === "For Revision") return "FOR REVISION";
+  if (status === "For Revision by PD") return "FOR REVISION BY PD";
   return status ?? "";
 }
 
 function getStatusClass(status: string | undefined): string {
   if (status === "Cancelled") return "bg-red-100 text-red-700 border-red-200";
   if (status === "Approved By Procurement") return "bg-green-100 text-green-700 border-green-200";
-  if (status === "For Revision") return "bg-orange-100 text-orange-700 border-orange-200";
+  if (status === "For Revision by PD") return "bg-orange-100 text-orange-700 border-orange-200";
   return "bg-yellow-100 text-yellow-700 border-yellow-200";
 }
 

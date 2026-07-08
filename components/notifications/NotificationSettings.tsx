@@ -8,7 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { useNotificationSettings } from "@/hooks/use-notification-settings";
 
-export function NotificationSettings() {
+export function NotificationSettings({ hideCard = false }: { hideCard?: boolean } = {}) {
   const {
     settings,
     isLoading,
@@ -28,18 +28,8 @@ export function NotificationSettings() {
     return <div>Loading settings...</div>;
   }
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bell className="h-5 w-5" />
-          Notification Settings
-        </CardTitle>
-        <CardDescription>
-          Manage your notification preferences
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
+  const body = (
+    <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="enabled">Enable Notifications</Label>
@@ -187,7 +177,25 @@ export function NotificationSettings() {
             Reset to Default
           </Button>
         </div>
-      </CardContent>
+      </div>
+  );
+
+  if (hideCard) {
+    return body;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Bell className="h-5 w-5" />
+          Notification Settings
+        </CardTitle>
+        <CardDescription>
+          Manage your notification preferences
+        </CardDescription>
+      </CardHeader>
+      <CardContent>{body}</CardContent>
     </Card>
   );
 }
