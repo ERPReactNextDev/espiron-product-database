@@ -117,7 +117,7 @@ export async function getUsersByIds(userIds: string[]) {
 /**
  * Get Engineering & IT users with optional IT-only filtering
  */
-export async function getEngineeringITUsers(viewerDepartment?: string) {
+export async function getEngineeringITUsers(viewerDepartment?: string, viewerRole?: string) {
   const supabase = getSupabaseAdmin();
   let query = supabase
     .from("users")
@@ -126,16 +126,20 @@ export async function getEngineeringITUsers(viewerDepartment?: string) {
 
   // Build query filter
   if (viewerDepartment === "IT") {
-    // IT viewers see all Engineering and IT users
-    query = query.or("Department.eq.Engineering,Department.eq.IT");
+    // IT viewers see all Engineering and IT users (excluding Resigned)
+    query = query.or("Department.eq.Engineering,Department.eq.IT").not("Status", "eq", "Resigned");
+  } else if (viewerDepartment === "Engineering" && viewerRole === "Manager") {
+    // Engineering Managers see only Engineering users (excluding Resigned)
+    query = query.eq("Department", "Engineering").not("Status", "eq", "Resigned");
   } else {
-    // Non-IT viewers see Engineering non-managers + IT users
+    // Non-IT, non-Engineering-Manager viewers see Engineering non-managers + IT users (excluding Resigned)
     query = supabase
       .from("users")
       .select("*")
       .or(
         "(Department.eq.Engineering AND Role.neq.Manager), Department.eq.IT"
       )
+      .not("Status", "eq", "Resigned")
       .order("Firstname", { ascending: true });
   }
 

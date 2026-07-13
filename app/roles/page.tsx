@@ -125,14 +125,8 @@ export default function RolesPage() {
         const usersWithAccess = await Promise.all(
           usersData
           .filter((user) => {
-            if (user.Department !== "Engineering") return false;
-            // Include Engineering Managers if current user is IT or Engineering Manager
-            if (user.Role === "Manager") {
-              const isITUser = currentUser?.Department === "IT";
-              const isEngineeringManager = currentUser?.Department === "Engineering" && currentUser?.Role === "Manager";
-              return isITUser || isEngineeringManager;
-            }
-            return true;
+            // Backend handles filtering, just ensure valid departments
+            return user.Department === "Engineering" || user.Department === "IT";
           })
             .map(async (user) => {
               const access = await getUserAccess(user._id);

@@ -48,12 +48,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     /* ── Query for Engineering and IT users list ── */
     if (listType === "engineering-it") {
       try {
-        // Get the viewer's user data from the session to check if they're IT
+        // Get the viewer's user data from the session to check if they're IT or Engineering Manager
         const viewerId = req.headers["x-user-id"] || req.query.viewerId;
-        const isITViewer = await verifyITAccess(viewerId as string);
+        const viewer = await getUserById(viewerId as string);
+        
+        const viewerDepartment = viewer?.Department;
+        const viewerRole = viewer?.Role;
 
-        // Fetch users based on viewer department
-        const users = await getEngineeringITUsers(isITViewer ? "IT" : undefined);
+        // Fetch users based on viewer department and role
+        const users = await getEngineeringITUsers(viewerDepartment, viewerRole);
 
         // Remove password fields
         const usersWithoutPassword = users.map((user:any) => {
