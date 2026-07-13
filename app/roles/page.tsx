@@ -126,7 +126,7 @@ export default function RolesPage() {
           usersData
           .filter((user) => {
             // Backend handles filtering, just ensure valid departments
-            return user.Department === "Engineering" || user.Department === "IT";
+            return user.Department === "Engineering" || user.Department === "IT";//
           })
             .map(async (user) => {
               const access = await getUserAccess(user._id);
