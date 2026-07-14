@@ -57,6 +57,9 @@ export default function RolesPage() {
     "page:roles",
     "page:add-product",
     "page:edit-product",
+    "page:analytics",
+    "page:history",
+    "page:notes",
     "feature:approval-bypass",
   ];
 
@@ -67,6 +70,9 @@ export default function RolesPage() {
     "page:roles": "Roles Page",
     "page:add-product": "Add Product Page",
     "page:edit-product": "Edit Product Page",
+    "page:analytics": "Analytics Page",
+    "page:history": "History Page",
+    "page:notes": "Notes Page",
     "feature:approval-bypass": "Bypass For Approval",
   };
 

@@ -62,12 +62,12 @@ const NAV_ITEMS: Array<{
   onlyForIT?: boolean;
 }> = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/analytics", icon: BarChart3, label: "Analytics" },
+  { href: "/analytics", icon: BarChart3, label: "Analytics", accessKey: "page:analytics" },
   { href: "/products", icon: Package, label: "Products", accessKey: "page:products" },
   { href: "/suppliers", icon: Truck, label: "Suppliers", accessKey: "page:suppliers" },
   { href: "/requests", icon: ClipboardList, label: "Requests", badgeKey: "requests", accessKey: "page:requests" },
-  { href: "/history", icon: History, label: "History" },
-  { href: "/notes", icon: StickyNote, label: "Notes" },
+  { href: "/history", icon: History, label: "History", accessKey: "page:history" },
+  { href: "/notes", icon: StickyNote, label: "Notes", accessKey: "page:notes" },
  { href: "/for-approval", icon: ClipboardCheck, label: "Approval", badgeKey: "forApproval", onlyForEngineeringManagerOrIT: true },
   { href: "/roles", icon: User, label: "Roles", accessKey: "page:roles", onlyForEngineeringManagerOrIT: true },
   { href: "/api-management", icon: Key, label: "API Keys", onlyForIT: true },

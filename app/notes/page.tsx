@@ -55,6 +55,7 @@ import {
   Minus,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AccessGuard } from "@/components/AccessGuard";
 import { jsPDF } from "jspdf";
 import { db } from "@/lib/firebase";
 import {
@@ -526,7 +527,8 @@ export default function NotesPage() {
   );
 
   return (
-    <div className="h-dvh flex flex-col overflow-hidden">
+    <AccessGuard accessKey="page:notes">
+      <div className="h-dvh flex flex-col overflow-hidden">
       {/* ── HEADER ── */}
       <div
         className={`px-4 md:px-6 pt-4 md:pt-6 pb-3 shrink-0 bg-white ${
@@ -1420,5 +1422,6 @@ export default function NotesPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </AccessGuard>
   );
 }

@@ -78,6 +78,37 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       });
   }, []);
 
+  // Periodic status check for real-time resigned status detection
+  useEffect(() => {
+    if (!userId) return;
+
+    const checkStatus = async () => {
+      try {
+        const res = await fetch("/api/me");
+        if (res.status === 403) {
+          const data = await res.json();
+          if (data?.forceLogout) {
+            // Clear splash so it replays on next login
+            sessionStorage.removeItem("splashPlayed");
+            sessionStorage.removeItem("splashDone");
+            setSplashDoneState(false);
+
+            setUserIdState(null);
+            await fetch("/api/logout", { method: "POST" });
+            window.location.href = "/login";
+          }
+        }
+      } catch (error) {
+        console.error("Status check error:", error);
+      }
+    };
+
+    // Check every 30 seconds
+    const interval = setInterval(checkStatus, 30000);
+
+    return () => clearInterval(interval);
+  }, [userId]);
+
   return (
     <UserContext.Provider value={{ userId, setUserId, loading, splashDone, setSplashDone }}>
       {children}

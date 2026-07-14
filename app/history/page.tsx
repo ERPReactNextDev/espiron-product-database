@@ -52,6 +52,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { cn } from "@/lib/utils";
+import { AccessGuard } from "@/components/AccessGuard";
 
 /* ─────────────────────────────────────────────
    Types
@@ -595,7 +596,8 @@ export default function HistoryPage() {
   );
 
   return (
-    <div className="h-dvh flex flex-col overflow-hidden">
+    <AccessGuard accessKey="page:history">
+      <div className="h-dvh flex flex-col overflow-hidden">
 
       {/* ── DESKTOP HEADER ── */}
       <div className="hidden md:flex flex-col gap-3 px-6 pt-6 pb-3 shrink-0 bg-white/80 backdrop-blur-md border-b">
@@ -1002,5 +1004,6 @@ export default function HistoryPage() {
 
       <LogDetailSheet log={selectedLog} open={detailOpen} onClose={() => setDetailOpen(false)} />
     </div>
+    </AccessGuard>
   );
 }

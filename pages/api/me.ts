@@ -43,6 +43,26 @@ export default async function handler(
       });
     }
 
+    // ❌ If the user's status is Resigned, force logout
+    if (user.Status === "Resigned") {
+      // Clear the session cookie
+      res.setHeader(
+        "Set-Cookie",
+        serialize("session", "", {
+          httpOnly: true,
+          secure: process.env.NODE_ENV !== "development",
+          sameSite: "strict",
+          expires: new Date(0),
+          path: "/",
+        })
+      );
+
+      return res.status(403).json({
+        forceLogout: true,
+        message: "Your account has been resigned. You have been logged out.",
+      });
+    }
+
     return res.status(200).json({
       userId: user.id.toString(),
     });

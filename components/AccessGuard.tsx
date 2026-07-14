@@ -70,7 +70,7 @@ export function AccessGuard({ accessKey, children, fallback }: AccessGuardProps)
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
             <p className="text-gray-600 mb-4">
               You don't have permission to access this page. 
-              Please contact your administrator if you believe this is an error.
+              Please contact IT Department or PD Manager to grand access to the system.
             </p>
             <div className="space-y-2">
               <Button onClick={() => router.push("/dashboard")} className="w-full">
