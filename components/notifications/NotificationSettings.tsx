@@ -1,12 +1,13 @@
 "use client";
 
-import { Bell, Volume2, Smartphone, Clock, RotateCcw } from "lucide-react";
+import { Bell, Volume2, Smartphone, Clock, RotateCcw, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { useNotificationSettings } from "@/hooks/use-notification-settings";
+import { useNotificationPermissions } from "@/hooks/use-notification-permissions";
 
 export function NotificationSettings({ hideCard = false }: { hideCard?: boolean } = {}) {
   const {
@@ -24,12 +25,32 @@ export function NotificationSettings({ hideCard = false }: { hideCard?: boolean 
     setAutoCloseDuration,
   } = useNotificationSettings();
 
+  const { permission, requestPermission } = useNotificationPermissions();
+
   if (isLoading) {
     return <div>Loading settings...</div>;
   }
 
   const body = (
     <div className="space-y-6">
+        {/* Permission Status */}
+        <div className="flex items-center justify-between p-3 rounded-md bg-muted">
+          <div className="space-y-0.5">
+            <Label className="flex items-center gap-2">
+              {permission === "granted" ? <Bell className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+              Browser Permission: {permission === "granted" ? "Granted" : permission === "denied" ? "Denied" : "Not Set"}
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              {permission === "granted" ? "Notifications are allowed" : "Notifications may not work"}
+            </p>
+          </div>
+          {permission !== "granted" && (
+            <Button size="sm" onClick={requestPermission}>
+              Request Permission
+            </Button>
+          )}
+        </div>
+
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="enabled">Enable Notifications</Label>
@@ -166,7 +187,19 @@ export function NotificationSettings({ hideCard = false }: { hideCard?: boolean 
           </>
         )}
 
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              localStorage.removeItem("notificationPermissionShown");
+              window.location.reload();
+            }}
+            className="gap-2"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Reset Permission Dialog
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -174,7 +207,7 @@ export function NotificationSettings({ hideCard = false }: { hideCard?: boolean 
             className="gap-2"
           >
             <RotateCcw className="h-4 w-4" />
-            Reset to Default
+            Reset Settings
           </Button>
         </div>
       </div>

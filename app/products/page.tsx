@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useUser } from "@/contexts/UserContext";
+import { useNotificationTriggers } from "@/hooks/use-notification-triggers";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useWallpaper } from "@/contexts/WallpaperContext";
 import { AccessGuard } from "@/components/AccessGuard";
@@ -49,8 +50,11 @@ export default function ProductsPage() {
   const { theme } = useTheme();
   const { wallpaper } = useWallpaper();
   const isEngineer = theme === "engineer";
+  const { onProductAdded, onProductUpdated } = useNotificationTriggers();
 
   const [products, setProducts] = useState<any[]>([]);
+  const productsRef = useRef<any[]>([]);
+const initialLoadDoneRef = useRef(false);
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -135,16 +139,53 @@ export default function ProductsPage() {
     if (!userId) { router.push("/login"); return; }
     const q = query(collection(db, "products"), where("isActive", "==", true));
     const unsub = onSnapshot(q, (snap) => {
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
-      // Sort by latest createdAt date, fallback to updatedAt if createdAt doesn't exist
-      const sortedList = list.sort((a: any, b: any) => {
-        const dateA = a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || a.updatedAt?.toMillis?.() || new Date(a.updatedAt).getTime() || 0;
-        const dateB = b.createdAt?.toMillis?.() || new Date(b.createdAt).getTime() || b.updatedAt?.toMillis?.() || new Date(b.updatedAt).getTime() || 0;
-        return dateB - dateA;
+const list = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+const sortedList = list.sort((a: any, b: any) => {
+  const dateA = a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || a.updatedAt?.toMillis?.() || new Date(a.updatedAt).getTime() || 0;
+  const dateB = b.createdAt?.toMillis?.() || new Date(b.createdAt).getTime() || b.updatedAt?.toMillis?.() || new Date(b.updatedAt).getTime() || 0;
+  return dateB - dateA;
+});
+
+if (initialLoadDoneRef.current) {
+  const previousProducts = productsRef.current;
+  const previousIds = new Set(previousProducts.map(p => p.id));
+
+  const addedProducts = sortedList.filter(p => !previousIds.has(p.id));
+  const updatedProducts = sortedList.filter(p => {
+    if (!previousIds.has(p.id)) return false;
+    const previous = previousProducts.find(prev => prev.id === p.id);
+    if (!previous) return false;
+    return JSON.stringify(previous) !== JSON.stringify(p);
+  });
+
+  if (addedProducts.length > 0 && userId) {
+    addedProducts.forEach(product => {
+      onProductAdded({
+        userId,
+        productName: product.productName,
+        productId: product.id,
+        url: "/products",
       });
-      setProducts(sortedList);
-      setFilteredProducts(sortedList);
-      setLoading(false);
+    });
+  }
+
+  if (updatedProducts.length > 0 && userId) {
+    updatedProducts.forEach(product => {
+      onProductUpdated({
+        userId,
+        productName: product.productName,
+        productId: product.id,
+        url: "/products",
+      });
+    });
+  }
+}
+
+setProducts(sortedList);
+setFilteredProducts(sortedList);
+productsRef.current = sortedList;
+initialLoadDoneRef.current = true;
+setLoading(false);
     });
     return () => unsub();
   }, [userId, router]);
@@ -215,9 +256,13 @@ export default function ProductsPage() {
         
         const newProductName = `${baseName} (${nextNumber})`;
         
+        // Generate a unique productReferenceID for the duplicated product
+        const newProductReferenceID = `PROD-SPF-${(allProductsSnap.size + 1).toString().padStart(5, "0")}`;
+        
         const newDocRef = await addDoc(collection(db, "products"), {
           ...productData,
           productName: newProductName,
+          productReferenceID: newProductReferenceID,
           createdAt: new Date(),
           updatedAt: new Date(),
         });
@@ -239,7 +284,7 @@ export default function ProductsPage() {
           await logProductEvent({
             whatHappened: "Product Duplicated",
             productId: newDocRef.id,
-            productReferenceID: productData.productReferenceID,
+            productReferenceID: newProductReferenceID,
             productClass: productData.productClass,
             pricePoint: productData.pricePoint,
             brandOrigin: productData.brandOrigin,
@@ -256,6 +301,7 @@ export default function ProductsPage() {
               originalProductId: duplicateTarget.id,
               originalProductName: originalName,
               newProductName: newProductName,
+              originalProductReferenceID: productData.productReferenceID,
             },
           });
         } catch (auditErr) {

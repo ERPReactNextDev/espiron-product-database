@@ -976,7 +976,7 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
       if (userId) {
         onProductAdded({
           userId,
-          productName: newProductReferenceID,
+          productName: productName,
           productId: productRef.id,
           url: `/products`,
         });

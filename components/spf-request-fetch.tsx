@@ -1619,9 +1619,14 @@ useEffect(() => {
         let nextNumber = 2;
         while (existingNumbers.has(nextNumber)) nextNumber++;
         const newProductName = `${baseName} (${nextNumber})`;
+        
+        // Generate a unique productReferenceID for the duplicated product
+        const newProductReferenceID = `PROD-SPF-${(allProductsSnap.size + 1).toString().padStart(5, "0")}`;
+        
         const newDocRef = await addDoc(collection(db, "products"), {
           ...productData,
           productName: newProductName,
+          productReferenceID: newProductReferenceID,
           createdAt: new Date(),
           updatedAt: new Date(),
         });
@@ -1639,7 +1644,7 @@ useEffect(() => {
           await logProductEvent({
             whatHappened: "Product Duplicated",
             productId: newDocRef.id,
-            productReferenceID: productData.productReferenceID,
+            productReferenceID: newProductReferenceID,
             productClass: productData.productClass,
             pricePoint: productData.pricePoint,
             brandOrigin: productData.brandOrigin,
@@ -1656,6 +1661,7 @@ useEffect(() => {
               originalProductId: duplicateTarget.id,
               originalProductName: originalName,
               newProductName,
+              originalProductReferenceID: productData.productReferenceID,
             },
           });
         } catch (auditErr) {

@@ -1049,7 +1049,7 @@ const handleSaveProduct = async () => {
       if (userId) {
         onProductUpdated({
           userId,
-          productName: productReferenceID || "Unknown Product",
+          productName: productName,
           productId: productId!,
           url: "/products",
         });

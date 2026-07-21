@@ -892,7 +892,7 @@ export default function AddProductPage() {
       if (userId) {
         onProductAdded({
           userId,
-          productName: newProductReferenceID,
+          productName: productName,
           productId: productRef.id,
           url: "/products",
         });

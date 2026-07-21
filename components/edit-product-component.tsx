@@ -1171,7 +1171,7 @@ export default function EditProductComponent({ productId, onClose }: EditProduct
       if (userId) {
         onProductUpdated({
           userId,
-          productName: productReferenceID || "Product",
+          productName: productName,
           productId: productId,
           url: `/products`,
         });

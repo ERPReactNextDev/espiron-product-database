@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/contexts/UserContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -21,6 +21,7 @@ import { Pencil, Trash2, Filter, Upload, Search, Plus, ChevronLeft, ChevronRight
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { getCountryCallingCode, CountryCode } from "libphonenumber-js";
 import { db } from "@/lib/firebase";
+import { useNotificationTriggers } from "@/hooks/use-notification-triggers";
 
 type Supplier = {
   id: string;
@@ -101,6 +102,7 @@ export default function Suppliers() {
   const { theme } = useTheme();
   const { wallpaper } = useWallpaper();
   const isEngineer = theme === "engineer";
+  const { onSupplierAdded, onSupplierUpdated } = useNotificationTriggers();
 
   const [loading, setLoading] = useState(true);
   const [addSupplierOpen, setAddSupplierOpen] = useState(false);
@@ -119,6 +121,8 @@ export default function Suppliers() {
   const [supplierProductsTarget, setSupplierProductsTarget] = useState<{
     supplierId: string; company: string; supplierBrand: string;
   } | null>(null);
+  const suppliersRef = useRef<Supplier[]>([]);
+  const initialLoadDoneRef = useRef(false);
 
   const DESKTOP_ITEMS_PER_PAGE = 10;
   const MOBILE_ITEMS_PER_PAGE = 5;
@@ -140,12 +144,60 @@ export default function Suppliers() {
           id: doc.id, ...data,
           website: Array.isArray(data.website) ? data.website : data.website ? [data.website] : [],
         };
-      });
-      setSuppliers(list as Supplier[]);
+      }) as Supplier[];
+      
+      // Only trigger notifications after initial load
+      if (initialLoadDoneRef.current) {
+        // Detect changes for notifications
+        const previousSuppliers = suppliersRef.current;
+        const previousIds = new Set(previousSuppliers.map(s => s.id));
+        const newIds = new Set(list.map(s => s.id));
+        
+        // Detect new suppliers
+        const addedSuppliers = list.filter(s => !previousIds.has(s.id));
+        // Detect updated suppliers (existing but changed)
+        const updatedSuppliers = list.filter(s => {
+          if (!previousIds.has(s.id)) return false;
+          const previous = previousSuppliers.find(prev => prev.id === s.id);
+          if (!previous) return false;
+          return JSON.stringify(previous) !== JSON.stringify(s);
+        });
+        
+        // Trigger notifications
+        if (addedSuppliers.length > 0) {
+          addedSuppliers.forEach(supplier => {
+            if (userId) {
+              onSupplierAdded({
+                userId,
+                supplierName: supplier.company,
+                supplierId: supplier.id,
+                url: "/suppliers",
+              });
+            }
+          });
+        }
+        
+        if (updatedSuppliers.length > 0) {
+          updatedSuppliers.forEach(supplier => {
+            if (userId) {
+              onSupplierUpdated({
+                userId,
+                supplierName: supplier.company,
+                supplierId: supplier.id,
+                url: "/suppliers",
+              });
+            }
+          });
+        }
+      }
+      
+      setSuppliers(list);
+      suppliersRef.current = list;
+      initialLoadDoneRef.current = true;
       setLoading(false);
     });
     return () => unsub();
-  }, [userId]);
+  }, [userId, onSupplierAdded, onSupplierUpdated]);
 
   useEffect(() => { setCurrentPage(1); }, [search, filters]);
 

@@ -156,18 +156,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const playNotificationSound = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (stopTimerRef.current) {
-      window.clearTimeout(stopTimerRef.current);
-    }
-    audio.currentTime = 0;
-    void audio.play().catch(() => {});
-    stopTimerRef.current = window.setTimeout(() => {
-      audio.pause();
-      audio.currentTime = 0;
-      stopTimerRef.current = null;
-    }, 5000);
+    // Sound disabled by default globally
+    return;
   }, []);
 
   useEffect(() => {
@@ -477,16 +467,10 @@ currentSignatureMap.set(
         "postgres_changes",
         { event: "*", schema: "public", table: "spf_request" },
         async (payload: any) => {
-          // Only notify if the record has a status that appears in the UI
-          if (payload.new && typeof payload.new === 'object' && 'status' in payload.new && payload.new.status) {
-            const normalizedStatus = String(payload.new.status).trim().toLowerCase();
-            if (ALLOWED_REQUEST_STATUSES.has(normalizedStatus)) {
-              void syncUnreadState();
-              playNotificationSound();
-            } else {
-              // Sync state but don't play sound or trigger loading for records that won't appear in UI
-              void syncUnreadState();
-            }
+          // Play sound for any INSERT or UPDATE event regardless of status
+          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+            void syncUnreadState();
+            playNotificationSound();
           } else {
             // For deletions or other events, just sync without notification
             void syncUnreadState();
@@ -497,16 +481,10 @@ currentSignatureMap.set(
         "postgres_changes",
         { event: "*", schema: "public", table: "spf_creation" },
         async (payload: any) => {
-          // Only notify if the record has a status that appears in the UI
-          if (payload.new && typeof payload.new === 'object' && 'status' in payload.new && payload.new.status) {
-            const normalizedStatus = String(payload.new.status).trim().toLowerCase();
-            if (CREATION_NOTIFICATION_STATUSES.has(normalizedStatus)) {
-              void syncUnreadState();
-              playNotificationSound();
-            } else {
-              // Sync state but don't play sound or trigger loading for records that won't appear in UI
-              void syncUnreadState();
-            }
+          // Play sound for any INSERT or UPDATE event regardless of status
+          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+            void syncUnreadState();
+            playNotificationSound();
           } else {
             // For deletions or other events, just sync without notification
             void syncUnreadState();

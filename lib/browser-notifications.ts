@@ -47,7 +47,7 @@ export function showBrowserNotification(payload: NotificationPayload): Notificat
     setTimeout(() => {
       console.log("⏰ Auto-closing notification after 10 seconds");
       notification.close();
-    }, 10000); // Increased from 5 to 10 seconds
+    }, 10000);
   }
 
   notification.onclick = (event: Event) => {
@@ -79,15 +79,8 @@ export function vibrateDevice(pattern: number | number[] = 200): void {
 }
 
 export function playNotificationSound(soundUrl: string = "/musics/notif-sound.mp3"): void {
-  try {
-    const audio = new Audio(soundUrl);
-    audio.volume = 0.5;
-    audio.play().catch((error) => {
-      console.error("Failed to play notification sound:", error);
-    });
-  } catch (error) {
-    console.error("Failed to play notification sound:", error);
-  }
+  // Sound disabled by default globally
+  return;
 }
 
 export function closeNotificationsByTag(tag: string): void {
