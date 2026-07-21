@@ -106,6 +106,19 @@ function StatusBadge({ status, isCancelled, latestRevisionResult }: { status: st
 }
 
 /* ─────────────────────────────────────────────────────────────── */
+/* SOUND PLAYER                                                   */
+/* ─────────────────────────────────────────────────────────────── */
+const playNotificationSound = () => {
+  try {
+    const audio = new Audio("/musics/notif-sound.mp3");
+    audio.volume = 0.5;
+    audio.play().catch((err) => console.log("Sound play failed:", err));
+  } catch (err) {
+    console.log("Sound error:", err);
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────── */
 /* HOOK: useIsMobile                                               */
 /* ─────────────────────────────────────────────────────────────── */
 function useIsMobile(breakpoint = 768) {
@@ -362,11 +375,13 @@ const [isRefreshing, setIsRefreshing] = useState(false);
 
           // INSERT: add new row that qualifies
           if (payload.eventType === "INSERT") {
+            playNotificationSound();
             return exists ? prev : [mappedRow, ...prev];
           }
 
           // UPDATE: only update if row exists, don't add as new
           if (payload.eventType === "UPDATE") {
+            playNotificationSound();
             if (!exists) return prev;
             return prev.map((r) => (r.id === mappedRow.id ? { ...r, ...mappedRow } : r));
           }
@@ -399,6 +414,11 @@ const [isRefreshing, setIsRefreshing] = useState(false);
         const spfNumber = typeof newRow.spf_number === "string" ? newRow.spf_number : "";
         if (!spfNumber) return;
 
+        // Play sound on INSERT or UPDATE
+        if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+          playNotificationSound();
+        }
+
         setCreatedSPF((prev) => ({
           ...prev,
           [spfNumber]: typeof newRow.status === "string" ? newRow.status : "unknown",
@@ -413,6 +433,11 @@ const [isRefreshing, setIsRefreshing] = useState(false);
         const spfNumber = payload.new?.spf_number || payload.old?.spf_number;
         if (typeof spfNumber === "string" && spfNumber) {
           console.log("Revision history changed for SPF:", spfNumber, "Event:", payload.eventType);
+          
+          // Play sound on INSERT or UPDATE
+          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+            playNotificationSound();
+          }
           
           // Refetch latest revisions for all visible requests
           const fetchLatestRevisions = async () => {
