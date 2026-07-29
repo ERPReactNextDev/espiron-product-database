@@ -4417,20 +4417,37 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
         <Button
           variant="outline"
           className="rounded-none px-4 py-2 h-9 shrink-0"
-          onClick={() => {
+          onClick={async () => {
             // Check if this is a revise action from Special Instructions
             const currentBtn = document.activeElement as HTMLElement;
             const isReviseFromSpecial = currentBtn?.dataset?.reviseFromSpecial === "true";
             if (isReviseFromSpecial) {
               setReviseFromSpecial(true);
             }
-            // If status is "Processing by PD", open revision comparison dialog
-            if (data?.status === "Processing by PD") {
-              setRevisionComparisonOpen(true);
-            } else {
-              onOpen?.();
-              setOpen(true);
+
+            // Only open the revision comparison dialog when there is an actual
+            // ongoing revision record. Previously this relied on `data.status`
+            // which could be "Processing by PD" even when no revision exists,
+            // causing the comparison dialog to show unexpectedly.
+            try {
+              const { data: rev } = await supabase
+                .from("spf_request_revision")
+                .select("id")
+                .eq("spf_number", spfNumber)
+                .eq("spf_revision_approval_sales_status", "Ongoing")
+                .maybeSingle();
+
+              if (rev) {
+                setRevisionComparisonOpen(true);
+                return;
+              }
+            } catch (err) {
+              console.error("Failed to check revision record:", err);
             }
+
+            // Fallback: open the normal SPF view dialog
+            onOpen?.();
+            setOpen(true);
           }}
           data-spf-fetch={triggerDataAttr}
         >
