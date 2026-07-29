@@ -182,6 +182,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
     customerName: string;
     spfNumber: string;
     status?: string;
+    rowData?: SPFRequest;
   }>({
     open: false,
     instructions: "",
@@ -897,7 +898,9 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                               open: true,
                               instructions: req.special_instructions,
                               customerName: req.customer_name,
-                              spfNumber: req.spf_number
+                              spfNumber: req.spf_number,
+                              status: req.status,
+                              rowData: req
                             });
                           }
                         }}>
@@ -916,7 +919,8 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                                     instructions: req.special_instructions || "",
                                     customerName: req.customer_name,
                                     spfNumber: req.spf_number,
-                                    status: req.status
+                                    status: req.status,
+                                    rowData: req
                                   });
                                 }}
                               >
@@ -932,7 +936,8 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                                   spfNumber: req.spf_number,
                                   customerName: req.customer_name,
                                   instructions: req.special_instructions || "",
-                                  status: req.status
+                                  status: req.status,
+                                  rowData: req
                                 });
                               }}></div>
                           </div>
@@ -966,7 +971,16 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                           status={spfStatus}
                         />
                         {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && spfStatus?.toLowerCase() !== "for revision by pd" && (
-                          <Button className="rounded-none h-9 px-4 shrink-0" variant="outline" onClick={() => handleCreateFromRow(req)} disabled={req.is_cancelled}>
+                          <Button className="rounded-none h-9 px-4 shrink-0" variant="outline" onClick={() => {
+                            setSpecialInstructionsDialog({
+                              open: true,
+                              instructions: req.special_instructions || "",
+                              customerName: req.customer_name,
+                              spfNumber: req.spf_number,
+                              status: req.status,
+                              rowData: req
+                            });
+                          }} disabled={req.is_cancelled}>
                             Create
                           </Button>
                         )}
@@ -1039,7 +1053,21 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                   <span className="text-[10px] text-muted-foreground">{formattedDate}</span>
                 </div>
                 <p className="text-sm font-medium text-gray-800 uppercase">{req.customer_name}</p>
-                <div className="flex items-start gap-2">
+                <div
+                  className="flex items-start gap-2 cursor-pointer"
+                  onClick={() => {
+                    if (req.special_instructions && req.special_instructions.length > 30) {
+                      setSpecialInstructionsDialog({
+                        open: true,
+                        instructions: req.special_instructions,
+                        customerName: req.customer_name,
+                        spfNumber: req.spf_number,
+                        status: req.status,
+                        rowData: req
+                      });
+                    }
+                  }}
+                >
                   {/* Person icon */}
                   <div className="shrink-0 w-7 h-7 rounded-full bg-linear-to-br from-indigo-400 to-purple-500 flex items-center justify-center shadow-md">
                     <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1159,10 +1187,10 @@ const [isRefreshing, setIsRefreshing] = useState(false);
         customerName={specialInstructionsDialog.customerName}
         spfNumber={specialInstructionsDialog.spfNumber}
         status={createdSPF[specialInstructionsDialog.spfNumber]}
+        rowData={specialInstructionsDialog.rowData}
         onCreate={() => {
-          const request = paginatedRequests.find(r => r.spf_number === specialInstructionsDialog.spfNumber);
-          if (request) {
-            handleCreateFromRow(request);
+          if (specialInstructionsDialog.rowData) {
+            handleCreateFromRow(specialInstructionsDialog.rowData);
             setSpecialInstructionsDialog(prev => ({ ...prev, open: false }));
           }
         }}
