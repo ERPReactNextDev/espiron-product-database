@@ -74,6 +74,19 @@ export type SPFRequest = {
   item_photo?: string[];
   item_code?: string;
   item_qty?: string;
+  project_name?: string;
+  project_location?: string;
+  project_status?: string;
+  delivery_lead_time_requirement?: string;
+  available_project_plans?: string;
+  bill_of_quantity?: string;
+  consultant?: string;
+  other_bidders?: string;
+  owner?: string;
+  buyer?: string;
+  scope?: string;
+  other_client_instruction?: string;
+  win_rate_probability_percentage?: string;
   status?: string;
   date_created?: string;
   date_updated?: string;
@@ -110,6 +123,43 @@ function hasMultipleSpecValues(product: any): boolean {
       return values.length > 1;
     }),
   );
+}
+
+/* ─────────────────────────────────────────────────────────────── */
+/* NAME CACHE FOR AUDIT TRAIL RESOLUTION                           */
+/* ─────────────────────────────────────────────────────────────── */
+const nameCache = new Map<string, string>();
+
+async function resolveNames(referenceIDs: string[]): Promise<void> {
+  const unresolved = referenceIDs.filter((id) => id && !nameCache.has(id));
+  if (!unresolved.length) return;
+  await Promise.allSettled(
+    unresolved.map(async (refId) => {
+      try {
+        const response = await fetch(
+          `/api/users?referenceID=${encodeURIComponent(refId)}`,
+        );
+        if (response.ok) {
+          const user = await response.json();
+          nameCache.set(
+            refId,
+            user?.Firstname
+              ? `${user.Firstname} ${user.Lastname ?? ""}`.trim()
+              : refId,
+          );
+        } else {
+          nameCache.set(refId, refId);
+        }
+      } catch {
+        nameCache.set(refId, refId);
+      }
+    }),
+  );
+}
+
+function getResolvedName(referenceID: string | undefined): string {
+  if (!referenceID) return "";
+  return nameCache.get(referenceID) ?? referenceID;
 }
 
 /* ─────────────────────────────────────────────────────────────── */
@@ -229,6 +279,19 @@ export default function SPFRequestCreate({
     payment_terms: "",
     warranty: "",
     delivery_date: "",
+    project_name: "",
+    project_location: "",
+    project_status: "",
+    delivery_lead_time_requirement: "",
+    available_project_plans: "",
+    bill_of_quantity: "",
+    consultant: "",
+    other_bidders: "",
+    owner: "",
+    buyer: "",
+    scope: "",
+    other_client_instruction: "",
+    win_rate_probability_percentage: "",
     prepared_by: "",
     approved_by: "",
     sales_person: "",
@@ -1050,8 +1113,6 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                 { label: "Delivery Date", value: formData.delivery_date },
                 { label: "Prepared By", value: formData.prepared_by },
                 { label: "Approved By", value: formData.approved_by },
-                { label: "Process By", value: formData.process_by },
-                { label: "Manager", value: formData.manager },
               ]}
             />
           </div>
@@ -1698,13 +1759,24 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
               title="SPF Details"
               fields={[
                 { label: "Item Qty", value: formData.item_qty },
+                { label: "Project Name", value: formData.project_name },
+                { label: "Project Location", value: formData.project_location },
+                { label: "Project Status", value: formData.project_status },
+                { label: "Delivery Lead Time Requirement", value: formData.delivery_lead_time_requirement },
+                { label: "Available Project Plans", value: formData.available_project_plans },
+                { label: "Bill of Quantity (BOQ)", value: formData.bill_of_quantity },
+                { label: "Consultant", value: formData.consultant },
+                { label: "Other Bidders", value: formData.other_bidders },
+                { label: "Owner", value: formData.owner },
+                { label: "Buyer", value: formData.buyer },
+                { label: "Scope", value: formData.scope },
+                { label: "Other Client Instruction", value: formData.other_client_instruction },
+                { label: "Win Rate Probability Percentage", value: formData.win_rate_probability_percentage },
                 { label: "Payment Terms", value: formData.payment_terms },
                 { label: "Warranty", value: formData.warranty },
                 { label: "Delivery Date", value: formData.delivery_date },
                 { label: "Prepared By", value: formData.prepared_by },
                 { label: "Approved By", value: formData.approved_by },
-                { label: "Process By", value: formData.process_by },
-                { label: "Manager", value: formData.manager },
               ]}
             />
           </div>

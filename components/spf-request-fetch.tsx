@@ -1,3 +1,4 @@
+//new spf-request-fetch.tsx
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
@@ -119,6 +120,37 @@ type SPFRequestData = {
   item_photo: string;
   item_code?: string;
   item_qty?: string;
+  customer_name?: string;
+  contact_person?: string;
+  contact_number?: string;
+  registered_address?: string;
+  delivery_address?: string;
+  billing_address?: string;
+  collection_address?: string;
+  payment_terms?: string;
+  warranty?: string;
+  delivery_date?: string;
+  prepared_by?: string;
+  approved_by?: string;
+  sales_person?: string;
+  start_date?: string;
+  end_date?: string;
+  special_instructions?: string;
+  project_name?: string;
+  project_location?: string;
+  project_status?: string;
+  delivery_lead_time_requirement?: string;
+  available_project_plans?: string;
+  bill_of_quantity?: string;
+  consultant?: string;
+  other_bidders?: string;
+  owner?: string;
+  buyer?: string;
+  scope?: string;
+  other_client_instruction?: string;
+  win_rate_probability_percentage?: string;
+  tin_no?: string;
+  manager?: string;
 };
 
 const ROW_SEP = "|ROW|";
@@ -921,11 +953,16 @@ useEffect(() => {
 
       const { data: request } = await supabase
         .from("spf_request")
-        .select("item_description,item_photo,item_code")
+        .select("item_description,item_photo,item_code,customer_name,contact_person,contact_number,registered_address,delivery_address,billing_address,collection_address,payment_terms,warranty,delivery_date,prepared_by,approved_by,sales_person,start_date,end_date,special_instructions,project_name,project_location,project_status,delivery_lead_time_requirement,available_project_plans,bill_of_quantity,consultant,other_bidders,owner,buyer,scope,other_client_instruction,win_rate_probability_percentage,tin_no,manager")
         .eq("spf_number", spfNumber)
         .maybeSingle();
 
       setRequestData(request);
+
+      // Resolve manager name
+      if (request?.manager) {
+        await resolveNames([request.manager]);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -2034,12 +2071,34 @@ useEffect(() => {
         {activeTab === "details" && (
           <div className="p-4 space-y-4">
             <CardDetails
+              title="Company Details"
+              fields={[
+                { label: "Customer Name", value: requestData?.customer_name },
+                { label: "Contact Person", value: requestData?.contact_person },
+                { label: "Contact Number", value: requestData?.contact_number },
+                {
+                  label: "Registered Address",
+                  value: requestData?.registered_address,
+                  pre: true,
+                },
+                { label: "Delivery Address", value: requestData?.delivery_address },
+                { label: "Billing Address", value: requestData?.billing_address },
+                {
+                  label: "Collection Address",
+                  value: requestData?.collection_address,
+                },
+                { label: "TIN", value: requestData?.tin_no },
+              ]}
+            />
+            <CardDetails
               title="SPF Details"
               fields={[
-                { label: "SPF Number", value: spfNumber },
-                { label: "Status", value: getStatusLabel(data?.status) },
-                { label: "Manager", value: data?.manager },
-                { label: "Process By", value: processBy },
+                { label: "Item Qty", value: requestData?.item_qty },
+                { label: "Payment Terms", value: requestData?.payment_terms },
+                { label: "Warranty", value: requestData?.warranty },
+                { label: "Delivery Date", value: requestData?.delivery_date },
+                { label: "Prepared By", value: requestData?.prepared_by },
+                { label: "Approved By", value: requestData?.approved_by },
               ]}
             />
           </div>
@@ -2862,6 +2921,52 @@ useEffect(() => {
         <Card
           className={`${viewMode ? "w-full" : "w-[70%]"} transition-all duration-500 ease-in-out p-4 flex flex-col gap-4 overflow-y-auto overscroll-contain`}
         >
+          <div className="grid grid-cols-1 gap-4">
+            <CardDetails
+              title="Company Details"
+              fields={[
+                { label: "Customer Name", value: requestData?.customer_name },
+                { label: "Contact Person", value: requestData?.contact_person },
+                { label: "Contact Number", value: requestData?.contact_number },
+                {
+                  label: "Registered Address",
+                  value: requestData?.registered_address,
+                  pre: true,
+                },
+                { label: "Delivery Address", value: requestData?.delivery_address },
+                { label: "Billing Address", value: requestData?.billing_address },
+                {
+                  label: "Collection Address",
+                  value: requestData?.collection_address,
+                },
+                { label: "TIN", value: requestData?.tin_no },
+              ]}
+            />
+            <CardDetails
+              title="SPF Details"
+              fields={[
+                { label: "Item Qty", value: requestData?.item_qty },
+                { label: "Project Name", value: requestData?.project_name },
+                { label: "Project Location", value: requestData?.project_location },
+                { label: "Project Status", value: requestData?.project_status },
+                { label: "Delivery Lead Time Requirement", value: requestData?.delivery_lead_time_requirement },
+                { label: "Available Project Plans", value: requestData?.available_project_plans },
+                { label: "Bill of Quantity (BOQ)", value: requestData?.bill_of_quantity },
+                { label: "Consultant", value: requestData?.consultant },
+                { label: "Other Bidders", value: requestData?.other_bidders },
+                { label: "Owner", value: requestData?.owner },
+                { label: "Buyer", value: requestData?.buyer },
+                { label: "Scope", value: requestData?.scope },
+                { label: "Other Client Instruction", value: requestData?.other_client_instruction },
+                { label: "Win Rate Probability Percentage", value: requestData?.win_rate_probability_percentage },
+                { label: "Payment Terms", value: requestData?.payment_terms },
+                { label: "Warranty", value: requestData?.warranty },
+                { label: "Delivery Date", value: requestData?.delivery_date },
+                { label: "Prepared By", value: requestData?.prepared_by },
+                { label: "Approved By", value: requestData?.approved_by },
+              ]}
+            />
+          </div>
           <div className="mb-3 border-b pb-2">
             <h3 className="text-sm font-bold">{spfNumber}</h3>
           </div>
@@ -3944,384 +4049,300 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
   );
 
   /* ════════════════════════════════════════════════════════════ */
-  /* VIEW MODE — DESKTOP TABLE                                   */
+  /* VIEW MODE — DESKTOP CARDS                                      */
   /* ════════════════════════════════════════════════════════════ */
-  const renderViewDesktop = () => 
-    (
-    <Card className="p-4 overflow-x-auto">
-      <table className="w-full table-auto border text-sm">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border px-3 py-2 text-center whitespace-nowrap">
-              #
-            </th>
-            <th className="border px-3 py-2 text-center whitespace-nowrap w-40">
-              Image
-            </th>
-            <th className="border px-3 py-2 text-center whitespace-nowrap w-28">
-              Item Qty
-            </th>
-            <th className="border px-3 py-2 text-center whitespace-nowrap">
-              Item Description
-            </th>
-            <th className="border px-3 py-2 text-center">Product Offer</th>
-          </tr>
-        </thead>
-        <tbody>
-          {itemDescriptions.map((desc, rowIndex) => {
-            const prodImages = rowImages[rowIndex] ?? [];
-            const prodQtys = rowQtys[rowIndex] ?? [];
-            const prodUnitCosts = rowUnitCosts[rowIndex] ?? [];
-            const prodPcsPerCartons = rowPcsPerCartons[rowIndex] ?? [];
-            const prodPackaging = rowPackaging[rowIndex] ?? [];
-            const prodWarranties = rowWarranties[rowIndex] ?? [];
-            const prodFactories = rowFactories[rowIndex] ?? [];
-            const prodPorts = rowPorts[rowIndex] ?? [];
-            const prodSubtotals = rowSubtotals[rowIndex] ?? [];
-            const prodBrands = rowSupplierBrands[rowIndex] ?? [];
-            const prodBranches = rowBranches[rowIndex] ?? [];
-            const prodSpecs = rowSpecs[rowIndex] ?? [];
-            const prodCompanyNames = rowCompanyNames[rowIndex] ?? [];
-            const prodContactNames = rowContactNames[rowIndex] ?? [];
-            const prodContactNumbers = rowContactNumbers[rowIndex] ?? [];
-            const prodLeadTimes = rowLeadTimes[rowIndex] ?? [];
-            const prodSellingCosts = rowSellingCosts[rowIndex] ?? [];
-            const prodFinalUnitCosts = rowFinalUnitCosts[rowIndex] ?? [];
-            const prodFinalSubtotals = rowFinalSubtotals[rowIndex] ?? [];
-            const prodItemCodes = rowItemCodes[rowIndex] ?? [];
-            const prodSpfRemarksPD = rowSpfRemarksPD[rowIndex] ?? [];
-            const prodSpfRemarksProcurement = rowSpfRemarksProcurement[rowIndex] ?? [];
-            const prodProductNames = rowProductNames[rowIndex] ?? [];
+  const renderViewDesktop = () => (
+    <div className="space-y-6">
+      {itemDescriptions.map((desc, rowIndex) => {
+        const prodImages = rowImages[rowIndex] ?? [];
+        const prodQtys = rowQtys[rowIndex] ?? [];
+        const prodUnitCosts = rowUnitCosts[rowIndex] ?? [];
+        const prodPcsPerCartons = rowPcsPerCartons[rowIndex] ?? [];
+        const prodPackaging = rowPackaging[rowIndex] ?? [];
+        const prodWarranties = rowWarranties[rowIndex] ?? [];
+        const prodFactories = rowFactories[rowIndex] ?? [];
+        const prodPorts = rowPorts[rowIndex] ?? [];
+        const prodSubtotals = rowSubtotals[rowIndex] ?? [];
+        const prodBrands = rowSupplierBrands[rowIndex] ?? [];
+        const prodBranches = rowBranches[rowIndex] ?? [];
+        const prodSpecs = rowSpecs[rowIndex] ?? [];
+        const prodCompanyNames = rowCompanyNames[rowIndex] ?? [];
+        const prodContactNames = rowContactNames[rowIndex] ?? [];
+        const prodContactNumbers = rowContactNumbers[rowIndex] ?? [];
+        const prodLeadTimes = rowLeadTimes[rowIndex] ?? [];
+        const prodSellingCosts = rowSellingCosts[rowIndex] ?? [];
+        const prodFinalUnitCosts = rowFinalUnitCosts[rowIndex] ?? [];
+        const prodFinalSubtotals = rowFinalSubtotals[rowIndex] ?? [];
+        const prodItemCodes = rowItemCodes[rowIndex] ?? [];
+        const prodSpfRemarksPD = rowSpfRemarksPD[rowIndex] ?? [];
+        const prodSpfRemarksProcurement = rowSpfRemarksProcurement[rowIndex] ?? [];
+        const prodProductNames = rowProductNames[rowIndex] ?? [];
 
-            const hasProducts =
-              prodImages.length > 0 &&
-              !(prodImages.length === 1 && prodImages[0] === "");
+        const hasProducts =
+          prodImages.length > 0 &&
+          !(prodImages.length === 1 && prodImages[0] === "");
 
-            return (
-              <tr key={rowIndex} className="align-top">
-                <td className="border px-3 py-2 text-center align-top pt-3 whitespace-nowrap font-medium">
-                  {spfNumber}-{String(rowIndex + 1).padStart(3, "0")}
-                </td>
-                <td className="border px-3 py-2 text-center align-top pt-3">
-                  {itemImages[rowIndex] ? (
-                    <img
-                      src={itemImages[rowIndex]}
-                      className="w-36 h-36 object-contain mx-auto cursor-pointer hover:opacity-80 transition-opacity"
-                      alt=""
-                      onClick={() => openImagePreview(itemImages[rowIndex])}
-                    />
-                  ) : (
-                    <span className="text-muted-foreground text-xs">-</span>
-                  )}
-                </td>
-                <td className="border px-3 py-2 text-center align-top pt-3 text-sm">
-                  {(() => {
-                    const qtys = (requestData?.item_qty || "").split(",").map((q: string) => q.trim());
-                    return qtys[rowIndex] || "-";
-                  })()}
-                </td>
-                <td className="border px-3 py-2 whitespace-pre-wrap align-top pt-3 text-sm leading-relaxed">
-                  {desc.replace(/\|/g, "\n")}
-                </td>
-                <td className="border px-2 py-2 align-top">
-                  {!hasProducts ? (
-                    <span className="text-xs text-muted-foreground">
-                      No products added
-                    </span>
-                  ) : (
-                    <div className="space-y-3">
-                      {prodImages.map((img: string, i: number) => {
-                        const groups = prodSpecs[i] ?? [];
-                        const optItemCode =
-                          prodItemCodes[i] && prodItemCodes[i] !== "-"
-                            ? prodItemCodes[i]
-                            : null;
-                        return (
-                          <div key={i}>
-                            <div className="mb-1 flex flex-wrap items-center gap-2">
-                              <span className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                                Option {i + 1}
-                                {prodBrands[i] && ` · ${prodBrands[i]}`}
+        const itemQty = (() => {
+          const qtys = (requestData?.item_qty || "").split(",").map((q: string) => q.trim());
+          return qtys[rowIndex] || "-";
+        })();
+
+        return (
+          <div key={rowIndex} className="flex gap-6">
+            {/* Left Column - Item Details */}
+            <div className="w-80 shrink-0">
+              <Card className="p-4 h-full border-2 border-dashed bg-gray-50 border-gray-300">
+                <div className="text-center mb-4">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    ITEM {rowIndex + 1}
+                  </span>
+                </div>
+                
+                {itemImages[rowIndex] ? (
+                  <img
+                    src={itemImages[rowIndex]}
+                    className="w-full h-48 object-contain rounded-lg bg-white cursor-pointer hover:opacity-80 transition-opacity mb-4"
+                    alt=""
+                    onClick={() => openImagePreview(itemImages[rowIndex])}
+                  />
+                ) : (
+                  <div className="w-full h-48 bg-white rounded-lg flex items-center justify-center mb-4">
+                    <span className="text-xs text-gray-400">No Image</span>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase">Item ID</label>
+                    <p className="text-sm font-mono font-medium text-gray-800">
+                      {spfNumber}-{String(rowIndex + 1).padStart(3, "0")}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase">Item Qty</label>
+                    <p className="text-sm font-medium text-gray-800">{itemQty}</p>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase">Description</label>
+                    <p className="text-sm text-gray-700 leading-relaxed line-clamp-4">
+                      {desc.replace(/\|/g, " · ")}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* Right Column - Product Offer Cards */}
+            <div className="flex-1">
+              {!hasProducts ? (
+                <Card className="p-8 border-2 border-dashed border-gray-300 bg-gray-50 h-full flex items-center justify-center">
+                  <p className="text-sm text-muted-foreground">No products added</p>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {prodImages.map((img: string, i: number) => {
+                    const groups = prodSpecs[i] ?? [];
+                    const optItemCode = prodItemCodes[i] && prodItemCodes[i] !== "-" ? prodItemCodes[i] : null;
+                    const commercialTypeRaw = (rowCommercialTypes[rowIndex] ?? [])[i];
+                    const productName = prodProductNames[i];
+                    const { qtyCtn, commercialType, packaging } = formatCommercialDetailsForView(
+                      commercialTypeRaw,
+                      prodPackaging[i],
+                      prodPcsPerCartons[i],
+                      productName,
+                    );
+
+                    return (
+                      <Card 
+                        key={i} 
+                        className="overflow-hidden hover:shadow-lg transition-shadow relative"
+                      >
+                        {/* Card Header */}
+                        <div className="bg-gradient-to-r from-orange-50 to-orange-100 px-4 py-3 border-b">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-orange-700 uppercase tracking-wider">
+                              superONE Offer #{i + 1}
+                            </span>
+                            {optItemCode && (
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white text-orange-700 border border-orange-200">
+                                {optItemCode}
                               </span>
-                              {optItemCode && (
-                                <span className="inline-flex items-center text-[11px] font-mono px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
-                                  {optItemCode}
-                                </span>
-                              )}
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Card Body */}
+                        <div className="p-4 space-y-4">
+                          {/* Product Image */}
+                          {img && img !== "-" ? (
+                            <img
+                              src={img}
+                              className="w-full h-32 object-contain rounded bg-gray-50 cursor-pointer hover:opacity-80 transition-opacity"
+                              alt=""
+                              onClick={() => openImagePreview(img)}
+                            />
+                          ) : (
+                            <div className="w-full h-32 bg-gray-50 rounded flex items-center justify-center">
+                              <span className="text-xs text-gray-400">No Image</span>
                             </div>
-                            <div className="border rounded overflow-hidden">
-                              <table className="w-full border text-xs">
-                                <thead>
-                                  <tr>
-                                    <th colSpan={isApproved ? (showProcurementRemarks ? 25 : 24) : (showProcurementRemarks ? 18 : 17)} className="border px-2 py-1 text-center text-xs font-bold bg-orange-100 text-orange-700">
-                                      Product Offer
-                                    </th>
-                                  </tr>
-                                  <tr className="bg-gray-50">
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                      Supplier Brand
-                                    </th>
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                      Product Name
-                                    </th>
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                      Branch
-                                    </th>
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap w-28">
-                                      Image
-                                    </th>
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                      Qty
-                                    </th>
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                      Price Validity
-                                    </th>
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                      TDS
-                                    </th>
-                                    <th className="border px-2 py-1 text-center min-w-50">
-                                      Technical Specs
-                                    </th>
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                      Unit Cost
-                                    </th>
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                      Qty/Per Carton
-                                    </th>
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                      Commercial Type
-                                    </th>
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                      Packaging
-                                    </th>
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                      Warranty
-                                    </th>
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                      Factory
-                                    </th>
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                      Port
-                                    </th>
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                      Subtotal
-                                    </th>
-                                    {isApproved && (
-                                      <>
-                                        <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                          Company
-                                        </th>
-                                        <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                          Contact Name
-                                        </th>
-                                        <th className="border px-2 py-1 text-center whitespace-nowrap">
-                                          Contact No.
-                                        </th>
-                                        <th className="border px-2 py-1 text-center whitespace-nowrap bg-green-50 text-green-700">
-                                          Lead Time
-                                        </th>
-                                        <th className="border px-2 py-1 text-center whitespace-nowrap bg-green-50 text-green-700">
-                                          Selling Cost
-                                        </th>
-                                        <th className="border px-2 py-1 text-center whitespace-nowrap bg-green-50 text-green-700">
-                                          Final Unit Cost
-                                        </th>
-                                        <th className="border px-2 py-1 text-center whitespace-nowrap bg-green-50 text-green-700">
-                                          Final Subtotal
-                                        </th>
-                                      </>
-                                    )}
-                                    {showProcurementRemarks && (
-                                      <th className="border px-2 py-1 text-center whitespace-nowrap bg-blue-50 text-blue-700">
-                                        Procurement Remarks
-                                      </th>
-                                    )}
-                                    <th className="border px-2 py-1 text-center whitespace-nowrap bg-blue-50 text-blue-700">
-                                      PD Remarks
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  <tr className="align-top bg-orange-50">
-                                    <td className="border px-2 py-2 text-center align-middle font-medium">
-                                      {prodBrands[i] || "-"}
-                                    </td>
-                                    <td className="border px-2 py-2 text-center align-middle font-medium">
-                                      {prodProductNames[i] || "-"}
-                                    </td>
-                                    <td className="border px-2 py-2 text-center align-middle font-medium">
-                                      {prodBranches[i] || "-"}
-                                    </td>
-                                    <td className="border px-2 py-2 text-center align-middle">
-                                      {img && img !== "-" ? (
-                                        <img
-                                          src={img}
-                                          className="w-24 h-24 object-contain mx-auto cursor-pointer hover:opacity-80 transition-opacity"
-                                          alt=""
-                                          onClick={() => openImagePreview(img)}
-                                        />
-                                      ) : (
-                                        <span className="text-muted-foreground">
-                                          -
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td className="border px-2 py-2 text-center align-middle">
-                                      {prodQtys[i] || "-"}
-                                    </td>
-                                    <td className="border px-2 py-2 text-center align-middle whitespace-nowrap">
-                                      {(() => {
-                                        const pv = (rowPriceValidities[rowIndex] ?? [])[i];
-                                        if (!pv || pv === "-") return "-";
-                                        try { return new Date(pv).toLocaleString("en-US", { timeZone: "Asia/Manila", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return pv; }
-                                      })()}
-                                    </td>
-                                    <td className="border px-2 py-2 text-center align-middle whitespace-nowrap">
-                                      {(() => {
-                                        const tdsUrl = (rowTdsUrls?.[rowIndex] ?? [])[i];
-                                        if (!tdsUrl || tdsUrl === "-" || tdsUrl === "") return "-";
-                                        return (
-                                          <a
-                                            href={tdsUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-[11px] text-blue-600 underline font-medium"
-                                          >
-                                            View TDS
-                                          </a>
-                                        );
-                                      })()}
-                                    </td>
-                                    <td className="border px-2 py-2 align-top">
-                                      {groups.length === 0 ? (
-                                        <span className="text-muted-foreground">
-                                          -
-                                        </span>
-                                      ) : (
-                                        <div className="space-y-2">
-                                          {groups.map((group, gi) => (
-                                            <div key={gi}>
-                                              {group.title && (
-                                                <p className="font-bold text-[11px] uppercase tracking-wide text-gray-800 mb-0.5">
-                                                  {group.title}
-                                                </p>
-                                              )}
-                                              <div className="text-xs">
-                                                {group.specs.map(
-                                                  (spec, si: number) => (
-                                                    <div key={si}>
-                                                      {spec}
-                                                    </div>
-                                                  ),
-                                                )}
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </td>
-                                    <td className="border px-2 py-2 text-center align-middle">
-                                      {prodUnitCosts[i] || "-"}
-                                    </td>
-                                    {(() => {
-                                      const commercialTypeRaw = (rowCommercialTypes[rowIndex] ?? [])[i];
-                                      const productName = prodProductNames[i];
-                                      const { qtyCtn, commercialType, packaging } = formatCommercialDetailsForView(
-                                        commercialTypeRaw,
-                                        prodPackaging[i],
-                                        prodPcsPerCartons[i],
-                                        productName,
-                                      );
-                                      return (
-                                        <>
-                                          <td className="border px-2 py-2 text-center align-middle">
-                                            {qtyCtn}
-                                          </td>
-                                          <td className="border px-2 py-2 text-center align-middle">
-                                            {commercialType}
-                                          </td>
-                                          <td className="border px-2 py-2 text-center align-middle">
-                                            {packaging}
-                                          </td>
-                                        </>
-                                      );
-                                    })()}
-                                    <td className="border px-2 py-2 text-center align-middle">
-                                      {prodWarranties[i] || "-"}
-                                    </td>
-                                    <td className="border px-2 py-2 text-center align-middle">
-                                      {prodFactories[i] || "-"}
-                                    </td>
-                                    <td className="border px-2 py-2 text-center align-middle">
-                                      {prodPorts[i] || "-"}
-                                    </td>
-                                    <td className="border px-2 py-2 text-center align-middle font-semibold">
-                                      $
-                                      {Number(
-                                        prodSubtotals[i] || 0,
-                                      ).toLocaleString()}
-                                    </td>
-                                    {isApproved && (
-                                      <>
-                                        <td className="border px-2 py-2 text-center align-middle">
-                                          {prodCompanyNames[i] || "-"}
-                                        </td>
-                                        <td className="border px-2 py-2 text-center align-middle">
-                                          {prodContactNames[i] || "-"}
-                                        </td>
-                                        <td className="border px-2 py-2 text-center align-middle">
-                                          {prodContactNumbers[i] || "-"}
-                                        </td>
-                                        <td className="border px-2 py-2 text-center align-middle bg-green-50">
-                                          {prodLeadTimes[i] &&
-                                          prodLeadTimes[i] !== "-"
-                                            ? prodLeadTimes[i]
-                                            : "-"}
-                                        </td>
-                                        <td className="border px-2 py-2 text-center align-middle bg-green-50 text-green-700 font-semibold">
-                                          {prodSellingCosts[i] &&
-                                          prodSellingCosts[i] !== "-"
-                                            ? `$${Number(prodSellingCosts[i]).toLocaleString()}`
-                                            : "-"}
-                                        </td>
-                                        <td className="border px-2 py-2 text-center align-middle bg-green-50 text-green-700 font-semibold">
-                                          {prodFinalUnitCosts[i] &&
-                                          prodFinalUnitCosts[i] !== "-"
-                                            ? `$${Number(prodFinalUnitCosts[i]).toLocaleString()}`
-                                            : "-"}
-                                        </td>
-                                        <td className="border px-2 py-2 text-center align-middle bg-green-50 text-green-700 font-semibold">
-                                          {prodFinalSubtotals[i] &&
-                                          prodFinalSubtotals[i] !== "-"
-                                            ? `$${Number(prodFinalSubtotals[i]).toLocaleString()}`
-                                            : "-"}
-                                        </td>
-                                      </>
-                                    )}
-                                    {showProcurementRemarks && (
-                                      <td className="border px-2 py-2 text-center align-middle bg-blue-50 whitespace-pre-wrap">
-                                        {prodSpfRemarksProcurement[i] && prodSpfRemarksProcurement[i] !== "-" ? prodSpfRemarksProcurement[i] : "-"}
-                                      </td>
-                                    )}
-                                    <td className="border px-2 py-2 text-center align-middle bg-blue-50 whitespace-pre-wrap">
-                                      {prodSpfRemarksPD[i] && prodSpfRemarksPD[i] !== "-" ? prodSpfRemarksPD[i] : "-"}
-                                    </td>
-                                  </tr>
-                                </tbody>
-                              </table>
+                          )}
+
+                          {/* Product Name */}
+                          <div>
+                            <h3 className="text-sm font-bold text-gray-800 line-clamp-2">
+                              {prodProductNames[i] || "-"}
+                            </h3>
+                            {prodBrands[i] && prodBrands[i] !== "-" && (
+                              <p className="text-xs font-semibold text-blue-600 mt-1">
+                                {prodBrands[i]}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Input Fields Grid */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Branch</label>
+                              <p className="text-xs font-medium text-gray-800">{prodBranches[i] || "-"}</p>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Qty</label>
+                              <p className="text-xs font-medium text-gray-800">{prodQtys[i] || "-"}</p>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Qty/Per Carton</label>
+                              <p className="text-xs font-medium text-gray-800">{qtyCtn}</p>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Unit Cost</label>
+                              <p className="text-xs font-medium text-gray-800">{prodUnitCosts[i] || "-"}</p>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Subtotal</label>
+                              <p className="text-xs font-bold text-gray-800">
+                                ${Number(prodSubtotals[i] || 0).toLocaleString()}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Price Validity</label>
+                              <p className="text-xs font-medium text-gray-800">
+                                {(() => {
+                                  const pv = (rowPriceValidities[rowIndex] ?? [])[i];
+                                  if (!pv || pv === "-") return "-";
+                                  try { return new Date(pv).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }); } catch { return pv; }
+                                })()}
+                              </p>
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </Card>
+
+                          {/* Generate TDS Button */}
+                          {(() => {
+                            const tdsUrl = (rowTdsUrls?.[rowIndex] ?? [])[i];
+                            if (tdsUrl && tdsUrl !== "-" && tdsUrl !== "") {
+                              return (
+                                <a
+                                  href={tdsUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block w-full text-center text-xs font-semibold px-3 py-2 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+                                >
+                                  View TDS
+                                </a>
+                              );
+                            }
+                            return null;
+                          })()}
+
+                          {/* Technical Specs */}
+                          {groups.length > 0 && (
+                            <div className="border-t pt-3">
+                              <h4 className="text-[10px] font-bold text-gray-500 uppercase mb-2">Technical Specs</h4>
+                              <div className="space-y-2 max-h-32 overflow-y-auto">
+                                {groups.map((group, gi) => (
+                                  <div key={gi}>
+                                    {group.title && (
+                                      <p className="text-[10px] font-bold text-gray-700 mb-1">{group.title}</p>
+                                    )}
+                                    <div className="text-[10px] text-gray-600 space-y-0.5">
+                                      {group.specs.map((spec, si: number) => (
+                                        <p key={si} className="truncate">{spec}</p>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Additional Details */}
+                          <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-600">
+                            <div>
+                              <span className="font-medium">Commercial Type:</span> {commercialType}
+                            </div>
+                            <div>
+                              <span className="font-medium">Packaging:</span> {packaging}
+                            </div>
+                            <div>
+                              <span className="font-medium">Warranty:</span> {prodWarranties[i] || "-"}
+                            </div>
+                            <div>
+                              <span className="font-medium">Factory:</span> {prodFactories[i] || "-"}
+                            </div>
+                            <div>
+                              <span className="font-medium">Port:</span> {prodPorts[i] || "-"}
+                            </div>
+                          </div>
+
+                          {/* Procurement Details */}
+                          <div className="border-t pt-3 bg-green-50 rounded p-2">
+                            <h4 className="text-[10px] font-bold text-green-700 uppercase mb-2">Procurement Details</h4>
+                            <div className="grid grid-cols-2 gap-2 text-[10px]">
+                              <div>
+                                <span className="font-medium text-green-800">Company:</span> {prodCompanyNames[i] || "-"}
+                              </div>
+                              <div>
+                                <span className="font-medium text-green-800">Contact Name:</span> {prodContactNames[i] || "-"}
+                              </div>
+                              <div>
+                                <span className="font-medium text-green-800">Contact No.:</span> {prodContactNumbers[i] || "-"}
+                              </div>
+                              <div>
+                                <span className="font-medium text-green-800">Lead Time:</span> {prodLeadTimes[i] || "-"}
+                              </div>
+                              <div>
+                                <span className="font-medium text-green-800">Selling Cost:</span> {prodSellingCosts[i] ? `$${Number(prodSellingCosts[i]).toLocaleString()}` : "-"}
+                              </div>
+                              <div>
+                                <span className="font-medium text-green-800">Final Unit Cost:</span> {prodFinalUnitCosts[i] && prodFinalUnitCosts[i] !== "-" ? `$${Number(prodFinalUnitCosts[i]).toLocaleString()}` : "-"}
+                              </div>
+                              <div>
+                                <span className="font-medium text-green-800">Final Subtotal:</span> {prodFinalSubtotals[i] && prodFinalSubtotals[i] !== "-" ? `$${Number(prodFinalSubtotals[i]).toLocaleString()}` : "-"}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Remarks */}
+                          <div className="border-t pt-2 space-y-1">
+                            <p className="text-[10px] text-gray-600">
+                              <span className="font-medium">PD Remarks:</span> {prodSpfRemarksPD[i] && prodSpfRemarksPD[i] !== "-" ? prodSpfRemarksPD[i] : "-"}
+                            </p>
+                            <p className="text-[10px] text-gray-600">
+                              <span className="font-medium">Procurement Remarks:</span> {prodSpfRemarksProcurement[i] && prodSpfRemarksProcurement[i] !== "-" ? prodSpfRemarksProcurement[i] : "-"}
+                            </p>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 
   /* ── Check if quantity is valid (not below original) ── */

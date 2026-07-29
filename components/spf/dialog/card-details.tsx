@@ -33,7 +33,7 @@ const CardDetails: React.FC<CardDetailsProps> = ({ title, fields }) => {
             </button>
 
             {open && (
-                <div className="mt-2 space-y-2">
+                <div className="mt-2 space-y-2 max-h-[400px] overflow-y-auto pr-2">
                     {fields.map((field) => (
                         <div key={field.label} className="flex flex-wrap gap-2">
                             <span className="font-semibold text-sm">{field.label}:</span>

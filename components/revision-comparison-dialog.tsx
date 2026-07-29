@@ -231,6 +231,19 @@ export function RevisionComparisonDialog({ open, onClose, spf_number, onRefresh 
     return value || "—";
   };
 
+  const formatDateTime = (value: any) => {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString("en-PH", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   const renderField = (label: string, oldValue: any, newValue: any) => {
     const isChanged = oldValue !== newValue;
     return (
@@ -348,6 +361,19 @@ const renderItemsTable = (rows: ReturnType<typeof buildItemRows>, label: string)
                       {renderField("Billing Address", oldData.billing_address, newData.billing_address)}
                       {renderField("Collection Address", oldData.collection_address, newData.collection_address)}
                       {renderField("TIN Number", oldData.tin_no, newData.tin_no)}
+                      {renderField("Project Name", oldData.project_name, newData.project_name)}
+                      {renderField("Project Location", oldData.project_location, newData.project_location)}
+                      {renderField("Project Status", oldData.project_status, newData.project_status)}
+                      {renderField("Delivery Lead Time Requirement", formatDateTime(oldData.delivery_lead_time_requirement), formatDateTime(newData.delivery_lead_time_requirement))}
+                      {renderField("Available Project Plans", oldData.available_project_plans, newData.available_project_plans)}
+                      {renderField("Bill of Quantity (BOQ)", oldData.bill_of_quantity, newData.bill_of_quantity)}
+                      {renderField("Consultant", oldData.consultant, newData.consultant)}
+                      {renderField("Other Bidders", oldData.other_bidders, newData.other_bidders)}
+                      {renderField("Owner", oldData.owner, newData.owner)}
+                      {renderField("Buyer", oldData.buyer, newData.buyer)}
+                      {renderField("Scope", oldData.scope, newData.scope)}
+                      {renderField("Other Client Instruction", oldData.other_client_instruction, newData.other_client_instruction)}
+                      {renderField("Win Rate Probability Percentage", oldData.win_rate_probability_percentage, newData.win_rate_probability_percentage)}
                       {renderField("Payment Terms", oldData.payment_terms, newData.payment_terms)}
                       {renderField("Warranty", oldData.warranty, newData.warranty)}
                       {renderField("Delivery Date", oldData.delivery_date, newData.delivery_date)}
