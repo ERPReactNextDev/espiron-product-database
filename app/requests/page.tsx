@@ -1108,7 +1108,16 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                     status={spfStatus}
                   />
                   {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && spfStatus?.toLowerCase() !== "for revision by pd" && (
-                    <Button size="sm" className="rounded-xl flex-1 h-9" variant="outline" onClick={() => handleCreateFromRow(req)} disabled={req.is_cancelled}>
+                    <Button size="sm" className="rounded-xl flex-1 h-9" variant="outline" onClick={() => {
+                      setSpecialInstructionsDialog({
+                        open: true,
+                        instructions: req.special_instructions || "",
+                        customerName: req.customer_name,
+                        spfNumber: req.spf_number,
+                        status: req.status,
+                        rowData: req
+                      });
+                    }} disabled={req.is_cancelled}>
                       Create
                     </Button>
                   )}
