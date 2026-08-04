@@ -29,7 +29,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, sanitizeCommas } from "@/lib/utils";
 
 import {
   collection,
@@ -461,12 +461,12 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
 
   const addTechnicalSpec = () => setTechnicalSpecs(p => [...p, { id: "", title: "", specs: [emptySpecRow()] }]);
   const removeTechnicalSpec = (i: number) => setTechnicalSpecs(p => p.length > 1 ? p.filter((_, idx) => idx !== i) : p);
-  const updateTitle = (i: number, v: string) => setTechnicalSpecs(p => p.map((x, idx) => idx === i ? { ...x, title: v } : x));
+  const updateTitle = (i: number, v: string) => setTechnicalSpecs(p => p.map((x, idx) => idx === i ? { ...x, title: sanitizeCommas(v) } : x));
   const addSpecRow = (si: number) => setTechnicalSpecs(p => p.map((x, i) => i === si ? { ...x, specs: [...x.specs, emptySpecRow()] } : x));
   const removeSpecRow = (si: number, ri: number) => setTechnicalSpecs(p => p.map((x, i) => i === si ? { ...x, specs: x.specs.length > 1 ? x.specs.filter((_, r) => r !== ri) : x.specs } : x));
   const updateSpecField = (si: number, ri: number, field: keyof SpecRow, v: string) => {
     const copy = [...technicalSpecs];
-    (copy[si].specs[ri] as any)[field] = v;
+    (copy[si].specs[ri] as any)[field] = sanitizeCommas(v);
     setTechnicalSpecs(copy);
   };
 
@@ -740,7 +740,7 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
             [field]: typeof value === "number"
               ? value
               : field === "itemName"
-              ? value
+              ? sanitizeCommas(value)
               : Number(value) || 0,
           }
         : row,
@@ -1631,11 +1631,11 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
 
               <div className="space-y-1">
                 <Label className="text-xs text-gray-500">Factory Address</Label>
-                <textarea className="w-full border rounded-xl p-2.5 text-sm bg-white resize-none" rows={3} placeholder="Enter factory address..." value={factoryAddress} onChange={e => setFactoryAddress(e.target.value)} />
+                <textarea className="w-full border rounded-xl p-2.5 text-sm bg-white resize-none" rows={3} placeholder="Enter factory address..." value={factoryAddress} onChange={e => setFactoryAddress(sanitizeCommas(e.target.value))} />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-gray-500">Port of Discharge</Label>
-                <Input placeholder="e.g. Manila, PH" value={portOfDischarge} onChange={e => setPortOfDischarge(e.target.value)} />
+                <Input placeholder="e.g. Manila, PH" value={portOfDischarge} onChange={e => setPortOfDischarge(sanitizeCommas(e.target.value))} />
               </div>
             </CardContent>
           </Card>
