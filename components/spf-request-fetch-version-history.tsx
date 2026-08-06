@@ -181,6 +181,8 @@ function parseHumanReadableMultiPackaging(packagingStr: string | undefined): Mul
   };
 }
 
+
+
 function formatPackagingForDisplay(packagingStr: string | undefined, commercialTypeRaw: string | undefined): React.ReactNode {
   const ct = (commercialTypeRaw || "BASIC").toUpperCase();
   const pack = packagingStr && packagingStr !== "" ? packagingStr : "-";
@@ -210,8 +212,83 @@ function formatPackagingForDisplay(packagingStr: string | undefined, commercialT
   return pack;
 }
 
+function formatCommercialDetailsForView(
+  commercialTypeRaw: string | undefined,
+  packagingStr: string | undefined,
+  pcsPerCartonStr: string | undefined,
+  productName?: string,
+): { qtyCtn: React.ReactNode; commercialType: React.ReactNode; packaging: React.ReactNode } {
+  let ct = (commercialTypeRaw || "BASIC").toUpperCase();
+
+  if (productName) {
+    const productNameLower = productName.toLowerCase();
+    if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
+      ct = "LIGHT";
+    } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
+      ct = "LIGHT";
+    }
+  }
+
+  const pack = packagingStr && packagingStr !== "" ? packagingStr : "-";
+  const pcs = pcsPerCartonStr && pcsPerCartonStr !== "" ? pcsPerCartonStr : "-";
+
+  if (ct === "POLE") {
+    return { qtyCtn: "-", commercialType: "Pole", packaging: "-" };
+  }
+
+  if (ct === "LIGHT") {
+    const multi = parseHumanReadableMultiPackaging(pack);
+
+    let isMultiple = multi?.rows ? multi.rows.length > 0 : false;
+    if (productName) {
+      const productNameLower = productName.toLowerCase();
+      if (productNameLower.includes("lights (multiple)") || productNameLower.includes("light (multiple)")) {
+        isMultiple = true;
+      } else if (productNameLower.includes("lights (single)") || productNameLower.includes("light (single)")) {
+        isMultiple = false;
+      }
+    }
+
+    if (isMultiple && multi?.rows && multi.rows.length > 0) {
+      const rows = multi.rows;
+      return {
+        qtyCtn: (
+          <div className="space-y-1">
+            {rows.map((row, idx) => (
+              <div key={idx} className="text-[11px] leading-tight">
+                <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
+                <div>Qty: {row.qtyPerCarton ?? "-"}</div>
+              </div>
+            ))}
+          </div>
+        ),
+        commercialType: "Light (Multiple)",
+        packaging: (
+          <div className="space-y-1">
+            {rows.map((row, idx) => (
+              <div key={idx} className="text-[11px] leading-tight">
+                <div className="font-medium">{row.itemName || `Item ${idx + 1}`}</div>
+                <div>
+                  {(row.length ?? "-").toString()} × {(row.width ?? "-").toString()} × {(row.height ?? "-").toString()}
+                </div>
+                <div className="text-gray-500">
+                  {(Number(row.unitCost ?? 0) || 0).toFixed(2)} USD
+                </div>
+              </div>
+            ))}
+          </div>
+        ),
+      };
+    }
+
+    return { qtyCtn: pcs, commercialType: "Light (Single)", packaging: pack };
+  }
+
+  return { qtyCtn: pcs, commercialType: "Basic", packaging: pack };
+}
+
 /* ─────────────────────────────────────────────────────────────── */
-/* NAME CACHE                                                      */
+/* NAME CACHE              
 /* ─────────────────────────────────────────────────────────────── */
 const nameCache = new Map<string, string>();
 
@@ -589,6 +666,20 @@ function VersionDetail({
     return JSON.stringify(groups);
   };
 
+  // Fixed diff check: v1 (no prevRecord) never counts as "changed"
+  const isFieldChanged = (
+    current: string | undefined,
+    prevArr: string[][],
+    rowIdx: number,
+    i: number,
+  ): boolean => {
+    if (isFirst || !prevRecord) return false;
+    return isDifferent(current, prevArr[rowIdx]?.[i]);
+  };
+
+  const cardFieldCls = (changed: boolean) =>
+    changed ? "bg-yellow-100 border border-yellow-300 rounded px-1.5 py-0.5 -mx-1.5 -my-0.5" : "";
+
   return (
     <div className="space-y-3 mt-2">
       {itemDescriptions.map((desc, rowIndex) => {
@@ -847,245 +938,270 @@ function VersionDetail({
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="overflow-x-auto px-4 py-3">
-                <table className="w-full border text-sm" style={{ minWidth: "1400px" }}>
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Supplier Brand</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Product Name</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Image</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Qty</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Price Validity</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">TDS Brand</th>
-                      <th className="border px-2 py-1 text-center min-w-[180px]">Technical Specs</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Unit Cost</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Qty/Per Carton</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Packaging</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Warranty</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Factory</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Port</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Subtotal</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Company</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Contact Name</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Contact No.</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Lead Time</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Selling Cost</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Final Unit Cost</th>
-                      <th className="border px-2 py-1 text-center whitespace-nowrap">Final Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {prodImages.map((img, i) => {
-                      const groups = prodSpecs[i] ?? [];
-                      const prevGroups = prevRowSpecs[rowIndex]?.[i] ?? [];
-                      const specsChanged = !isFirst && prevRecord && JSON.stringify(groups) !== JSON.stringify(prevGroups);
-                      const optIsNew = !isFirst && prevRecord && prevRowImages[rowIndex]?.[i] === undefined;
+) : (
+              <div className="px-4 py-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {prodImages.map((img, i) => {
+                    const groups = prodSpecs[i] ?? [];
+                    const prevGroups = prevRowSpecs[rowIndex]?.[i] ?? [];
+                    const specsChanged =
+                      !isFirst && !!prevRecord && JSON.stringify(groups) !== JSON.stringify(prevGroups);
+                    const optIsNew = !isFirst && !!prevRecord && prevRowImages[rowIndex]?.[i] === undefined;
 
-                      return (
-                        <tr key={i} className={`align-top ${optIsNew ? "bg-yellow-50" : ""}`}>
-                          <DiffCell current={prodBrands[i]} previous={getPrev(prevRowBrands, rowIndex, i)}>
-                            {prodBrands[i] || "-"}
-                          </DiffCell>
-                          <DiffCell current={prodProductNames[i]} previous={getPrev(prevRowProductNames, rowIndex, i)}>
-                            {prodProductNames[i] || "-"}
-                          </DiffCell>
-                          <td className={`border px-2 py-1 text-center ${optIsNew ? "bg-yellow-50" : ""}`}>
-                            {optIsNew && (
-                              <span className="block text-[9px] font-bold text-yellow-700 bg-yellow-200 px-1 rounded mb-0.5 w-fit mx-auto">
-                                NEW
+                    const optItemCode = prodItemCodes[i] && prodItemCodes[i] !== "-" ? prodItemCodes[i] : null;
+                    const commercialTypeRaw = prodCommercialTypes[i];
+                    const productName = prodProductNames[i];
+                    const { qtyCtn, commercialType, packaging } = formatCommercialDetailsForView(
+                      commercialTypeRaw,
+                      prodPackaging[i],
+                      prodPcsPerCartons[i],
+                      productName,
+                    );
+
+                    const priceValidityDisplay = (() => {
+                      const pv = prodPriceValidities[i];
+                      if (!pv || pv === "-") return "-";
+                      try {
+                        return new Date(pv).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        });
+                      } catch {
+                        return pv;
+                      }
+                    })();
+
+                    return (
+                      <Card
+                        key={i}
+                        className={`overflow-hidden hover:shadow-lg transition-shadow relative ${
+                          optIsNew ? "ring-2 ring-yellow-400" : ""
+                        }`}
+                      >
+                        {/* Card Header */}
+                        <div className="bg-gradient-to-r from-orange-50 to-orange-100 px-4 py-3 border-b">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-orange-700 uppercase tracking-wider flex items-center gap-2">
+                              Offer #{i + 1}
+                              {optIsNew && (
+                                <span className="text-[9px] font-bold text-yellow-700 bg-yellow-200 px-1.5 py-0.5 rounded">
+                                  NEW
+                                </span>
+                              )}
+                            </span>
+                            {optItemCode && (
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white text-orange-700 border border-orange-200">
+                                {optItemCode}
                               </span>
                             )}
-                            {img && img !== "-" ? (
-                              <img
-                                src={img}
-                                className="w-12 h-12 object-contain mx-auto"
-                                alt=""
-                              />
-                            ) : (
-                              <span className="text-muted-foreground text-[10px]">-</span>
+                          </div>
+                        </div>
+
+                        {/* Card Body */}
+                        <div className="p-4 space-y-4">
+                          {/* Product Image */}
+                          {img && img !== "-" ? (
+                            <img
+                              src={img}
+                              className="w-full h-32 object-contain rounded bg-gray-50"
+                              alt=""
+                            />
+                          ) : (
+                            <div className="w-full h-32 bg-gray-50 rounded flex items-center justify-center">
+                              <span className="text-xs text-gray-400">No Image</span>
+                            </div>
+                          )}
+
+                          {/* Product Name */}
+                          <div className={cardFieldCls(isFieldChanged(productName, prevRowProductNames, rowIndex, i))}>
+                            <h3 className="text-sm font-bold text-gray-800 line-clamp-2">
+                              {productName || "-"}
+                            </h3>
+                            {prodBrands[i] && prodBrands[i] !== "-" && (
+                              <p className="text-xs font-semibold text-blue-600 mt-1">
+                                {prodBrands[i]}
+                              </p>
                             )}
-                          </td>
-                          <DiffCell current={prodQtys[i]} previous={getPrev(prevRowQtys, rowIndex, i)}>
-                            {prodQtys[i] || "-"}
-                          </DiffCell>
-                          <DiffCell current={prodPriceValidities[i]} previous={getPrev(prevRowPriceValidities, rowIndex, i)}>
-                            {(() => {
-                              const pv = prodPriceValidities[i];
-                              if (!pv || pv === "-") return "-";
-                              try { return new Date(pv).toLocaleString("en-PH", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return pv; }
-                            })()}
-                          </DiffCell>
-                          <DiffCell current={prodTdsBrands[i]} previous={getPrev(prevRowTdsBrands, rowIndex, i)}>
-                            {(() => {
-                              const b = prodTdsBrands[i];
-                              if (!b || b === "-" || b === "") return "-";
-                              const img = prodImages[i];
-                              const specs = prodSpecs[i] ?? [];
-                              const techSpecs = specs.map((g) => ({
-                                title: g.title,
-                                specs: g.specs.map((s) => {
-                                  const idx = s.indexOf(":");
-                                  if (idx === -1) return { specId: s, value: "" };
-                                  return { specId: s.slice(0, idx).trim(), value: s.slice(idx + 1).trim() };
-                                }),
-                              }));
-                              const itemCode = prodItemCodes[i] || "";
-                              return (
-                                <div className="flex flex-col items-center gap-1">
-                                  <span className="font-medium text-[11px]">{b}</span>
-                                  <button
-                                    type="button"
-                                    className="text-[10px] text-green-600 underline font-medium whitespace-nowrap"
-                                    onClick={() => {
-                                      import("jspdf").then(({ default: jsPDF }) =>
-                                        import("jspdf-autotable").then(({ default: autoTable }) => {
-                                          generateTDSPdf({
-                                            jsPDF,
-                                            autoTable,
-                                            brand: b,
-                                            productName: itemCode,
-                                            itemCode,
-                                            mainImage: img && img !== "-" ? { url: img } : undefined,
-                                            technicalSpecifications: techSpecs,
-                                            dimensionalDrawing: (() => {
-                                              const u = prodDimensionalDrawings[i];
-                                              return u && u !== "-" ? { url: u } : null;
-                                            })(),
-                                            illuminanceDrawing: (() => {
-                                              const u = prodIlluminanceDrawings[i];
-                                              return u && u !== "-" ? { url: u } : null;
-                                            })(),
-                                            hideEmptySpecs: true,
-                                          });
-                                        })
-                                      );
-                                    }}
-                                  >
-                                    ⬇ Download TDS
-                                  </button>
-                                </div>
-                              );
-                            })()}
-                          </DiffCell>
-                          <td
-                            className={`border px-2 py-1 align-top text-[11px] ${specsChanged ? "bg-yellow-100" : ""}`}
-                            title={specsChanged ? "Specs changed" : undefined}
-                          >
-                            {specsChanged && (
-                              <span className="block text-[9px] text-yellow-700 font-semibold mb-0.5 leading-none">✎ changed</span>
-                            )}
-                            {renderHistoryTechnicalSpecs(groups)}
-                          </td>
-                          <DiffCell current={prodUnitCosts[i]} previous={getPrev(prevRowUnitCosts, rowIndex, i)}>
-                            {prodUnitCosts[i] || "-"}
-                          </DiffCell>
-                          <DiffCell current={prodPcsPerCartons[i]} previous={getPrev(prevRowPcsPerCartons, rowIndex, i)}>
-                            {prodPcsPerCartons[i] || "-"}
-                          </DiffCell>
-                          <DiffCell current={prodPackaging[i]} previous={getPrev(prevRowPackaging, rowIndex, i)}>
-                            {formatPackagingForDisplay(prodPackaging[i], prodCommercialTypes[i])}
-                          </DiffCell>
-                          <DiffCell current={prodWarranties[i]} previous={getPrev(prevRowWarranties, rowIndex, i)}>
-                            {prodWarranties[i] || "-"}
-                          </DiffCell>
-                          <DiffCell current={prodFactories[i]} previous={getPrev(prevRowFactories, rowIndex, i)}>
-                            {prodFactories[i] || "-"}
-                          </DiffCell>
-                          <DiffCell current={prodPorts[i]} previous={getPrev(prevRowPorts, rowIndex, i)}>
-                            {prodPorts[i] || "-"}
-                          </DiffCell>
-                          <DiffCell current={prodSubtotals[i]} previous={getPrev(prevRowSubtotals, rowIndex, i)}>
-                            ₱{Number(prodSubtotals[i] || 0).toLocaleString()}
-                          </DiffCell>
-                          <DiffCell current={prodCompanyNames[i]} previous={getPrev(prevRowCompanyNames, rowIndex, i)}>
-                            {prodCompanyNames[i] || "-"}
-                          </DiffCell>
-                          <DiffCell current={prodContactNames[i]} previous={getPrev(prevRowContactNames, rowIndex, i)}>
-                            {prodContactNames[i] || "-"}
-                          </DiffCell>
-                          <DiffCell current={prodContactNumbers[i]} previous={getPrev(prevRowContactNumbers, rowIndex, i)}>
-                            {prodContactNumbers[i] || "-"}
-                          </DiffCell>
-                          <DiffCell current={prodLeadTimes[i]} previous={getPrev(prevRowLeadTimes, rowIndex, i)}>
-                            {prodLeadTimes[i] || "-"}
-                          </DiffCell>
-                          <DiffCell current={prodSellingCosts[i]} previous={getPrev(prevRowSellingCosts, rowIndex, i)}>
-                            {prodSellingCosts[i] || "-"}
-                          </DiffCell>
-                          <DiffCell current={prodFinalUnitCosts[i]} previous={getPrev(prevRowFinalUnitCosts, rowIndex, i)}>
-                            {prodFinalUnitCosts[i] || "-"}
-                          </DiffCell>
-                          <DiffCell current={prodFinalSubtotals[i]} previous={getPrev(prevRowFinalSubtotals, rowIndex, i)}>
-                            {prodFinalSubtotals[i] || "-"}
-                          </DiffCell>
-                        </tr>
-                      );
-                    })}
-                    {/* Display deleted offers in red for desktop */}
-                    {deletedOffersByRow[rowIndex]?.map((deletedOffer: any, i: number) => (
-                      <tr key={`deleted-${i}`} className="align-top bg-red-50">
-                        <td className="border px-2 py-1 text-center align-middle text-red-800" colSpan={3}>
-                          <span className="text-[9px] font-bold text-red-700 bg-red-200 px-1.5 py-0.5 rounded">
-                            DELETED
-                          </span>
-                          <span className="ml-2 text-xs">{deletedOffer.productName || `Deleted Option ${i + 1}`}</span>
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          {deletedOffer.qty || "-"}
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          -
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          {deletedOffer.supplier?.supplierBrand || "-"}
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          -
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          -
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          -
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          -
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          -
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          -
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          -
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          -
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          -
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          -
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          -
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          -
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          -
-                        </td>
-                        <td className="border px-2 py-1 text-center align-middle text-red-800">
-                          -
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          </div>
+
+                          {/* Input Fields Grid */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className={cardFieldCls(isFieldChanged(prodQtys[i], prevRowQtys, rowIndex, i))}>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Qty</label>
+                              <p className="text-xs font-medium text-gray-800">{prodQtys[i] || "-"}</p>
+                            </div>
+                            <div
+                              className={cardFieldCls(
+                                isFieldChanged(prodPcsPerCartons[i], prevRowPcsPerCartons, rowIndex, i),
+                              )}
+                            >
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Qty/Per Carton</label>
+                              <p className="text-xs font-medium text-gray-800">{qtyCtn}</p>
+                            </div>
+                            <div
+                              className={cardFieldCls(isFieldChanged(prodUnitCosts[i], prevRowUnitCosts, rowIndex, i))}
+                            >
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Unit Cost</label>
+                              <p className="text-xs font-medium text-gray-800">{prodUnitCosts[i] || "-"}</p>
+                            </div>
+                            <div
+                              className={cardFieldCls(isFieldChanged(prodSubtotals[i], prevRowSubtotals, rowIndex, i))}
+                            >
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Subtotal</label>
+                              <p className="text-xs font-bold text-gray-800">
+                                ₱{Number(prodSubtotals[i] || 0).toLocaleString()}
+                              </p>
+                            </div>
+                            <div
+                              className={`col-span-2 ${cardFieldCls(
+                                isFieldChanged(prodPriceValidities[i], prevRowPriceValidities, rowIndex, i),
+                              )}`}
+                            >
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Price Validity</label>
+                              <p className="text-xs font-medium text-gray-800">{priceValidityDisplay}</p>
+                            </div>
+                          </div>
+
+                                                                                                                                                                                                                                                                                                                                                                                                      {/* TDS */}
+                          {prodTdsBrands[i] && prodTdsBrands[i] !== "-" && prodTdsBrands[i] !== "" && (
+                            <a
+                              href={prodTdsBrands[i]}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`block w-full text-center text-xs font-semibold px-3 py-2 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors ${cardFieldCls(
+                                isFieldChanged(prodTdsBrands[i], prevRowTdsBrands, rowIndex, i),
+                              )}`}
+                            >
+                              View TDS
+                            </a>
+                          )}
+
+                          {/* Technical Specs */}
+                          {groups.length > 0 && (
+                            <div className={`border-t pt-3 ${specsChanged ? "bg-yellow-50 -mx-4 px-4 pb-1 rounded-b" : ""}`}>
+                              <h4 className="text-[10px] font-bold text-gray-500 uppercase mb-2 flex items-center gap-1.5">
+                                Technical Specs
+                                {specsChanged && (
+                                  <span className="text-[9px] text-yellow-700 font-semibold normal-case">
+                                    ✎ changed
+                                  </span>
+                                )}
+                              </h4>
+                              <div className="space-y-2 max-h-32 overflow-y-auto">
+                                {groups.map((group, gi) => (
+                                  <div key={gi}>
+                                    {group.title && (
+                                      <p className="text-[10px] font-bold text-gray-700 mb-1">{group.title}</p>
+                                    )}
+                                    <div className="text-[10px] text-gray-600 space-y-0.5">
+                                      {group.specs.map((spec, si) => (
+                                        <p key={si} className="truncate">
+                                          {spec}
+                                        </p>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Additional Details */}
+                          <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-600">
+                            <div className={cardFieldCls(isFieldChanged(commercialTypeRaw, prevRowCommercialTypes, rowIndex, i))}>
+                              <span className="font-medium">Commercial Type:</span> {commercialType}
+                            </div>
+                            <div className={cardFieldCls(isFieldChanged(prodPackaging[i], prevRowPackaging, rowIndex, i))}>
+                              <span className="font-medium">Packaging:</span> {packaging}
+                            </div>
+                            <div className={cardFieldCls(isFieldChanged(prodWarranties[i], prevRowWarranties, rowIndex, i))}>
+                              <span className="font-medium">Warranty:</span> {prodWarranties[i] || "-"}
+                            </div>
+                            <div className={cardFieldCls(isFieldChanged(prodFactories[i], prevRowFactories, rowIndex, i))}>
+                              <span className="font-medium">Factory:</span> {prodFactories[i] || "-"}
+                            </div>
+                            <div className={cardFieldCls(isFieldChanged(prodPorts[i], prevRowPorts, rowIndex, i))}>
+                              <span className="font-medium">Port:</span> {prodPorts[i] || "-"}
+                            </div>
+                          </div>
+
+                          {/* Procurement Details */}
+                          <div className="border-t pt-3 bg-green-50 rounded p-2">
+                            <h4 className="text-[10px] font-bold text-green-700 uppercase mb-2">Procurement Details</h4>
+                            <div className="grid grid-cols-2 gap-2 text-[10px]">
+                              <div className={cardFieldCls(isFieldChanged(prodCompanyNames[i], prevRowCompanyNames, rowIndex, i))}>
+                                <span className="font-medium text-green-800">Company:</span> {prodCompanyNames[i] || "-"}
+                              </div>
+                              <div className={cardFieldCls(isFieldChanged(prodContactNames[i], prevRowContactNames, rowIndex, i))}>
+                                <span className="font-medium text-green-800">Contact Name:</span> {prodContactNames[i] || "-"}
+                              </div>
+                              <div className={cardFieldCls(isFieldChanged(prodContactNumbers[i], prevRowContactNumbers, rowIndex, i))}>
+                                <span className="font-medium text-green-800">Contact No.:</span> {prodContactNumbers[i] || "-"}
+                              </div>
+                              <div className={cardFieldCls(isFieldChanged(prodLeadTimes[i], prevRowLeadTimes, rowIndex, i))}>
+                                <span className="font-medium text-green-800">Lead Time:</span> {prodLeadTimes[i] || "-"}
+                              </div>
+                              <div className={cardFieldCls(isFieldChanged(prodSellingCosts[i], prevRowSellingCosts, rowIndex, i))}>
+                                <span className="font-medium text-green-800">Selling Cost:</span>{" "}
+                                {prodSellingCosts[i] ? `$${Number(prodSellingCosts[i]).toLocaleString()}` : "-"}
+                              </div>
+                              <div className={cardFieldCls(isFieldChanged(prodFinalUnitCosts[i], prevRowFinalUnitCosts, rowIndex, i))}>
+                                <span className="font-medium text-green-800">Final Unit Cost:</span>{" "}
+                                {prodFinalUnitCosts[i] && prodFinalUnitCosts[i] !== "-"
+                                  ? `$${Number(prodFinalUnitCosts[i]).toLocaleString()}`
+                                  : "-"}
+                              </div>
+                              <div
+                                className={`col-span-2 ${cardFieldCls(
+                                  isFieldChanged(prodFinalSubtotals[i], prevRowFinalSubtotals, rowIndex, i),
+                                )}`}
+                              >
+                                <span className="font-medium text-green-800">Final Subtotal:</span>{" "}
+                                {prodFinalSubtotals[i] && prodFinalSubtotals[i] !== "-"
+                                  ? `$${Number(prodFinalSubtotals[i]).toLocaleString()}`
+                                  : "-"}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+
+                  {/* Deleted offers */}
+                  {deletedOffersByRow[rowIndex]?.map((deletedOffer: any, i: number) => (
+                    <Card key={`deleted-${i}`} className="overflow-hidden border-2 border-red-300 bg-red-50">
+                      <div className="bg-red-100 px-4 py-3 border-b border-red-300">
+                        <span className="text-[9px] font-bold text-red-700 bg-red-200 px-1.5 py-0.5 rounded">
+                          DELETED
+                        </span>
+                      </div>
+                      <div className="p-4 space-y-2">
+                        {deletedOffer.mainImage?.url && deletedOffer.mainImage.url !== "-" ? (
+                          <img
+                            src={deletedOffer.mainImage.url}
+                            className="w-full h-32 object-contain rounded bg-white"
+                            alt=""
+                          />
+                        ) : (
+                          <div className="w-full h-32 bg-white rounded flex items-center justify-center">
+                            <span className="text-xs text-gray-400">No Image</span>
+                          </div>
+                        )}
+                        <h3 className="text-sm font-bold text-red-800 line-clamp-2">
+                          {deletedOffer.productName || `Deleted Option ${i + 1}`}
+                        </h3>
+                        {deletedOffer.supplier?.supplierBrand && (
+                          <p className="text-xs font-semibold text-red-600">
+                            {deletedOffer.supplier.supplierBrand}
+                          </p>
+                        )}
+                        <p className="text-xs text-red-700">Qty: {deletedOffer.qty || "-"}</p>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -1174,10 +1290,10 @@ export default function SPFRequestFetchVersionHistory({
         size="sm"
         className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
         onClick={() => setOpen(true)}
-        title="View version history"
+        title="View creation history"
       >
         <History size={14} />
-        History
+        Creation History
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -1193,10 +1309,10 @@ export default function SPFRequestFetchVersionHistory({
           >
             <DialogTitle className="flex items-center gap-2">
               <History size={16} />
-              Version History — {spfNumber}
+              Creation History — {spfNumber}
             </DialogTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Each entry represents a saved revision. Click to expand.{" "}
+              Each entry represents a saved version of the SPF creation. Click to expand.{" "}
               <span className="inline-flex items-center gap-1 text-yellow-700 font-medium">
                 <span className="inline-block w-3 h-3 bg-yellow-200 border border-yellow-400 rounded-sm" />
                 Yellow = changed from previous version.

@@ -26,10 +26,10 @@ export default async function handler(
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  // Fetch user's Department based on logged-in user
+  // Fetch user's Department and ReferenceID based on logged-in user
   const { data: userData, error: userError } = await supabase
     .from("users")
-    .select("Department")
+    .select("Department, ReferenceID")
     .eq("id", sessionUserId)
     .single();
 
@@ -38,6 +38,7 @@ export default async function handler(
   }
 
   const userDepartment = userData.Department;
+  const userReferenceID = userData.ReferenceID;
 
   try {
     // Fetch current spf_creation data to get previous_status
@@ -112,6 +113,7 @@ export default async function handler(
           revision_number: nextRevisionNumber,
           revision_result: `Request Rejected By ${userDepartment}`,
           revision_date: new Date().toISOString(),
+          latest_approver: userReferenceID,
         });
 
       if (historyError) throw historyError;

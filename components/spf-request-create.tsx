@@ -434,6 +434,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
       item_description: normalizeArray(rowData.item_description),
       item_photo: normalizeArray(rowData.item_photo),
       item_code: rowData.item_code ?? "",
+      item_qty: rowData.item_qty ?? "",
     });
     setProductOffers({});
     setViewMode(false);

@@ -27,6 +27,7 @@ import {
   Pencil,
   Save,
   Copy,
+  History,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -51,6 +52,7 @@ import AddProductComponent from "@/components/add-product-component";
 import EditProductComponent from "@/components/edit-product-component";
 import CardDetails from "@/components/spf/dialog/card-details";
 import SPFRequestFetchVersionHistory from "./spf-request-fetch-version-history";
+import SPFRequestRevisionHistory from "./spf-request-revision-history";
 import SPFTimer from "@/components/spf-timer";
 import { useUser } from "@/contexts/UserContext";
 import { useNotificationTriggers } from "@/hooks/use-notification-triggers";
@@ -953,7 +955,7 @@ useEffect(() => {
 
       const { data: request } = await supabase
         .from("spf_request")
-        .select("item_description,item_photo,item_code,customer_name,contact_person,contact_number,registered_address,delivery_address,billing_address,collection_address,payment_terms,warranty,delivery_date,prepared_by,approved_by,sales_person,start_date,end_date,special_instructions,project_name,project_location,project_status,delivery_lead_time_requirement,available_project_plans,bill_of_quantity,consultant,other_bidders,owner,buyer,scope,other_client_instruction,win_rate_probability_percentage,tin_no,manager")
+        .select("item_description,item_photo,item_code,item_qty,customer_name,contact_person,contact_number,registered_address,delivery_address,billing_address,collection_address,payment_terms,warranty,delivery_date,prepared_by,approved_by,sales_person,start_date,end_date,special_instructions,project_name,project_location,project_status,delivery_lead_time_requirement,available_project_plans,bill_of_quantity,consultant,other_bidders,owner,buyer,scope,other_client_instruction,win_rate_probability_percentage,tin_no,manager")
         .eq("spf_number", spfNumber)
         .maybeSingle();
 
@@ -1974,6 +1976,14 @@ useEffect(() => {
             </DialogTitle>
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            <SPFRequestFetchVersionHistory
+              spfNumber={spfNumber}
+              isMobile={isMobile}
+            />
+            <SPFRequestRevisionHistory
+              spfNumber={spfNumber}
+              isMobile={isMobile}
+            />
             {hasDraft && (
               <Button
                 type="button"
@@ -4163,7 +4173,7 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                         <div className="bg-gradient-to-r from-orange-50 to-orange-100 px-4 py-3 border-b">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-bold text-orange-700 uppercase tracking-wider">
-                              superONE Offer #{i + 1}
+                              Offer #{i + 1}
                             </span>
                             {optItemCode && (
                               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white text-orange-700 border border-orange-200">
@@ -4510,10 +4520,16 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                   )}
                 </DialogTitle>
               </div>
-              <SPFRequestFetchVersionHistory
-                spfNumber={spfNumber}
-                isMobile={isMobile}
-              />
+              <div className="flex items-center gap-2">
+                <SPFRequestFetchVersionHistory
+                  spfNumber={spfNumber}
+                  isMobile={isMobile}
+                />
+                <SPFRequestRevisionHistory
+                  spfNumber={spfNumber}
+                  isMobile={isMobile}
+                />
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 text-sm mt-1">
