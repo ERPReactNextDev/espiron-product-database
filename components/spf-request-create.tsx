@@ -1878,7 +1878,7 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
               Drag a product here or use the + button
             </div>
           ) : (
-            <div className="flex gap-3">
+            <div className="flex gap-3 items-start">
               {(productOffers[index] || []).map((prod: any, i: number) => {
                 const cardKey = `${index}-${i}`;
                 const isExpanded = expandedProductCards[cardKey] || false;

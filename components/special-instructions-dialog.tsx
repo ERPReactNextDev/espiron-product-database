@@ -110,7 +110,7 @@ export default function SpecialInstructionsDialog({
         <div className="bg-white p-6 border-b shrink-0">
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="text-xl font-bold mb-2 text-gray-900">Special Instructions</h3>
+              <h3 className="text-xl font-bold mb-2 text-gray-900">Project Details</h3>
               <div className="text-sm text-gray-600 space-y-1">
                 <p><span className="font-medium text-gray-700">SPF Number:</span> {spfNumber}</p>
                 <p><span className="font-medium text-gray-700">Customer:</span> {customerName}</p>
@@ -129,14 +129,14 @@ export default function SpecialInstructionsDialog({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {/* Person icon and Full Instructions text outside speech balloon */}
+          {/* Person icon and Special Instructions text outside speech balloon */}
           <div className="flex items-center gap-3 mb-3 text-indigo-700">
             <div className="w-10 h-10 rounded-full bg-linear-to-br from-indigo-400 to-purple-500 flex items-center justify-center shadow-lg">
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
-            <span className="font-semibold text-gray-900">Full Instructions</span>
+            <span className="font-semibold text-gray-900">Special Instructions</span>
           </div>
 
           {/* Speech balloon pointing to icon */}

@@ -42,6 +42,28 @@ export default function DownloadProduct({ products, iconOnly = false }: Props) {
   const handleDownload = async () => {
     const wb = new ExcelJS.Workbook();
 
+// helper: gawing Excel-safe ang sheet name (walang invalid chars, max 31 chars)
+    const sanitizeSheetName = (name: string) =>
+      (name || "Others")
+        .replace(/[\\/*?:[\]]/g, "-") // alisin ang invalid chars: \ / * ? : [ ]
+        .trim()
+        .substring(0, 31);
+
+    // helper: siguraduhing unique ang sheet name (case-insensitive, gaya ng Excel)
+    const usedNames = new Set<string>();
+    const getUniqueSheetName = (rawName: string) => {
+      let base = sanitizeSheetName(rawName);
+      let candidate = base;
+      let suffix = 1;
+      while (usedNames.has(candidate.toLowerCase())) {
+        const suffixStr = ` (${suffix})`;
+        candidate = base.substring(0, 31 - suffixStr.length) + suffixStr;
+        suffix++;
+      }
+      usedNames.add(candidate.toLowerCase());
+      return candidate;
+    };
+
     const sheetMap = new Map<string, any[]>();
     products.forEach((p) => {
       const familyName = p.productFamilies?.[0]?.productFamilyName || "Others";
@@ -49,7 +71,8 @@ export default function DownloadProduct({ products, iconOnly = false }: Props) {
       sheetMap.get(familyName)!.push(p);
     });
 
-    for (const [sheetName, sheetProducts] of sheetMap) {
+    for (const [rawSheetName, sheetProducts] of sheetMap) {
+      const sheetName = getUniqueSheetName(rawSheetName);
       const ws = wb.addWorksheet(sheetName);
 
       const categoryTypeId = sheetProducts[0]?.categoryTypes?.[0]?.productUsageId || null;

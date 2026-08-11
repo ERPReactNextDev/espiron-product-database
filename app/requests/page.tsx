@@ -513,22 +513,13 @@ const [isRefreshing, setIsRefreshing] = useState(false);
     if (statusFilter) {
       filtered = filtered.filter((r) => {
         const spfStatus = createdSPF[r.spf_number];
-        
+
         if (statusFilter === "No Status Yet") {
           return !spfStatus;
         }
         if (!spfStatus) return false;
-        
-        if (statusFilter === "For Procurement Costing") {
-          return spfStatus.toLowerCase() === "pending for procurement";
-        }
-        if (statusFilter === "Ready For Quotation") {
-          return spfStatus.toLowerCase() === "approved by procurement";
-        }
-        if (statusFilter === "For Revision") {
-          return spfStatus.toLowerCase() === "for revision by tl";
-        }
-        return false;
+
+        return getStatusLabel(spfStatus) === statusFilter;
       });
     }
 
@@ -552,6 +543,18 @@ const [isRefreshing, setIsRefreshing] = useState(false);
 
     return filtered;
   }, [requests, searchTerm, statusFilter, sortBy, sortOrder, createdSPF]);
+
+  
+/* ── Dynamic status list derived from createdSPF ── */
+  const availableStatuses = useMemo(() => {
+    const statusSet = new Set<string>();
+    Object.values(createdSPF).forEach((status) => {
+      if (!status) return;
+      const label = getStatusLabel(status);
+      if (label) statusSet.add(label);
+    });
+    return Array.from(statusSet).sort((a, b) => a.localeCompare(b));
+  }, [createdSPF]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE));
 
@@ -652,30 +655,17 @@ const [isRefreshing, setIsRefreshing] = useState(false);
           >
             All
           </Button>
-          <Button
-            size="sm"
-            variant={statusFilter === "For Procurement Costing" ? "default" : "outline"}
-            onClick={() => setStatusFilter("For Procurement Costing")}
-            className="text-xs"
-          >
-            For Procurement Costing
-          </Button>
-          <Button
-            size="sm"
-            variant={statusFilter === "Ready For Quotation" ? "default" : "outline"}
-            onClick={() => setStatusFilter("Ready For Quotation")}
-            className="text-xs"
-          >
-            Ready For Quotation
-          </Button>
-          <Button
-            size="sm"
-            variant={statusFilter === "For Revision" ? "default" : "outline"}
-            onClick={() => setStatusFilter("For Revision")}
-            className="text-xs"
-          >
-            For Revision
-          </Button>
+          {availableStatuses.map((status) => (
+            <Button
+              key={status}
+              size="sm"
+              variant={statusFilter === status ? "default" : "outline"}
+              onClick={() => setStatusFilter(status)}
+              className="text-xs"
+            >
+              {status}
+            </Button>
+          ))}
           <Button
             size="sm"
             variant={statusFilter === "No Status Yet" ? "default" : "outline"}
@@ -759,30 +749,17 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                 >
                   All
                 </Button>
-                <Button
-                  size="sm"
-                  variant={statusFilter === "For Procurement Costing" ? "default" : "outline"}
-                  onClick={() => setStatusFilter("For Procurement Costing")}
-                  className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
-                >
-                  Procurement
-                </Button>
-                <Button
-                  size="sm"
-                  variant={statusFilter === "Ready For Quotation" ? "default" : "outline"}
-                  onClick={() => setStatusFilter("Ready For Quotation")}
-                  className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
-                >
-                  Quotation
-                </Button>
-                <Button
-                  size="sm"
-                  variant={statusFilter === "For Revision" ? "default" : "outline"}
-                  onClick={() => setStatusFilter("For Revision")}
-                  className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
-                >
-                  Revision
-                </Button>
+                {availableStatuses.map((status) => (
+                  <Button
+                    key={status}
+                    size="sm"
+                    variant={statusFilter === status ? "default" : "outline"}
+                    onClick={() => setStatusFilter(status)}
+                    className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
+                  >
+                    {status}
+                  </Button>
+                ))}
                 <Button
                   size="sm"
                   variant={statusFilter === "No Status Yet" ? "default" : "outline"}
@@ -883,7 +860,20 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                       </div>
                     </td>
                     <td className="px-4 py-3 uppercase">{req.customer_name}</td>
-                    <td className="px-4 py-3 uppercase">{req.project_name || "-"}</td>
+                    <td className="px-4 py-3">
+                      <div className="cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => {
+                        setSpecialInstructionsDialog({
+                          open: true,
+                          instructions: req.special_instructions || "",
+                          customerName: req.customer_name,
+                          spfNumber: req.spf_number,
+                          status: req.status,
+                          rowData: req
+                        });
+                      }}>
+                        {req.project_name || "-"}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 uppercase">{req.prepared_by || "-"}</td>
                     <td className="px-4 py-3 uppercase">{req.approved_by || "-"}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formattedDateApprovedSalesHead}</td>
@@ -912,7 +902,14 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                         />
                         {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && spfStatus?.toLowerCase() !== "for revision by pd" && spfStatus?.toLowerCase() !== "for revision by tl" && (
                           <Button className="rounded-none h-9 px-4 shrink-0" variant="outline" onClick={() => {
-                            handleCreateFromRow(req);
+                            setSpecialInstructionsDialog({
+                              open: true,
+                              instructions: req.special_instructions || "",
+                              customerName: req.customer_name,
+                              spfNumber: req.spf_number,
+                              status: req.status,
+                              rowData: req
+                            });
                           }} disabled={req.is_cancelled}>
                             Create
                           </Button>
@@ -986,7 +983,18 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                   <span className="text-[10px] text-muted-foreground">{formattedDate}</span>
                 </div>
                 <p className="text-sm font-medium text-gray-800 uppercase">{req.customer_name}</p>
-                <p className="text-xs text-gray-600"><span className="text-gray-400">Project Name:</span> {req.project_name || "-"}</p>
+                <div className="text-xs text-gray-600">
+                  <p><span className="text-gray-400">Project Name:</span> <span className="cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => {
+                    setSpecialInstructionsDialog({
+                      open: true,
+                      instructions: req.special_instructions || "",
+                      customerName: req.customer_name,
+                      spfNumber: req.spf_number,
+                      status: req.status,
+                      rowData: req
+                    });
+                  }}>{req.project_name || "-"}</span></p>
+                </div>
                 <div className="text-xs text-gray-600 space-y-1 uppercase">
                   <p><span className="text-gray-400">Prepared By:</span> {req.prepared_by || "-"}</p>
                   <p><span className="text-gray-400">Approved By:</span> {req.approved_by || "-"}</p>
@@ -1011,7 +1019,14 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                   />
                   {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && spfStatus?.toLowerCase() !== "for revision by pd" && spfStatus?.toLowerCase() !== "for revision by tl" && (
                     <Button size="sm" className="rounded-xl flex-1 h-9" variant="outline" onClick={() => {
-                      handleCreateFromRow(req);
+                      setSpecialInstructionsDialog({
+                        open: true,
+                        instructions: req.special_instructions || "",
+                        customerName: req.customer_name,
+                        spfNumber: req.spf_number,
+                        status: req.status,
+                        rowData: req
+                      });
                     }} disabled={req.is_cancelled}>
                       Create
                     </Button>

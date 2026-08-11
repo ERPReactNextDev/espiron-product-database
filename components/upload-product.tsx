@@ -544,29 +544,32 @@ export default function UploadProduct({ iconOnly = false }: Props) {
         const h2 = ws.getRow(2);
         const cols: { title: string; specId: string; col: number }[] = [];
 
+        const SKIP_GROUPS = ["COMMERCIAL DETAILS", "DRAWINGS", "WARRANTY", "POLE", "LIGHT (SINGLE DIMENSION)", "LIGHT (MULTIPLE DIMENSION)"];
+        const SKIP_SPECS  = [
+          "Unit Cost", "Length", "Width", "Height", "pcs/carton",
+          "Factory Address", "Port of Discharge",
+          "Dimensional Drawing", "Illuminance Level",
+          "Available Countries", "MOQ",
+          "Warranty Number", "Warranty Period", "Commercial Type",
+          "POLE - Qty Per Container", "POLE - Landed Cost", "POLE - SRP",
+          "LIGHT (Single) - Unit Cost", "LIGHT (Single) - Length", "LIGHT (Single) - Width",
+          "LIGHT (Single) - Height", "LIGHT (Single) - Qty/Box",
+          "LIGHT (Single) - Landed Cost", "LIGHT (Single) - SRP",
+          "LIGHT (Multiple) - Item Names", "LIGHT (Multiple) - Unit Costs",
+          "LIGHT (Multiple) - Lengths", "LIGHT (Multiple) - Widths",
+          "LIGHT (Multiple) - Heights", "LIGHT (Multiple) - Qty/Boxes",
+          "LIGHT (Multiple) - Landed Costs", "LIGHT (Multiple) - SRPs",
+        ];
+
         for (let col = 1; col <= ws.columnCount; col++) {
           const specId = cleanExcelValue(h1.getCell(col).value);
           const group  = cleanExcelValue(h2.getCell(col).value);
 
           if (col < 9) continue;
-
-          const SKIP_GROUPS = ["COMMERCIAL DETAILS", "DRAWINGS", "WARRANTY", "POLE", "LIGHT (SINGLE DIMENSION)", "LIGHT (MULTIPLE DIMENSION)"];
-          const SKIP_SPECS  = [
-            "Unit Cost", "Length", "Width", "Height", "pcs/carton",
-            "Factory Address", "Port of Discharge",
-            "Dimensional Drawing", "Illuminance Level",
-            "Available Countries", "MOQ",
-            "Warranty Number", "Warranty Period", "Commercial Type",
-            "POLE - Qty Per Container", "POLE - Landed Cost", "POLE - SRP",
-            "LIGHT (Single) - Unit Cost", "LIGHT (Single) - Length", "LIGHT (Single) - Width",
-            "LIGHT (Single) - Height", "LIGHT (Single) - Qty/Box",
-            "LIGHT (Single) - Landed Cost", "LIGHT (Single) - SRP",
-            "LIGHT (Multiple) - Item Names", "LIGHT (Multiple) - Unit Costs",
-            "LIGHT (Multiple) - Lengths", "LIGHT (Multiple) - Widths",
-            "LIGHT (Multiple) - Heights", "LIGHT (Multiple) - Qty/Boxes",
-            "LIGHT (Multiple) - Landed Costs", "LIGHT (Multiple) - SRPs",
-          ];
           if (!group || !specId) continue;
+          if (SKIP_GROUPS.includes(group)) continue;
+          if (SKIP_SPECS.includes(specId)) continue;
+
           cols.push({ title: group, specId, col });
         }
         wsColumnsMap.set(wsIndex, cols);
