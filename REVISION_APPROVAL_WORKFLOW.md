@@ -230,7 +230,7 @@ When viewing an SPF in the engineer-ticketing repository:
 
 3. **Approval Dialog:**
    - Clicking Approve opens a confirmation dialog: "Approve Revision by Engineering?"
-   - Dialog shows revision details and explains that this will update SPF status to "For Revision by PD"
+   - Dialog shows revision details and explains that this will update SPF status to "For Revision by TL"
    - User can confirm or cancel
 
 4. **Rejection Dialog:**
@@ -263,8 +263,8 @@ When the Approve button is confirmed:
    - `revision_result`: "Request Approved By {Department}" (where {Department} is fetched from the users table based on the current user's session)
    - `revision_date`: Current timestamp
 
-5. Update `spf_creation` status to "For Revision by PD":
-   - `status`: "For Revision by PD"
+5. Update `spf_creation` status to "For Revision by TL":
+   - `status`: "For Revision by TL"
    - `date_updated`: Current timestamp
 
 6. **Broadcast to Collaboration Hub:**
@@ -459,7 +459,7 @@ A global dialog that appears across all Taskflow pages when new revisions are de
 ### 6. Engineering Revision Approval (Engineer-Ticketing)
 - **Endpoint:** `PUT /api/request/spf-request-engineering-revision-approve-api`
 - **Repository:** engineer-ticketing
-- **Purpose:** Approves a revision request from Engineering and updates SPF status to "For Revision by PD"
+- **Purpose:** Approves a revision request from Engineering and updates SPF status to "For Revision by TL"
 - **Request Body:**
   - `spf_number`: The SPF number to approve revision for
 - **Response:** Returns success message and creates new revision history record

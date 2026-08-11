@@ -219,7 +219,7 @@ function getResolvedName(referenceID: string | undefined): string {
 function getStatusLabel(status: string | undefined): string {
   if (status === "Pending For Procurement") return "For Procurement Costing";
   if (status === "Approved By Procurement") return "Ready For Quotation";
-  if (status === "For Revision by PD") return "FOR REVISION BY PD";
+  if (status === "For Revision by TL") return "FOR REVISION BY TL";
   if (status === "Processing by PD") return "Processing by PD";
   return status ?? "";
 }
@@ -1032,7 +1032,7 @@ useEffect(() => {
     if (editMode) return;
     if (!data) return;
 
-    const allowEdit = data?.status === "For Revision by PD";
+    const allowEdit = data?.status === "For Revision by TL" || data?.status === "For Revision by PD";
     if (!allowEdit) return;
 
     const existingRevisionType = data?.revision_type;
@@ -1894,7 +1894,7 @@ useEffect(() => {
   /* COMPUTED VALUES (view mode)                                    */
   /* ────────────────────────────────────────────────────────────── */
   const isApproved = data?.status === "Approved By Procurement";
-  const isForRevision = data?.status === "For Revision by PD";
+  const isForRevision = data?.status === "For Revision by TL" || data?.status === "For Revision by PD";
   const isPendingForProcurement = data?.status === "Pending For Procurement";
   const isCancelled = data?.status === "Cancelled";
   const canEditOffer = isForRevision;
@@ -4606,10 +4606,10 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                   onClick={() => {
                     setShowProcurementRevisionConfirm(true);
                   }}
-                  disabled={latestRevisionResult === "Requested By Engineering"}
+                  disabled={latestRevisionResult === "Requested By Engineering" || latestRevisionResult === "Requested by TL"}
                 >
                   <Pencil size={12} />
-                  {latestRevisionResult === "Requested By Engineering"
+                  {latestRevisionResult === "Requested By Engineering" || latestRevisionResult === "Requested by TL"
                     ? "Request Revision sent to Procurement"
                     : "Request Revision for Procurement"}
                 </Button>

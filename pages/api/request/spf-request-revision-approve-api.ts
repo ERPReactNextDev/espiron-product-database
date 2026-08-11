@@ -74,7 +74,7 @@ export default async function handler(
     const { error: creationError } = await supabase
       .from("spf_creation")
       .update({
-        status: "For Revision by PD",
+        status: "For Revision by TL",
         previous_status: null, // Clear previous_status after approval
         spf_revision_approval_sales_status: null,
         spf_revision_approval_sales_date: null,

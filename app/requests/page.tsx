@@ -49,7 +49,7 @@ const ALLOWED_STATUSES_LOWER = ALLOWED_STATUSES.map((s) => s.toLowerCase());
 const CREATION_NOTIFICATION_STATUSES = new Set([
   "pending for procurement",
   "approved by procurement", 
-  "for revision by pd",
+  "for revision by tl",
 ]);
 
 /* ─────────────────────────────────────────────────────────────── */
@@ -65,8 +65,8 @@ function StatusBadge({ status, isCancelled, latestRevisionResult }: { status: st
   }
   if (!status) return null;
 
-  // Show revision result if it starts with "Requested By" (pending approval)
-  if (latestRevisionResult?.startsWith("Requested By")) {
+  // Show revision result if it starts with "Requested By" or is "Requested by TL" (pending approval)
+  if (latestRevisionResult?.startsWith("Requested By") || latestRevisionResult === "Requested by TL") {
     return (
       <span className="text-xs px-2 py-1 rounded uppercase font-semibold whitespace-nowrap bg-cyan-100 text-cyan-700">
         {latestRevisionResult}
@@ -80,7 +80,7 @@ function StatusBadge({ status, isCancelled, latestRevisionResult }: { status: st
   const isForProcurement = statusLower === "for procurement costing";
   const isProcessingByPD = statusLower === "processing by pd";
   const isReadyForQuotation = statusLower === "ready for quotation";
-  const isForRevision = statusLower === "for revision by pd";
+  const isForRevision = statusLower === "for revision by tl";
 
   const colorClass = isCancelledStatus
     ? "bg-red-100 text-red-700"
@@ -526,7 +526,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
           return spfStatus.toLowerCase() === "approved by procurement";
         }
         if (statusFilter === "For Revision") {
-          return spfStatus.toLowerCase() === "for revision by pd";
+          return spfStatus.toLowerCase() === "for revision by tl";
         }
         return false;
       });
@@ -970,7 +970,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                           spfNumber={req.spf_number}
                           status={spfStatus}
                         />
-                        {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && spfStatus?.toLowerCase() !== "for revision by pd" && (
+                        {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && spfStatus?.toLowerCase() !== "for revision by pd" && spfStatus?.toLowerCase() !== "for revision by tl" && (
                           <Button className="rounded-none h-9 px-4 shrink-0" variant="outline" onClick={() => {
                             setSpecialInstructionsDialog({
                               open: true,
@@ -1107,7 +1107,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                     spfNumber={req.spf_number}
                     status={spfStatus}
                   />
-                  {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && spfStatus?.toLowerCase() !== "for revision by pd" && (
+                  {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && spfStatus?.toLowerCase() !== "for revision by pd" && spfStatus?.toLowerCase() !== "for revision by tl" && (
                     <Button size="sm" className="rounded-xl flex-1 h-9" variant="outline" onClick={() => {
                       setSpecialInstructionsDialog({
                         open: true,

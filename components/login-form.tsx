@@ -125,7 +125,7 @@ export function LoginForm({ onLoginSuccess, ...props }: LoginFormProps) {
             className={`h-10 sm:h-12 text-base sm:text-lg ${isComic ? "comic-input" : isEngineer ? "engineer-input" : "border-gray-300 focus:border-red-500 focus:ring-red-500"}`}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder={isComic ? "hero@disruptive.com" : isEngineer ? "worker@construction.com" : "Enter your email"}
+            placeholder={isComic ? "hero@disruptive.com" : isEngineer ? "e.spiron@disruptivesolutionsinc.com" : "Enter your email"}
           />
         </Field>
 

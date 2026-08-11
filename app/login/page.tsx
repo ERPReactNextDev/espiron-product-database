@@ -119,7 +119,7 @@ export default function LoginPage() {
             ) : isEngineer ? (
               <div className="engineer-sign mb-2 sm:mb-4 engineer-animate-pop">
                 <p className="font-engineer text-base sm:text-lg text-center font-bold text-gray-800">
-                  👷 Welcome back, builder! Ready to work?
+                  👷 Welcome back, TL Dept. Ready to work?
                 </p>
               </div>
             ) : (

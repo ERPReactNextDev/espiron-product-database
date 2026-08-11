@@ -80,7 +80,7 @@ export default async function handler(
       spf_revision_approval_sales_status: "Ongoing",
       spf_revision_approval_sales_date: new Date().toISOString(),
       revision_number: nextRevisionNumber,
-      revision_result: `Requested By ${userDepartment}`,
+      revision_result: userDepartment === "Engineering" ? "Requested by TL" : `Requested By ${userDepartment}`,
       revision_date: new Date().toISOString(),
       spf_revision_remarks_engineering: remarks || null,
       latest_approver: userReferenceID,
