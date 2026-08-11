@@ -501,7 +501,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
         !term ||
         (r.spf_number || "").toLowerCase().includes(term) ||
         (r.customer_name || "").toLowerCase().includes(term) ||
-        (r.special_instructions || "").toLowerCase().includes(term) ||
+        (r.project_name || "").toLowerCase().includes(term) ||
         (r.prepared_by || "").toLowerCase().includes(term) ||
         (r.approved_by || "").toLowerCase().includes(term) ||
         (r.date_approved_sales_head || "").toLowerCase().includes(term) ||
@@ -842,7 +842,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
         <table className="w-full text-sm border-collapse">
           <thead className="bg-red-50/80 backdrop-blur-sm sticky top-0 z-30">
             <tr>
-              {["SPF Number", "Customer Name", "Special Instructions", "Prepared By", "Approved By", "Date Received", "Date Updated", "Status", "Action"].map((h, index) => (
+              {["SPF Number", "Customer Name", "Project Name", "Prepared By", "Approved By", "Date Received", "Date Updated", "Status", "Action"].map((h, index) => (
                 <th key={h} className={`px-4 py-3 text-left font-bold border-b whitespace-nowrap ${index === 0 ? 'sticky left-0 bg-red-50/80 backdrop-blur-sm z-20' : ''}`}>{h}</th>
               ))}
             </tr>
@@ -883,67 +883,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                       </div>
                     </td>
                     <td className="px-4 py-3 uppercase">{req.customer_name}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-start gap-2">
-                        {/* Person icon */}
-                        <div className="shrink-0 w-8 h-8 rounded-full bg-linear-to-br from-indigo-400 to-purple-500 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
-                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                        </div>
-                        {/* Speech balloon */}
-                        <div className="relative group cursor-pointer" onClick={() => {
-                          if (req.special_instructions && req.special_instructions.length > 30) {
-                            setSpecialInstructionsDialog({
-                              open: true,
-                              instructions: req.special_instructions,
-                              customerName: req.customer_name,
-                              spfNumber: req.spf_number,
-                              status: req.status,
-                              rowData: req
-                            });
-                          }
-                        }}>
-                          <div className="relative bg-linear-to-br from-indigo-50 to-purple-50 border-2 border-indigo-300 rounded-2xl px-3 py-2 shadow-sm hover:shadow-md hover:scale-105 hover:-translate-y-0.5 transition-all duration-300 ease-out max-w-50">
-                            <span className="text-[11px] font-semibold text-indigo-700 uppercase tracking-wide block truncate">
-                              {req.special_instructions || "-"}
-                            </span>
-                            {/* Show "Click to view more..." indicator */}
-                            {req.special_instructions && (
-                              <span 
-                                className="text-[10px] text-indigo-500 font-medium cursor-pointer hover:text-indigo-700 underline"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSpecialInstructionsDialog({
-                                    open: true,
-                                    instructions: req.special_instructions || "",
-                                    customerName: req.customer_name,
-                                    spfNumber: req.spf_number,
-                                    status: req.status,
-                                    rowData: req
-                                  });
-                                }}
-                              >
-                                Click to view more...
-                              </span>
-                            )}
-                            {/* Speech balloon tail pointing to person */}
-                            <div 
-                              className="absolute -left-2 top-3 w-3 h-3 bg-indigo-50 border-l-2 border-b-2 border-indigo-300 transform rotate-45 group-hover:bg-purple-50 transition-colors duration-300 cursor-pointer hover:scale-105"
-                              onClick={() => {
-                                setSpecialInstructionsDialog({
-                                  open: true,
-                                  spfNumber: req.spf_number,
-                                  customerName: req.customer_name,
-                                  instructions: req.special_instructions || "",
-                                  status: req.status,
-                                  rowData: req
-                                });
-                              }}></div>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
+                    <td className="px-4 py-3 uppercase">{req.project_name || "-"}</td>
                     <td className="px-4 py-3 uppercase">{req.prepared_by || "-"}</td>
                     <td className="px-4 py-3 uppercase">{req.approved_by || "-"}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formattedDateApprovedSalesHead}</td>
@@ -972,14 +912,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                         />
                         {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && spfStatus?.toLowerCase() !== "for revision by pd" && spfStatus?.toLowerCase() !== "for revision by tl" && (
                           <Button className="rounded-none h-9 px-4 shrink-0" variant="outline" onClick={() => {
-                            setSpecialInstructionsDialog({
-                              open: true,
-                              instructions: req.special_instructions || "",
-                              customerName: req.customer_name,
-                              spfNumber: req.spf_number,
-                              status: req.status,
-                              rowData: req
-                            });
+                            handleCreateFromRow(req);
                           }} disabled={req.is_cancelled}>
                             Create
                           </Button>
@@ -1053,38 +986,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                   <span className="text-[10px] text-muted-foreground">{formattedDate}</span>
                 </div>
                 <p className="text-sm font-medium text-gray-800 uppercase">{req.customer_name}</p>
-                <div
-                  className="flex items-start gap-2 cursor-pointer"
-                  onClick={() => {
-                    if (req.special_instructions && req.special_instructions.length > 30) {
-                      setSpecialInstructionsDialog({
-                        open: true,
-                        instructions: req.special_instructions,
-                        customerName: req.customer_name,
-                        spfNumber: req.spf_number,
-                        status: req.status,
-                        rowData: req
-                      });
-                    }
-                  }}
-                >
-                  {/* Person icon */}
-                  <div className="shrink-0 w-7 h-7 rounded-full bg-linear-to-br from-indigo-400 to-purple-500 flex items-center justify-center shadow-md">
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                  {/* Speech balloon */}
-                  <div className="relative group cursor-pointer w-fit">
-                    <div className="relative bg-linear-to-br from-indigo-50 to-purple-50 border-2 border-indigo-300 rounded-2xl px-3 py-2 shadow-sm hover:shadow-md hover:scale-105 hover:-translate-y-0.5 transition-all duration-300 ease-out">
-                      <span className="text-[11px] font-semibold text-indigo-700 uppercase tracking-wide">
-                        {req.special_instructions || "-"}
-                      </span>
-                      {/* Speech balloon tail pointing to person */}
-                      <div className="absolute -left-2 top-3 w-3 h-3 bg-indigo-50 border-l-2 border-b-2 border-indigo-300 transform rotate-45 group-hover:bg-purple-50 transition-colors duration-300"></div>
-                    </div>
-                  </div>
-                </div>
+                <p className="text-xs text-gray-600"><span className="text-gray-400">Project Name:</span> {req.project_name || "-"}</p>
                 <div className="text-xs text-gray-600 space-y-1 uppercase">
                   <p><span className="text-gray-400">Prepared By:</span> {req.prepared_by || "-"}</p>
                   <p><span className="text-gray-400">Approved By:</span> {req.approved_by || "-"}</p>
@@ -1109,14 +1011,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                   />
                   {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && spfStatus?.toLowerCase() !== "for revision by pd" && spfStatus?.toLowerCase() !== "for revision by tl" && (
                     <Button size="sm" className="rounded-xl flex-1 h-9" variant="outline" onClick={() => {
-                      setSpecialInstructionsDialog({
-                        open: true,
-                        instructions: req.special_instructions || "",
-                        customerName: req.customer_name,
-                        spfNumber: req.spf_number,
-                        status: req.status,
-                        rowData: req
-                      });
+                      handleCreateFromRow(req);
                     }} disabled={req.is_cancelled}>
                       Create
                     </Button>
