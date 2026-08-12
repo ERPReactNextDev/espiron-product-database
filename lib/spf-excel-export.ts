@@ -273,13 +273,17 @@ export function buildExcelItemsFromProductOffers(params: {
           imageUrl: prod.mainImage?.url,
           technicalSpecifications: specsText || "-",
           qtyCtn,
-          moq: "-",
+          moq: prod.__moq || "-",
           warranty: prod?.commercialDetails?.warranty || "-",
           quotationsValidity: (() => {
-            const pv = prod.__priceValidity || prod.price_validity;
-            if (!pv) return "-";
+            const qv = prod.__quotationsValidity || prod.__priceValidity || prod.price_validity;
+            if (!qv) return "-";
             try {
-              return new Date(pv).toLocaleString("en-US", {
+              const date = new Date(qv);
+              if (isNaN(date.getTime())) {
+                return "TBA";
+              }
+              return date.toLocaleString("en-US", {
                 year: "numeric",
                 month: "short",
                 day: "numeric",
@@ -287,11 +291,47 @@ export function buildExcelItemsFromProductOffers(params: {
                 minute: "2-digit",
               });
             } catch {
-              return pv;
+              return "TBA";
             }
           })(),
-          productionLeadTime: prod.__leadTime || "-",
-          deliveryLeadTime: prod.__leadTime || "-",
+          productionLeadTime: (() => {
+            const plt = prod.__productionLeadTime;
+            if (!plt) return "-";
+            try {
+              const date = new Date(plt);
+              if (isNaN(date.getTime())) {
+                return "TBA";
+              }
+              return date.toLocaleString("en-US", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+            } catch {
+              return "TBA";
+            }
+          })(),
+          deliveryLeadTime: (() => {
+            const dlt = prod.__deliveryLeadTime;
+            if (!dlt) return "-";
+            try {
+              const date = new Date(dlt);
+              if (isNaN(date.getTime())) {
+                return "TBA";
+              }
+              return date.toLocaleString("en-US", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+            } catch {
+              return "TBA";
+            }
+          })(),
           commercialType,
           packaging,
           totalCost: (qty * cost).toFixed(2),
@@ -318,6 +358,10 @@ export function buildExcelItemsFromViewData(params: {
   rowPackaging: string[][];
   rowPcsPerCartons: string[][];
   rowProductNames: string[][];
+  rowMoqs: string[][];
+  rowQuotationsValidities: string[][];
+  rowProductionLeadTimes: string[][];
+  rowDeliveryLeadTimes: string[][];
 }): SPFExcelItemRow[] {
   const {
     spfNumber,
@@ -335,6 +379,10 @@ export function buildExcelItemsFromViewData(params: {
     rowPackaging,
     rowPcsPerCartons,
     rowProductNames,
+    rowMoqs,
+    rowQuotationsValidities,
+    rowProductionLeadTimes,
+    rowDeliveryLeadTimes,
   } = params;
   const qtys = (itemQtyString || "").split(",").map((q) => q.trim());
 
@@ -366,10 +414,14 @@ export function buildExcelItemsFromViewData(params: {
               technicalSpecifications: Array.isArray(specsForOpt) ? specsForOpt.join("\n") : "-",
               warranty: (rowWarranties[rowIndex] ?? [])[i] || "-",
               quotationsValidity: (() => {
-                const pv = (rowPriceValidities[rowIndex] ?? [])[i];
+                const pv = (rowQuotationsValidities[rowIndex] ?? [])[i] || (rowPriceValidities[rowIndex] ?? [])[i];
                 if (!pv || pv === "-") return "-";
                 try {
-                  return new Date(pv).toLocaleString("en-US", {
+                  const date = new Date(pv);
+                  if (isNaN(date.getTime())) {
+                    return "TBA";
+                  }
+                  return date.toLocaleString("en-US", {
                     year: "numeric",
                     month: "short",
                     day: "numeric",
@@ -377,12 +429,48 @@ export function buildExcelItemsFromViewData(params: {
                     minute: "2-digit",
                   });
                 } catch {
-                  return pv;
+                  return "TBA";
                 }
               })(),
-              productionLeadTime: (rowLeadTimes[rowIndex] ?? [])[i] || "-",
-              deliveryLeadTime: (rowLeadTimes[rowIndex] ?? [])[i] || "-",
-              moq: "-",
+              productionLeadTime: (() => {
+                const plt = (rowProductionLeadTimes[rowIndex] ?? [])[i];
+                if (!plt || plt === "-") return "-";
+                try {
+                  const date = new Date(plt);
+                  if (isNaN(date.getTime())) {
+                    return "TBA";
+                  }
+                  return date.toLocaleString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+                } catch {
+                  return "TBA";
+                }
+              })(),
+              deliveryLeadTime: (() => {
+                const dlt = (rowDeliveryLeadTimes[rowIndex] ?? [])[i];
+                if (!dlt || dlt === "-") return "-";
+                try {
+                  const date = new Date(dlt);
+                  if (isNaN(date.getTime())) {
+                    return "TBA";
+                  }
+                  return date.toLocaleString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+                } catch {
+                  return "TBA";
+                }
+              })(),
+              moq: (rowMoqs[rowIndex] ?? [])[i] || "-",
               qtyCtn,
               commercialType,
               packaging,

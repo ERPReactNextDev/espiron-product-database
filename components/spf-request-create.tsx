@@ -1333,7 +1333,7 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
 <div className="flex items-center gap-2 mt-1">
                                     <span className="text-[10px] text-muted-foreground shrink-0">MOQ</span>
                                     <input
-                                      type="text"
+                                      type="number"
                                       className="border rounded px-2 py-0.5 text-xs flex-1"
                                       value={prod.__moq ?? (prod?.commercialDetails?.moq != null ? String(prod.commercialDetails.moq) : "")}
                                       onChange={(e) => {
@@ -1350,7 +1350,7 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
                                   <div className="flex items-center gap-2 mt-1">
                                     <span className="text-[10px] text-muted-foreground shrink-0">Quotations Validity</span>
                                     <input
-                                      type="text"
+                                      type="datetime-local"
                                       className="border rounded px-2 py-0.5 text-xs flex-1"
                                       value={prod.__quotationsValidity ?? ""}
                                       onChange={(e) => {
@@ -1367,7 +1367,7 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
                                   <div className="flex items-center gap-2 mt-1">
                                     <span className="text-[10px] text-muted-foreground shrink-0">Production Lead Time</span>
                                     <input
-                                      type="text"
+                                      type="datetime-local"
                                       className="border rounded px-2 py-0.5 text-xs flex-1"
                                       value={prod.__productionLeadTime ?? ""}
                                       onChange={(e) => {
@@ -1384,7 +1384,7 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
                                   <div className="flex items-center gap-2 mt-1">
                                     <span className="text-[10px] text-muted-foreground shrink-0">Delivery Lead Time</span>
                                     <input
-                                      type="text"
+                                      type="datetime-local"
                                       className="border rounded px-2 py-0.5 text-xs flex-1"
                                       value={prod.__deliveryLeadTime ?? ""}
                                       onChange={(e) => {
@@ -2226,7 +2226,7 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
                       <div>
                         <div className="text-gray-400 mb-0.5">MOQ</div>
                         <input
-                          type="text"
+                          type="number"
                           className="w-full border rounded px-1 py-0.5 text-[10px]"
                           value={prod.__moq ?? (prod?.commercialDetails?.moq != null ? String(prod.commercialDetails.moq) : "")}
                           onChange={(e) => {
@@ -2245,7 +2245,7 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
                       <div>
                         <div className="text-gray-400 mb-0.5">Quotations Validity</div>
                         <input
-                          type="text"
+                          type="datetime-local"
                           className="w-full border rounded px-1 py-0.5 text-[10px]"
                           value={prod.__quotationsValidity ?? ""}
                           onChange={(e) => {
@@ -2264,7 +2264,7 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
                       <div>
                         <div className="text-gray-400 mb-0.5">Production Lead Time</div>
                         <input
-                          type="text"
+                          type="datetime-local"
                           className="w-full border rounded px-1 py-0.5 text-[10px]"
                           value={prod.__productionLeadTime ?? ""}
                           onChange={(e) => {
@@ -2283,7 +2283,7 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
                       <div>
                         <div className="text-gray-400 mb-0.5">Delivery Lead Time</div>
                         <input
-                          type="text"
+                          type="datetime-local"
                           className="w-full border rounded px-1 py-0.5 text-[10px]"
                           value={prod.__deliveryLeadTime ?? ""}
                           onChange={(e) => {
