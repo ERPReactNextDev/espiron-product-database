@@ -78,6 +78,10 @@ type RevisionHistoryRecord = {
   scope?: string;
   other_client_instruction?: string;
   win_rate_probability_percentage?: string;
+  moq?: string;
+  quotations_validity?: string;
+  production_lead_time?: string;
+  delivery_lead_time?: string;
 };
 
 type Props = {
@@ -625,6 +629,10 @@ export default function SPFRequestRevisionHistory({
                                 <TableRow label="Warranty" value={rev.warranty} oldValue={prevRecord?.warranty} hasPrev={!!prevRecord} />
                                 <TableRow label="Special Instructions" value={rev.special_instructions} oldValue={prevRecord?.special_instructions} hasPrev={!!prevRecord} />
                                 <TableRow label="Remarks" value={rev.remarks} oldValue={prevRecord?.remarks} hasPrev={!!prevRecord} />
+                                <TableRow label="MOQ" value={rev.moq} oldValue={prevRecord?.moq} hasPrev={!!prevRecord} />
+                                <TableRow label="Quotations Validity" value={rev.quotations_validity} oldValue={prevRecord?.quotations_validity} hasPrev={!!prevRecord} />
+                                <TableRow label="Production Lead Time" value={rev.production_lead_time} oldValue={prevRecord?.production_lead_time} hasPrev={!!prevRecord} />
+                                <TableRow label="Delivery Lead Time" value={rev.delivery_lead_time} oldValue={prevRecord?.delivery_lead_time} hasPrev={!!prevRecord} />
                               </tbody>
                             </table>
                           </div>

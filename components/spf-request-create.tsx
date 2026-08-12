@@ -35,6 +35,8 @@ const escapeRegExp = (string: string) => {
 };
 import { ForPoolingButton } from "@/components/for-pooling-button";
 import { toast } from "sonner";
+import { Download } from "lucide-react";
+import { exportSPFRequestToExcel, buildExcelItemsFromProductOffers } from "@/lib/spf-excel-export";
 import FilteringComponent from "@/components/filtering-component-v2";
 import AddProductComponent from "@/components/add-product-component";
 import EditProductComponent from "@/components/edit-product-component";
@@ -406,7 +408,8 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
 
   /* ── Draft state ── */
   const [hasDraft, setHasDraft] = useState(false);
-  const [isSavingDraft, setIsSavingDraft] = useState(false);
+const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
 
   /* ── TDS Dialog state ── */
@@ -573,10 +576,11 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
       const copy = { ...prev };
       copy[rowIndex] = [
         ...(copy[rowIndex] || []),
-        { 
+{ 
           ...product, 
           qty: product.qty ?? 1,
           __tdsProductName: product.__tdsProductName ?? product.productName ?? "",
+          __moq: product.__moq ?? (product?.commercialDetails?.moq != null ? String(product.commercialDetails.moq) : ""),
           // Store original specs for editing later
           __originalTechnicalSpecifications: product.__originalTechnicalSpecifications || product.technicalSpecifications,
         },
@@ -1000,6 +1004,27 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
     }
   };
 
+  /* ── Download XLSX ── */
+  const handleDownloadExcel = async () => {
+    if (isExportingExcel) return;
+    setIsExportingExcel(true);
+    try {
+      const items = buildExcelItemsFromProductOffers({
+        spfNumber: formData.spf_number || "",
+        itemDescriptions: formData.item_description || [],
+        itemImages: formData.item_photo || [],
+        itemQtyString: formData.item_qty || "",
+        productOffers,
+      });
+      await exportSPFRequestToExcel(formData.spf_number || "SPF-Request", items);
+    } catch (err) {
+      console.error("Excel export error:", err);
+      toast.error("Failed to generate Excel file");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   /* ════════════════════════════════════════════════════════════ */
   /* MOBILE LAYOUT                                               */
   /* ════════════════════════════════════════════════════════════ */
@@ -1299,6 +1324,74 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                                           const copy = { ...prev };
                                           const row = [...(copy[index] || [])];
                                           row[i] = { ...row[i], __priceValidity: e.target.value, price_validity: e.target.value };
+                                          copy[index] = row;
+                                          return copy;
+                                        });
+                                      }}
+                                    />
+                                  </div>
+<div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] text-muted-foreground shrink-0">MOQ</span>
+                                    <input
+                                      type="text"
+                                      className="border rounded px-2 py-0.5 text-xs flex-1"
+                                      value={prod.__moq ?? (prod?.commercialDetails?.moq != null ? String(prod.commercialDetails.moq) : "")}
+                                      onChange={(e) => {
+                                        setProductOffers((prev) => {
+                                          const copy = { ...prev };
+                                          const row = [...(copy[index] || [])];
+                                          row[i] = { ...row[i], __moq: e.target.value };
+                                          copy[index] = row;
+                                          return copy;
+                                        });
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] text-muted-foreground shrink-0">Quotations Validity</span>
+                                    <input
+                                      type="text"
+                                      className="border rounded px-2 py-0.5 text-xs flex-1"
+                                      value={prod.__quotationsValidity ?? ""}
+                                      onChange={(e) => {
+                                        setProductOffers((prev) => {
+                                          const copy = { ...prev };
+                                          const row = [...(copy[index] || [])];
+                                          row[i] = { ...row[i], __quotationsValidity: e.target.value };
+                                          copy[index] = row;
+                                          return copy;
+                                        });
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] text-muted-foreground shrink-0">Production Lead Time</span>
+                                    <input
+                                      type="text"
+                                      className="border rounded px-2 py-0.5 text-xs flex-1"
+                                      value={prod.__productionLeadTime ?? ""}
+                                      onChange={(e) => {
+                                        setProductOffers((prev) => {
+                                          const copy = { ...prev };
+                                          const row = [...(copy[index] || [])];
+                                          row[i] = { ...row[i], __productionLeadTime: e.target.value };
+                                          copy[index] = row;
+                                          return copy;
+                                        });
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] text-muted-foreground shrink-0">Delivery Lead Time</span>
+                                    <input
+                                      type="text"
+                                      className="border rounded px-2 py-0.5 text-xs flex-1"
+                                      value={prod.__deliveryLeadTime ?? ""}
+                                      onChange={(e) => {
+                                        setProductOffers((prev) => {
+                                          const copy = { ...prev };
+                                          const row = [...(copy[index] || [])];
+                                          row[i] = { ...row[i], __deliveryLeadTime: e.target.value };
                                           copy[index] = row;
                                           return copy;
                                         });
@@ -1647,6 +1740,18 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
           >
             <Save size={16} className="mr-2" />
             {isSavingDraft ? "Saving..." : hasDraft ? "Update Draft" : "Save Draft"}
+          </Button>
+        </div>
+        <div className="w-full">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full rounded"
+            onClick={handleDownloadExcel}
+            disabled={isExportingExcel || (formData.item_description?.length || 0) === 0}
+          >
+            <Download size={16} className="mr-2" />
+            {isExportingExcel ? "Generating..." : "Download XLSX"}
           </Button>
         </div>
       </DialogFooter>
@@ -2117,6 +2222,82 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
                         />
                       </div>
 
+{/* MOQ */}
+                      <div>
+                        <div className="text-gray-400 mb-0.5">MOQ</div>
+                        <input
+                          type="text"
+                          className="w-full border rounded px-1 py-0.5 text-[10px]"
+                          value={prod.__moq ?? (prod?.commercialDetails?.moq != null ? String(prod.commercialDetails.moq) : "")}
+                          onChange={(e) => {
+                            setProductOffers((prev) => {
+                              const copy = { ...prev };
+                              const row = [...(copy[index] || [])];
+                              row[i] = { ...row[i], __moq: e.target.value };
+                              copy[index] = row;
+                              return copy;
+                            });
+                          }}
+                        />
+                      </div>
+
+                      {/* Quotations Validity */}
+                      <div>
+                        <div className="text-gray-400 mb-0.5">Quotations Validity</div>
+                        <input
+                          type="text"
+                          className="w-full border rounded px-1 py-0.5 text-[10px]"
+                          value={prod.__quotationsValidity ?? ""}
+                          onChange={(e) => {
+                            setProductOffers((prev) => {
+                              const copy = { ...prev };
+                              const row = [...(copy[index] || [])];
+                              row[i] = { ...row[i], __quotationsValidity: e.target.value };
+                              copy[index] = row;
+                              return copy;
+                            });
+                          }}
+                        />
+                      </div>
+
+                      {/* Production Lead Time */}
+                      <div>
+                        <div className="text-gray-400 mb-0.5">Production Lead Time</div>
+                        <input
+                          type="text"
+                          className="w-full border rounded px-1 py-0.5 text-[10px]"
+                          value={prod.__productionLeadTime ?? ""}
+                          onChange={(e) => {
+                            setProductOffers((prev) => {
+                              const copy = { ...prev };
+                              const row = [...(copy[index] || [])];
+                              row[i] = { ...row[i], __productionLeadTime: e.target.value };
+                              copy[index] = row;
+                              return copy;
+                            });
+                          }}
+                        />
+                      </div>
+
+                      {/* Delivery Lead Time */}
+                      <div>
+                        <div className="text-gray-400 mb-0.5">Delivery Lead Time</div>
+                        <input
+                          type="text"
+                          className="w-full border rounded px-1 py-0.5 text-[10px]"
+                          value={prod.__deliveryLeadTime ?? ""}
+                          onChange={(e) => {
+                            setProductOffers((prev) => {
+                              const copy = { ...prev };
+                              const row = [...(copy[index] || [])];
+                              row[i] = { ...row[i], __deliveryLeadTime: e.target.value };
+                              copy[index] = row;
+                              return copy;
+                            });
+                          }}
+                        />
+                      </div>
+
                       {/* TDS Brand */}
                       <div>
                         <div className="text-gray-400 mb-0.5">TDS Brand</div>
@@ -2499,6 +2680,16 @@ const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
             {isSavingDraft ? "Saving..." : hasDraft ? "Update Draft" : "Save Draft"}
           </Button>
           <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-none p-6"
+              onClick={handleDownloadExcel}
+              disabled={isExportingExcel || (formData.item_description?.length || 0) === 0}
+            >
+              <Download size={18} className="mr-2" />
+              {isExportingExcel ? "Generating..." : "Download XLSX"}
+            </Button>
             <Button
               variant="outline"
               className="rounded-none p-6"

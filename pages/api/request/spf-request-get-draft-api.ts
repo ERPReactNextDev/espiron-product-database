@@ -235,6 +235,10 @@ export default async function handler(
     const flatCommercialTypes = splitRows(draft.commercial_type);
     const flatTdsPdfUrls      = splitRows(draft.tds);
     const flatIsExisting      = splitRows(draft.is_existing);
+    const flatMoqs            = splitRows((draft as any).moq ?? null);
+    const flatQuotationsValidities = splitRows((draft as any).quotations_validity ?? null);
+    const flatProductionLeadTimes = splitRows((draft as any).production_lead_time ?? null);
+    const flatDeliveryLeadTimes   = splitRows((draft as any).delivery_lead_time ?? null);
 
     /* ── Parse technical specs (per flat index) ── */
     const parseSingleRowSpec = (raw: string): any[] => {
@@ -363,6 +367,10 @@ export default async function handler(
             : "",
         __isExisting: flatIsExisting[flatIdx] === "true",
         __rowIndex: rowIdx,
+        __moq: flatMoqs[flatIdx] || "-",
+        __quotationsValidity: flatQuotationsValidities[flatIdx] || "-",
+        __productionLeadTime: flatProductionLeadTimes[flatIdx] || "-",
+        __deliveryLeadTime: flatDeliveryLeadTimes[flatIdx] || "-",
       };
 
       productOffersByRow[rowIdx].push(product);

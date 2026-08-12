@@ -233,6 +233,10 @@ export default async function handler(
     const rowLeadTimes:       string[] = [];
     const rowItemCodes:       string[] = [];
     const rowPriceValidities: string[] = [];
+    const rowMoqs:            string[] = [];
+    const rowQuotationsValidities: string[] = [];
+    const rowProductionLeadTimes: string[] = [];
+    const rowDeliveryLeadTimes: string[] = [];
     const rowDimensionalDrawings: string[] = [];
     const rowIlluminanceDrawings: string[] = [];
     const rowProductNames:       string[] = [];
@@ -263,6 +267,10 @@ export default async function handler(
       const leadTimes:       string[] = [];
       const itemCodes:       string[] = [];
       const priceValidities: string[] = [];
+      const moqs:            string[] = [];
+      const quotationsValidities: string[] = [];
+      const productionLeadTimes: string[] = [];
+      const deliveryLeadTimes: string[] = [];
       const dimensionalDrawings: string[] = [];
       const illuminanceDrawings: string[] = [];
       const productNames: string[] = [];
@@ -336,6 +344,10 @@ export default async function handler(
         leadTimes.push(p?.__leadTime      ?? "-");
 
         itemCodes.push(hasMultipleOffers ? `${rowBase}-${optionIndexToLetters(optIdx)}` : rowBase);
+        moqs.push(p?.__moq ?? "-");
+        quotationsValidities.push(p?.__quotationsValidity ?? "-");
+        productionLeadTimes.push(p?.__productionLeadTime ?? "-");
+        deliveryLeadTimes.push(p?.__deliveryLeadTime ?? "-");
         dimensionalDrawings.push(p?.dimensionalDrawing?.url || "-");
         illuminanceDrawings.push(p?.illuminanceDrawing?.url || "-");
 
@@ -421,6 +433,10 @@ export default async function handler(
       rowLeadTimes.push(leadTimes.join(ROW_SEP));
       rowItemCodes.push(itemCodes.join(ROW_SEP));
       rowPriceValidities.push(priceValidities.join(ROW_SEP));
+      rowMoqs.push(moqs.join(ROW_SEP));
+      rowQuotationsValidities.push(quotationsValidities.join(ROW_SEP));
+      rowProductionLeadTimes.push(productionLeadTimes.join(ROW_SEP));
+      rowDeliveryLeadTimes.push(deliveryLeadTimes.join(ROW_SEP));
       rowDimensionalDrawings.push(dimensionalDrawings.join(ROW_SEP));
       rowIlluminanceDrawings.push(illuminanceDrawings.join(ROW_SEP));
       rowProductNames.push(productNames.join(ROW_SEP));
@@ -458,6 +474,10 @@ export default async function handler(
     const finalSellingCosts    = rowSellingCosts.join(ROW_BOUNDARY);
     const finalLeadTimes       = rowLeadTimes.join(ROW_BOUNDARY);
     const finalPriceValidities = rowPriceValidities.join(ROW_BOUNDARY);
+    const finalMoqs            = rowMoqs.join(ROW_BOUNDARY);
+    const finalQuotationsValidities = rowQuotationsValidities.join(ROW_BOUNDARY);
+    const finalProductionLeadTimes = rowProductionLeadTimes.join(ROW_BOUNDARY);
+    const finalDeliveryLeadTimes = rowDeliveryLeadTimes.join(ROW_BOUNDARY);
     const finalDimensionalDrawings = rowDimensionalDrawings.join(ROW_BOUNDARY);
     const finalIlluminanceDrawings = rowIlluminanceDrawings.join(ROW_BOUNDARY);
     const finalProductNames        = rowProductNames.join(ROW_BOUNDARY);
@@ -513,6 +533,10 @@ export default async function handler(
       final_selling_cost: finalSellingCosts,
       proj_lead_time:     finalLeadTimes,
       price_validity:     finalPriceValidities,
+      moq:                finalMoqs,
+      quotations_validity: finalQuotationsValidities,
+      production_lead_time: finalProductionLeadTimes,
+      delivery_lead_time: finalDeliveryLeadTimes,
       tds: finalTds,
       dimensional_drawing: finalDimensionalDrawings,
       illuminance_drawing: finalIlluminanceDrawings,
@@ -560,6 +584,10 @@ export default async function handler(
         final_selling_cost: finalSellingCosts,
         proj_lead_time:     finalLeadTimes,
         price_validity:     finalPriceValidities,
+        moq:                finalMoqs,
+        quotations_validity: finalQuotationsValidities,
+        production_lead_time: finalProductionLeadTimes,
+        delivery_lead_time: finalDeliveryLeadTimes,
         dimensional_drawing: finalDimensionalDrawings,
         illuminance_drawing: finalIlluminanceDrawings,
         tds: finalTds,

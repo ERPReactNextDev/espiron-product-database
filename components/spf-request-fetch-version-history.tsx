@@ -28,6 +28,10 @@ type VersionRecord = {
   spf_creation_start_time?: string;
   spf_creation_end_time?: string;
   price_validity?: string;
+  moq?: string;
+  quotations_validity?: string;
+  production_lead_time?: string;
+  delivery_lead_time?: string;
 
   supplier_brand?: string;
   product_name?: string;
@@ -610,6 +614,10 @@ function VersionDetail({
   const rowFinalSubtotals = splitByRow(record.final_subtotal, rowStructure);
   const rowItemCodes = splitByRow(record.item_code, rowStructure);
   const rowPriceValidities = splitByRow(record.price_validity, rowStructure);
+  const rowMoqs = splitByRow(record.moq, rowStructure);
+  const rowQuotationsValidity = splitByRow(record.quotations_validity, rowStructure);
+  const rowProductionLeadTime = splitByRow(record.production_lead_time, rowStructure);
+  const rowDeliveryLeadTime = splitByRow(record.delivery_lead_time, rowStructure);
   const rowTdsBrands = splitByRow(record.tds, rowStructure);
   const rowProductNames = splitByRow(record.product_name, rowStructure);
   const rowDimensionalDrawings = splitByRow(record.dimensional_drawing, rowStructure);
@@ -648,7 +656,11 @@ function VersionDetail({
   const prevRowFinalUnitCosts = splitByRow(prevRecord?.final_unit_cost, prevRowStructure);
   const prevRowFinalSubtotals = splitByRow(prevRecord?.final_subtotal, prevRowStructure);
   const prevRowItemCodes = splitByRow(prevRecord?.item_code, prevRowStructure);
-  const prevRowPriceValidities = splitByRow(prevRecord?.price_validity, prevRowStructure);
+const prevRowPriceValidities = splitByRow(prevRecord?.price_validity, prevRowStructure);
+  const prevRowMoqs = splitByRow(prevRecord?.moq, prevRowStructure);
+  const prevRowQuotationsValidity = splitByRow(prevRecord?.quotations_validity, prevRowStructure);
+  const prevRowProductionLeadTime = splitByRow(prevRecord?.production_lead_time, prevRowStructure);
+  const prevRowDeliveryLeadTime = splitByRow(prevRecord?.delivery_lead_time, prevRowStructure);
   const prevRowTdsBrands = splitByRow(prevRecord?.tds, prevRowStructure);
   const prevRowProductNames = splitByRow(prevRecord?.product_name, prevRowStructure);
   const prevRowCommercialTypes = splitByRow(prevRecord?.commercial_type, prevRowStructure);
@@ -703,6 +715,10 @@ function VersionDetail({
         const prodFinalSubtotals = rowFinalSubtotals[rowIndex] ?? [];
         const prodItemCodes = rowItemCodes[rowIndex] ?? [];
         const prodPriceValidities = rowPriceValidities[rowIndex] ?? [];
+        const prodMoqs = rowMoqs[rowIndex] ?? [];
+        const prodQuotationsValidity = rowQuotationsValidity[rowIndex] ?? [];
+        const prodProductionLeadTime = rowProductionLeadTime[rowIndex] ?? [];
+        const prodDeliveryLeadTime = rowDeliveryLeadTime[rowIndex] ?? [];
         const prodTdsBrands = rowTdsBrands[rowIndex] ?? [];
         const prodProductNames = rowProductNames[rowIndex] ?? [];
         const prodDimensionalDrawings = rowDimensionalDrawings[rowIndex] ?? [];
@@ -821,6 +837,10 @@ function VersionDetail({
                             try { return new Date(pv).toLocaleString("en-PH", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return pv; }
                           })()}
                         />
+                        <DiffValue label="MOQ" current={prodMoqs[i]} previous={getPrev(prevRowMoqs, rowIndex, i)} />
+                        <DiffValue label="Quotations Validity" current={prodQuotationsValidity[i]} previous={getPrev(prevRowQuotationsValidity, rowIndex, i)} />
+                        <DiffValue label="Production Lead Time" current={prodProductionLeadTime[i]} previous={getPrev(prevRowProductionLeadTime, rowIndex, i)} />
+                        <DiffValue label="Delivery Lead Time" current={prodDeliveryLeadTime[i]} previous={getPrev(prevRowDeliveryLeadTime, rowIndex, i)} />
                         <div className={`${(() => { const b = prodTdsBrands[i]; const p = getPrev(prevRowTdsBrands, rowIndex, i); const changed = (b ?? "").trim() !== (p ?? "").trim(); return changed ? "bg-yellow-50 rounded px-1 py-0.5 border border-yellow-200" : ""; })()}`}>
                           <span className="text-gray-400 block text-[10px]">TDS Brand</span>
                           {(() => {
@@ -1053,13 +1073,29 @@ function VersionDetail({
                                 ₱{Number(prodSubtotals[i] || 0).toLocaleString()}
                               </p>
                             </div>
-                            <div
+<div
                               className={`col-span-2 ${cardFieldCls(
                                 isFieldChanged(prodPriceValidities[i], prevRowPriceValidities, rowIndex, i),
                               )}`}
                             >
                               <label className="text-[10px] font-semibold text-gray-500 uppercase">Price Validity</label>
                               <p className="text-xs font-medium text-gray-800">{priceValidityDisplay}</p>
+                            </div>
+                            <div className={cardFieldCls(isFieldChanged(prodMoqs[i], prevRowMoqs, rowIndex, i))}>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">MOQ</label>
+                              <p className="text-xs font-medium text-gray-800">{prodMoqs[i] || "-"}</p>
+                            </div>
+                            <div className={cardFieldCls(isFieldChanged(prodQuotationsValidity[i], prevRowQuotationsValidity, rowIndex, i))}>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Quotations Validity</label>
+                              <p className="text-xs font-medium text-gray-800">{prodQuotationsValidity[i] || "-"}</p>
+                            </div>
+                            <div className={cardFieldCls(isFieldChanged(prodProductionLeadTime[i], prevRowProductionLeadTime, rowIndex, i))}>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Production Lead Time</label>
+                              <p className="text-xs font-medium text-gray-800">{prodProductionLeadTime[i] || "-"}</p>
+                            </div>
+                            <div className={cardFieldCls(isFieldChanged(prodDeliveryLeadTime[i], prevRowDeliveryLeadTime, rowIndex, i))}>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Delivery Lead Time</label>
+                              <p className="text-xs font-medium text-gray-800">{prodDeliveryLeadTime[i] || "-"}</p>
                             </div>
                           </div>
 

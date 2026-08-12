@@ -28,6 +28,7 @@ import {
   Save,
   Copy,
   History,
+  Download,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -46,6 +47,11 @@ const escapeRegExp = (string: string) => {
 import { ForPoolingButton } from "@/components/for-pooling-button";
 import { toast } from "sonner";
 import { collection, query, where, onSnapshot, getDocs, limit, addDoc, doc, getDoc } from "firebase/firestore";
+import {
+  exportSPFRequestToExcel,
+  buildExcelItemsFromProductOffers,
+  buildExcelItemsFromViewData,
+} from "@/lib/spf-excel-export";
 import { db } from "@/lib/firebase";
 import FilteringComponent from "@/components/filtering-component-v2";
 import AddProductComponent from "@/components/add-product-component";
@@ -756,8 +762,9 @@ useEffect(() => {
 
   /* ── Draft state ── */
   const [hasDraft, setHasDraft] = useState(false);
-  const [isSavingDraft, setIsSavingDraft] = useState(false);
+const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isLoadingDraft, setIsLoadingDraft] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [draftAutoLoaded, setDraftAutoLoaded] = useState(false);
   const draftInUseRef = useRef(false);
 
@@ -1096,6 +1103,10 @@ useEffect(() => {
     const rowLeadTimes = splitByRow(data.proj_lead_time, rowStructure);
     const rowItemCodes = splitByRow(data.item_code, rowStructure);
     const rowPriceValidities = splitByRow(data.price_validity, rowStructure);
+    const rowMoqs = splitByRow((data as any).moq, rowStructure);
+    const rowQuotationsValidities = splitByRow((data as any).quotations_validity, rowStructure);
+    const rowProductionLeadTimes = splitByRow((data as any).production_lead_time, rowStructure);
+    const rowDeliveryLeadTimes = splitByRow((data as any).delivery_lead_time, rowStructure);
     const rowTdsBrands = splitByRow(data.tds, rowStructure);
     const rowTdsUrls = splitByRow(data.tds, rowStructure);
     const rowDimensionalDrawings = splitByRow(data.dimensional_drawing, rowStructure);
@@ -1290,10 +1301,26 @@ useEffect(() => {
             if (!pv || pv === "-") return "";
             try { return new Date(pv).toISOString().slice(0, 16); } catch { return ""; }
           })(),
-          price_validity: (() => {
+price_validity: (() => {
             const pv = (rowPriceValidities[rowIndex] ?? [])[i];
             if (!pv || pv === "-") return "";
             return pv;
+          })(),
+          __moq: (() => {
+            const m = (rowMoqs[rowIndex] ?? [])[i];
+            return m && m !== "-" ? m : "";
+          })(),
+          __quotationsValidity: (() => {
+            const q = (rowQuotationsValidities[rowIndex] ?? [])[i];
+            return q && q !== "-" ? q : "";
+          })(),
+          __productionLeadTime: (() => {
+            const p = (rowProductionLeadTimes[rowIndex] ?? [])[i];
+            return p && p !== "-" ? p : "";
+          })(),
+          __deliveryLeadTime: (() => {
+            const d = (rowDeliveryLeadTimes[rowIndex] ?? [])[i];
+            return d && d !== "-" ? d : "";
           })(),
           __tdsBrand: (() => {
             const b = (rowTdsBrands[rowIndex] ?? [])[i];
@@ -1438,10 +1465,11 @@ useEffect(() => {
       const copy = { ...prev };
       copy[rowIndex] = [
         ...(copy[rowIndex] || []),
-        { 
+{ 
           ...product, 
           qty: product.qty ?? 1,
           __tdsProductName: product.__tdsProductName ?? product.productName ?? "",
+          __moq: product.__moq ?? (product?.commercialDetails?.moq != null ? String(product.commercialDetails.moq) : ""),
           // Store original specs for editing later
           __originalTechnicalSpecifications: product.__originalTechnicalSpecifications || product.technicalSpecifications,
         },
@@ -1768,6 +1796,67 @@ useEffect(() => {
     }
   };
 
+  /* ── Download XLSX (Edit mode — from productOffers) ── */
+  const handleDownloadExcelEdit = async () => {
+    if (isExportingExcel) return;
+    setIsExportingExcel(true);
+    try {
+      const descs = (requestData?.item_description || "").split(",").map((s) => s.trim());
+      const items = buildExcelItemsFromProductOffers({
+        spfNumber,
+        itemDescriptions: descs,
+        itemImages: (requestData?.item_photo || "").split(",").map((s) => s.trim()),
+        itemQtyString: requestData?.item_qty || "",
+        productOffers,
+      });
+      await exportSPFRequestToExcel(spfNumber, items);
+    } catch (err) {
+      console.error("Excel export error:", err);
+      toast.error("Failed to generate Excel file");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  /* ── Download XLSX (View mode — from saved SPF data) ── */
+  const handleDownloadExcelView = async () => {
+    if (isExportingExcel || !data) return;
+    setIsExportingExcel(true);
+    try {
+      const rowSpecsFlat = rowSpecs.map((rowGroups) =>
+        rowGroups.map((groups) =>
+          groups.flatMap((g) => [
+            g.title,
+            ...g.specs.map((s) => s),
+          ].filter(Boolean)),
+        ),
+      );
+      const items = buildExcelItemsFromViewData({
+        spfNumber,
+        itemDescriptions,
+        itemImages,
+        itemQtyString: requestData?.item_qty || "",
+        rowImages,
+        rowSubtotals,
+        rowWarranties,
+        rowPriceValidities,
+        rowLeadTimes,
+        rowItemCodes,
+        rowSpecsFlat,
+        rowCommercialTypes,
+        rowPackaging,
+        rowPcsPerCartons,
+        rowProductNames,
+      });
+      await exportSPFRequestToExcel(spfNumber, items);
+    } catch (err) {
+      console.error("Excel export error:", err);
+      toast.error("Failed to generate Excel file");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   /* ── Submit edit ── */
   const handleSubmitEdit = async () => {
     if (isSubmitting) return; // Prevent double submission
@@ -1925,6 +2014,10 @@ useEffect(() => {
   const rowFinalSubtotals = splitByRow(data?.final_subtotal, rowStructure);
   const rowItemCodes = splitByRow(data?.item_code, rowStructure);
   const rowPriceValidities = splitByRow(data?.price_validity, rowStructure);
+  const rowMoqs = splitByRow((data as any)?.moq, rowStructure);
+  const rowQuotationsValidities = splitByRow((data as any)?.quotations_validity, rowStructure);
+  const rowProductionLeadTimes = splitByRow((data as any)?.production_lead_time, rowStructure);
+  const rowDeliveryLeadTimes = splitByRow((data as any)?.delivery_lead_time, rowStructure);
   const rowTdsBrands = splitByRow(data?.tds, rowStructure);
   const rowTdsUrls = splitByRow(data?.tds, rowStructure);
   const rowDimensionalDrawings = splitByRow(data?.dimensional_drawing, rowStructure);
@@ -2416,6 +2509,74 @@ useEffect(() => {
                                   }}
                                 />
                               </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] text-muted-foreground shrink-0">MOQ</span>
+                                <input
+                                  type="text"
+                                  className="border rounded px-2 py-0.5 text-xs flex-1"
+                                  value={prod.__moq ?? (prod?.commercialDetails?.moq != null ? String(prod.commercialDetails.moq) : "")}
+                                  onChange={(e) => {
+                                    setProductOffers((prev) => {
+                                      const copy = { ...prev };
+                                      const row = [...(copy[index] || [])];
+                                      row[i] = { ...row[i], __moq: e.target.value };
+                                      copy[index] = row;
+                                      return copy;
+                                    });
+                                  }}
+                                />
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] text-muted-foreground shrink-0">Quotations Validity</span>
+                                <input
+                                  type="text"
+                                  className="border rounded px-2 py-0.5 text-xs flex-1"
+                                  value={prod.__quotationsValidity ?? ""}
+                                  onChange={(e) => {
+                                    setProductOffers((prev) => {
+                                      const copy = { ...prev };
+                                      const row = [...(copy[index] || [])];
+                                      row[i] = { ...row[i], __quotationsValidity: e.target.value };
+                                      copy[index] = row;
+                                      return copy;
+                                    });
+                                  }}
+                                />
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] text-muted-foreground shrink-0">Production Lead Time</span>
+                                <input
+                                  type="text"
+                                  className="border rounded px-2 py-0.5 text-xs flex-1"
+                                  value={prod.__productionLeadTime ?? ""}
+                                  onChange={(e) => {
+                                    setProductOffers((prev) => {
+                                      const copy = { ...prev };
+                                      const row = [...(copy[index] || [])];
+                                      row[i] = { ...row[i], __productionLeadTime: e.target.value };
+                                      copy[index] = row;
+                                      return copy;
+                                    });
+                                  }}
+                                />
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] text-muted-foreground shrink-0">Delivery Lead Time</span>
+                                <input
+                                  type="text"
+                                  className="border rounded px-2 py-0.5 text-xs flex-1"
+                                  value={prod.__deliveryLeadTime ?? ""}
+                                  onChange={(e) => {
+                                    setProductOffers((prev) => {
+                                      const copy = { ...prev };
+                                      const row = [...(copy[index] || [])];
+                                      row[i] = { ...row[i], __deliveryLeadTime: e.target.value };
+                                      copy[index] = row;
+                                      return copy;
+                                    });
+                                  }}
+                                />
+                              </div>
                                 <div className="flex items-center gap-2 mt-1">
                                   <span className="text-[10px] text-muted-foreground shrink-0">TDS Brand</span>
                                   <select
@@ -2740,6 +2901,18 @@ useEffect(() => {
           >
             <Save size={16} className="mr-2" />
             {isSavingDraft ? "Saving..." : hasDraft ? "Update Draft" : "Save Draft"}
+          </Button>
+        </div>
+        <div className="w-full">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full rounded"
+            onClick={handleDownloadExcelEdit}
+            disabled={isExportingExcel || itemDescriptions.length === 0}
+          >
+            <Download size={16} className="mr-2" />
+            {isExportingExcel ? "Generating..." : "Download XLSX"}
           </Button>
         </div>
         <div className="w-full flex flex-row gap-2">
@@ -3319,6 +3492,82 @@ useEffect(() => {
                         />
                       </div>
 
+{/* MOQ */}
+                      <div>
+                        <div className="text-gray-400 mb-0.5">MOQ</div>
+                        <input
+                          type="text"
+                          className="w-full border rounded px-1 py-0.5 text-[10px]"
+                          value={prod.__moq ?? (prod?.commercialDetails?.moq != null ? String(prod.commercialDetails.moq) : "")}
+                          onChange={(e) => {
+                            setProductOffers((prev) => {
+                              const copy = { ...prev };
+                              const row = [...(copy[index] || [])];
+                              row[i] = { ...row[i], __moq: e.target.value };
+                              copy[index] = row;
+                              return copy;
+                            });
+                          }}
+                        />
+                      </div>
+
+                      {/* Quotations Validity */}
+                      <div>
+                        <div className="text-gray-400 mb-0.5">Quotations Validity</div>
+                        <input
+                          type="text"
+                          className="w-full border rounded px-1 py-0.5 text-[10px]"
+                          value={prod.__quotationsValidity ?? ""}
+                          onChange={(e) => {
+                            setProductOffers((prev) => {
+                              const copy = { ...prev };
+                              const row = [...(copy[index] || [])];
+                              row[i] = { ...row[i], __quotationsValidity: e.target.value };
+                              copy[index] = row;
+                              return copy;
+                            });
+                          }}
+                        />
+                      </div>
+
+                      {/* Production Lead Time */}
+                      <div>
+                        <div className="text-gray-400 mb-0.5">Production Lead Time</div>
+                        <input
+                          type="text"
+                          className="w-full border rounded px-1 py-0.5 text-[10px]"
+                          value={prod.__productionLeadTime ?? ""}
+                          onChange={(e) => {
+                            setProductOffers((prev) => {
+                              const copy = { ...prev };
+                              const row = [...(copy[index] || [])];
+                              row[i] = { ...row[i], __productionLeadTime: e.target.value };
+                              copy[index] = row;
+                              return copy;
+                            });
+                          }}
+                        />
+                      </div>
+
+                      {/* Delivery Lead Time */}
+                      <div>
+                        <div className="text-gray-400 mb-0.5">Delivery Lead Time</div>
+                        <input
+                          type="text"
+                          className="w-full border rounded px-1 py-0.5 text-[10px]"
+                          value={prod.__deliveryLeadTime ?? ""}
+                          onChange={(e) => {
+                            setProductOffers((prev) => {
+                              const copy = { ...prev };
+                              const row = [...(copy[index] || [])];
+                              row[i] = { ...row[i], __deliveryLeadTime: e.target.value };
+                              copy[index] = row;
+                              return copy;
+                            });
+                          }}
+                        />
+                      </div>
+
                       {/* TDS Brand */}
                       <div>
                         <div className="text-gray-400 mb-0.5">TDS Brand</div>
@@ -3703,6 +3952,16 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
           </Button>
           <div className="flex gap-2">
             <Button
+              type="button"
+              variant="outline"
+              className="rounded-none p-6"
+              onClick={handleDownloadExcelEdit}
+              disabled={isExportingExcel || itemDescriptions.length === 0}
+            >
+              <Download size={18} className="mr-2" />
+              {isExportingExcel ? "Generating..." : "Download XLSX"}
+            </Button>
+            <Button
               variant="outline"
               className="rounded-none p-6"
               onClick={() => {
@@ -3775,6 +4034,10 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
         const prodSpfRemarksPD = rowSpfRemarksPD[rowIndex] ?? [];
         const prodSpfRemarksProcurement = rowSpfRemarksProcurement[rowIndex] ?? [];
         const prodProductNames = rowProductNames[rowIndex] ?? [];
+        const prodMoqs = rowMoqs[rowIndex] ?? [];
+        const prodQuotationsValidities = rowQuotationsValidities[rowIndex] ?? [];
+        const prodProductionLeadTimes = rowProductionLeadTimes[rowIndex] ?? [];
+        const prodDeliveryLeadTimes = rowDeliveryLeadTimes[rowIndex] ?? [];
 
         const hasProducts =
           prodImages.length > 0 &&
@@ -4245,6 +4508,22 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                                 })()}
                               </p>
                             </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">MOQ</label>
+                              <p className="text-xs font-medium text-gray-800">{(rowMoqs?.[rowIndex] ?? [])[i] || "-"}</p>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Quotations Validity</label>
+                              <p className="text-xs font-medium text-gray-800">{(rowQuotationsValidities?.[rowIndex] ?? [])[i] || "-"}</p>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Production Lead Time</label>
+                              <p className="text-xs font-medium text-gray-800">{(rowProductionLeadTimes?.[rowIndex] ?? [])[i] || "-"}</p>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-gray-500 uppercase">Delivery Lead Time</label>
+                              <p className="text-xs font-medium text-gray-800">{(rowDeliveryLeadTimes?.[rowIndex] ?? [])[i] || "-"}</p>
+                            </div>
                           </div>
 
                           {/* Generate TDS Button */}
@@ -4529,6 +4808,17 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                   spfNumber={spfNumber}
                   isMobile={isMobile}
                 />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 text-xs"
+                  onClick={handleDownloadExcelView}
+                  disabled={isExportingExcel || !data}
+                >
+                  <Download size={12} />
+                  {isExportingExcel ? "Generating..." : "XLSX"}
+                </Button>
               </div>
             </div>
 

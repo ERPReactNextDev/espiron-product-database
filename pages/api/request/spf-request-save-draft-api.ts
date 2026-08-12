@@ -129,6 +129,10 @@ export default async function handler(
     const rowCommercialTypes:   string[] = [];
     const rowTdsPdfUrls:        string[] = [];
     const rowIsExisting:        string[] = [];
+    const rowMoqs:              string[] = [];
+    const rowQuotationsValidities: string[] = [];
+    const rowProductionLeadTimes: string[] = [];
+    const rowDeliveryLeadTimes:   string[] = [];
 
     for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
       const rowProducts = rowMap[rowIdx] || [];
@@ -161,6 +165,10 @@ export default async function handler(
       const commercialTypes: string[] = [];
       const tdsPdfUrls: string[] = [];
       const isExisting: string[] = [];
+      const moqs: string[] = [];
+      const quotationsValidities: string[] = [];
+      const productionLeadTimes: string[] = [];
+      const deliveryLeadTimes: string[] = [];
 
       const rowBase = `${spf_number}-${String(rowIdx + 1).padStart(3, "0")}`;
       const optionIndexToLetters = (idx: number) => {
@@ -385,6 +393,12 @@ export default async function handler(
 
         /* ── Is Existing (for tracking products from original SPF vs newly added) ── */
         isExisting.push(p?.__isExisting === true ? "true" : "false");
+
+        /* ── MOQ, Quotations Validity, Production Lead Time, Delivery Lead Time ── */
+        moqs.push(p?.__moq ?? (p?.commercialDetails?.moq != null ? String(p.commercialDetails.moq) : "-"));
+        quotationsValidities.push(p?.__quotationsValidity ?? "-");
+        productionLeadTimes.push(p?.__productionLeadTime ?? "-");
+        deliveryLeadTimes.push(p?.__deliveryLeadTime ?? "-");
       }
 
       if (rowProducts.length === 0) {
@@ -424,6 +438,10 @@ export default async function handler(
       rowCommercialTypes.push(commercialTypes.join(ROW_SEP));
       rowTdsPdfUrls.push(tdsPdfUrls.join(ROW_SEP));
       rowIsExisting.push(isExisting.join(ROW_SEP));
+      rowMoqs.push(moqs.join(ROW_SEP));
+      rowQuotationsValidities.push(quotationsValidities.join(ROW_SEP));
+      rowProductionLeadTimes.push(productionLeadTimes.join(ROW_SEP));
+      rowDeliveryLeadTimes.push(deliveryLeadTimes.join(ROW_SEP));
     }
 
     // Fill arrays for empty rows
@@ -469,6 +487,10 @@ export default async function handler(
     const finalCommercialTypes     = rowCommercialTypes.join(ROW_SEP);
     const finalTdsPdfUrls          = rowTdsPdfUrls.join(ROW_BOUNDARY);
     const finalIsExisting          = rowIsExisting.join(ROW_SEP);
+    const finalMoqs                = rowMoqs.join(ROW_SEP);
+    const finalQuotationsValidities = rowQuotationsValidities.join(ROW_SEP);
+    const finalProductionLeadTimes = rowProductionLeadTimes.join(ROW_SEP);
+    const finalDeliveryLeadTimes   = rowDeliveryLeadTimes.join(ROW_SEP);
     const finalItemCode        = rowItemCodes.some((r) => r !== "-" && r !== "")
       ? rowItemCodes.join(ROW_SEP)
       : (item_code ?? null);
@@ -516,6 +538,10 @@ export default async function handler(
         product_name: finalProductNames,
         tds_brand: finalTdsBrands,
         is_existing: finalIsExisting,
+        moq: finalMoqs,
+        quotations_validity: finalQuotationsValidities,
+        production_lead_time: finalProductionLeadTimes,
+        delivery_lead_time: finalDeliveryLeadTimes,
 
         // Additional fields for sync with spf_creation
         final_unit_cost: finalUnitCosts,
