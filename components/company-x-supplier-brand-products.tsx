@@ -35,7 +35,7 @@ type Props = {
 
 type Product = {
   id: string;
-  productReferenceID?: string;
+  productName?: string;
   productClass?: string;
   pricePoint?: string;
   brandOrigin?: string;
@@ -135,7 +135,7 @@ export default function SupplierProducts({
     if (!kw) return products;
     return products.filter(
       (p) =>
-        p.productReferenceID?.toLowerCase().includes(kw) ||
+        p.productName?.toLowerCase().includes(kw) ||
         p.productClass?.toLowerCase().includes(kw) ||
         p.pricePoint?.toLowerCase().includes(kw) ||
         p.brandOrigin?.toLowerCase().includes(kw) ||
@@ -258,7 +258,7 @@ export default function SupplierProducts({
                       {product.mainImage?.url ? (
                         <img
                           src={product.mainImage.url}
-                          alt={product.productReferenceID}
+                          alt={product.productName}
                           className="w-full h-full object-contain"
                         />
                       ) : (
@@ -270,7 +270,7 @@ export default function SupplierProducts({
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5 mb-1">
                         <span className="font-bold text-sm text-slate-800 tracking-tight">
-                          {product.productReferenceID || "—"}
+                          {product.productName || "—"}
                         </span>
                         {product.productClass && (
                           <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-600">

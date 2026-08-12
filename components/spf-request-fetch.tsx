@@ -69,6 +69,7 @@ import { logProductEvent } from "@/lib/auditlogger";
 import SPFGenerateTDSDialog from "@/components/spf-generate-tds-dialog";
 import RevisionTypeSelector, { RevisionType } from "@/components/revision-type-selector";
 import { RevisionComparisonDialog } from "@/components/revision-comparison-dialog";
+import SupplierProducts from "@/components/company-x-supplier-brand-products";
 
 /* ─────────────────────────────────────────────────────────────── */
 /* TYPES                                                           */
@@ -788,6 +789,10 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [showProcurementRevisionConfirm, setShowProcurementRevisionConfirm] = useState(false);
   const [latestRevisionResult, setLatestRevisionResult] = useState<string | null>(null);
   const [procurementRevisionRemarks, setProcurementRevisionRemarks] = useState<string>("");
+
+  /* ── Supplier Products Dialog state ── */
+  const [supplierProductsOpen, setSupplierProductsOpen] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<{ supplierId: string; company: string; supplierBrand: string } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -2830,9 +2835,21 @@ price_validity: (() => {
                           {p.productName}
                         </p>
                         {supplierBrand && (
-                          <p className="text-xs font-semibold text-blue-600 mt-0.5 truncate">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedSupplier({
+                                supplierId: p?.supplier?.supplierId || "",
+                                company: supplierCo,
+                                supplierBrand
+                              });
+                              setSupplierProductsOpen(true);
+                            }}
+                            className="text-xs font-semibold text-blue-600 mt-0.5 truncate hover:underline cursor-pointer"
+                          >
                             {supplierBrand}
-                          </p>
+                          </button>
                         )}
                         {supplierCo && (
                           <p className="text-[10px] text-muted-foreground truncate">
@@ -3817,9 +3834,21 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                   </p>
                   {(p?.supplier?.supplierBrand ||
                     p?.supplier?.supplierBrandName) && (
-                    <p className="text-xs font-semibold text-blue-600 mt-0.5 truncate">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedSupplier({
+                          supplierId: p?.supplier?.supplierId || "",
+                          company: p?.supplier?.company || "",
+                          supplierBrand: p?.supplier?.supplierBrand || p?.supplier?.supplierBrandName || ""
+                        });
+                        setSupplierProductsOpen(true);
+                      }}
+                      className="text-xs font-semibold text-blue-600 mt-0.5 truncate hover:underline cursor-pointer"
+                    >
                       {p?.supplier?.supplierBrand || p?.supplier?.supplierBrandName}
-                    </p>
+                    </button>
                   )}
                 </div>
                 <Accordion
@@ -5234,6 +5263,17 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
         spf_number={spfNumber}
         onRefresh={onRefresh}
       />
+
+      {/* ── Supplier Products Dialog ── */}
+      {selectedSupplier && (
+        <SupplierProducts
+          open={supplierProductsOpen}
+          onOpenChange={setSupplierProductsOpen}
+          supplierId={selectedSupplier.supplierId}
+          company={selectedSupplier.company}
+          supplierBrand={selectedSupplier.supplierBrand}
+        />
+      )}
     </>
   );
 }

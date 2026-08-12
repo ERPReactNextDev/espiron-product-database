@@ -49,6 +49,7 @@ import { useRoleAccess } from "@/contexts/RoleAccessContext";
 import { useNotificationTriggers } from "@/hooks/use-notification-triggers";
 import { generateTDSPdf } from "@/lib/generateTDSPdf";
 import SPFGenerateTDSDialog from "@/components/spf-generate-tds-dialog";
+import SupplierProducts from "@/components/company-x-supplier-brand-products";
 
 /* ─────────────────────────────────────────────────────────────── */
 /* TYPES                                                           */
@@ -420,6 +421,10 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   /* ── Expanded product cards state ── */
   const [expandedProductCards, setExpandedProductCards] = useState<Record<string, boolean>>({});
+
+  /* ── Supplier Products Dialog state ── */
+  const [supplierProductsOpen, setSupplierProductsOpen] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<{ supplierId: string; company: string; supplierBrand: string } | null>(null);
 
   /* ── Sync formData when rowData changes ── */
   useEffect(() => {
@@ -1617,9 +1622,21 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
                           {p.productName}
                         </p>
                         {supplierBrand && (
-                          <p className="text-xs font-semibold text-blue-600 mt-0.5 truncate">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedSupplier({
+                                supplierId: p?.supplier?.supplierId || "",
+                                company: supplierCo,
+                                supplierBrand
+                              });
+                              setSupplierProductsOpen(true);
+                            }}
+                            className="text-xs font-semibold text-blue-600 mt-0.5 truncate hover:underline cursor-pointer"
+                          >
                             {supplierBrand}
-                          </p>
+                          </button>
                         )}
                         {supplierCo && (
                           <p className="text-[10px] text-muted-foreground truncate">
@@ -2541,9 +2558,21 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
                   </p>
                   {(p?.supplier?.supplierBrand ||
                     p?.supplier?.supplierBrandName) && (
-                    <p className="text-xs font-semibold text-blue-600 mt-0.5 truncate">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedSupplier({
+                          supplierId: p?.supplier?.supplierId || "",
+                          company: p?.supplier?.company || "",
+                          supplierBrand: p.supplier.supplierBrand || p.supplier.supplierBrandName || ""
+                        });
+                        setSupplierProductsOpen(true);
+                      }}
+                      className="text-xs font-semibold text-blue-600 mt-0.5 truncate hover:underline cursor-pointer"
+                    >
                       {p.supplier.supplierBrand || p.supplier.supplierBrandName}
-                    </p>
+                    </button>
                   )}
                 </div>
                 <Accordion
@@ -2934,6 +2963,17 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
           });
         }}
       />
+
+      {/* ── Supplier Products Dialog ── */}
+      {selectedSupplier && (
+        <SupplierProducts
+          open={supplierProductsOpen}
+          onOpenChange={setSupplierProductsOpen}
+          supplierId={selectedSupplier.supplierId}
+          company={selectedSupplier.company}
+          supplierBrand={selectedSupplier.supplierBrand}
+        />
+      )}
     </>
   );
 }
