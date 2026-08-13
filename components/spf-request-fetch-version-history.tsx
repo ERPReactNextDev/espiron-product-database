@@ -58,6 +58,7 @@ type VersionRecord = {
   illuminance_drawing?: string;
   commercial_type?: string;
   deleted_offers?: string;
+  supplier_model_code?: string;
 };
 
 type Props = {
@@ -623,6 +624,7 @@ function VersionDetail({
   const rowDimensionalDrawings = splitByRow(record.dimensional_drawing, rowStructure);
   const rowIlluminanceDrawings = splitByRow(record.illuminance_drawing, rowStructure);
   const rowCommercialTypes = splitByRow(record.commercial_type, rowStructure);
+  const rowSupplierModelCodes = splitByRow(record.supplier_model_code, rowStructure);
 
   // Parse deleted offers
   const deletedOffersData = record.deleted_offers ? JSON.parse(record.deleted_offers) : [];
@@ -664,6 +666,7 @@ const prevRowPriceValidities = splitByRow(prevRecord?.price_validity, prevRowStr
   const prevRowTdsBrands = splitByRow(prevRecord?.tds, prevRowStructure);
   const prevRowProductNames = splitByRow(prevRecord?.product_name, prevRowStructure);
   const prevRowCommercialTypes = splitByRow(prevRecord?.commercial_type, prevRowStructure);
+  const prevRowSupplierModelCodes = splitByRow(prevRecord?.supplier_model_code, prevRowStructure);
 
 
   // Helper to get prev value safely (undefined = no prev = no highlight)
@@ -724,6 +727,7 @@ const prevRowPriceValidities = splitByRow(prevRecord?.price_validity, prevRowStr
         const prodDimensionalDrawings = rowDimensionalDrawings[rowIndex] ?? [];
         const prodIlluminanceDrawings = rowIlluminanceDrawings[rowIndex] ?? [];
         const prodCommercialTypes = rowCommercialTypes[rowIndex] ?? [];
+        const prodSupplierModelCodes = rowSupplierModelCodes[rowIndex] ?? [];
 
         const hasProducts =
           prodImages.length > 0 &&
@@ -804,6 +808,9 @@ const prevRowPriceValidities = splitByRow(prevRecord?.price_validity, prevRowStr
                       <div className="grid grid-cols-2 gap-2 text-[10px] mb-2">
                         <DiffValue label="Product Name" current={prodProductNames[i]} previous={getPrev(prevRowProductNames, rowIndex, i)} />
                         <DiffValue label="Qty" current={prodQtys[i]} previous={getPrev(prevRowQtys, rowIndex, i)} />
+                        <div className="col-span-2">
+                          <DiffValue label="Supplier Item Code" current={prodSupplierModelCodes[i]} previous={getPrev(prevRowSupplierModelCodes, rowIndex, i)} />
+                        </div>
                         <DiffValue label="Unit Cost" current={prodUnitCosts[i]} previous={getPrev(prevRowUnitCosts, rowIndex, i)} />
                         <DiffValue label="Qty/Per Carton" current={prodPcsPerCartons[i]} previous={getPrev(prevRowPcsPerCartons, rowIndex, i)} />
                         <div className={`${(() => { const c = prodPackaging[i]; const p = getPrev(prevRowPackaging, rowIndex, i); const changed = (c ?? "").trim() !== (p ?? "").trim(); return changed ? "bg-yellow-50 rounded px-1 py-0.5 border border-yellow-200" : ""; })()}`}>
@@ -1033,7 +1040,7 @@ const prevRowPriceValidities = splitByRow(prevRecord?.price_validity, prevRowStr
                             </div>
                           )}
 
-                          {/* Product Name */}
+{/* Product Name */}
                           <div className={cardFieldCls(isFieldChanged(productName, prevRowProductNames, rowIndex, i))}>
                             <h3 className="text-sm font-bold text-gray-800 line-clamp-2">
                               {productName || "-"}
@@ -1041,6 +1048,11 @@ const prevRowPriceValidities = splitByRow(prevRecord?.price_validity, prevRowStr
                             {prodBrands[i] && prodBrands[i] !== "-" && (
                               <p className="text-xs font-semibold text-blue-600 mt-1">
                                 {prodBrands[i]}
+                              </p>
+                            )}
+                            {prodSupplierModelCodes[i] && prodSupplierModelCodes[i] !== "-" && (
+                              <p className={`text-xs font-medium text-gray-400 mt-0.5 ${cardFieldCls(isFieldChanged(prodSupplierModelCodes[i], prevRowSupplierModelCodes, rowIndex, i))}`}>
+                                {prodSupplierModelCodes[i]}
                               </p>
                             )}
                           </div>

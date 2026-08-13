@@ -12,12 +12,12 @@ export function cn(...inputs: ClassValue[]): string {
 }
 
 /**
- * Sanitizes input by removing all commas from the string.
- * This prevents users from typing commas in input fields.
+ * Sanitizes input by removing all commas and pipes from the string.
+ * This prevents users from typing commas or pipes in input fields.
  *
  * @param value - The input string to sanitize.
- * @returns The sanitized string without commas.
+ * @returns The sanitized string without commas or pipes.
  */
 export function sanitizeCommas(value: string): string {
-  return value.replace(/,/g, '');
+  return value.replace(/[,|]/g, '');
 }

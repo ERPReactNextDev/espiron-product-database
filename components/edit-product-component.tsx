@@ -329,6 +329,7 @@ export default function EditProductComponent({ productId, onClose }: EditProduct
   const [pcsPerCarton, setPcsPerCarton] = useState("");
   const [factoryAddress, setFactoryAddress] = useState("");
   const [portOfDischarge, setPortOfDischarge] = useState("");
+  const [supplierModelCode, setSupplierModelCode] = useState("");
 
   const [moq, setMoq] = useState("");
   const [warrantyNumber, setWarrantyNumber] = useState("");
@@ -459,6 +460,7 @@ export default function EditProductComponent({ productId, onClose }: EditProduct
         setUnitCost(data.commercialDetails.unitCost?.toString() || "");
         setFactoryAddress(data.commercialDetails.factoryAddress || "");
         setPortOfDischarge(data.commercialDetails.portOfDischarge || "");
+        setSupplierModelCode(data.commercialDetails.supplierModelCode || "");
 
         // Handle packaging - single dimension only
         setPackLength((data.commercialDetails.packaging?.length || "").replace(" cm", ""));
@@ -1046,6 +1048,7 @@ export default function EditProductComponent({ productId, onClose }: EditProduct
           warranty: warrantyNumber ? `${warrantyNumber} ${warrantyPeriod}` : null,
           factoryAddress: factoryAddress || "",
           portOfDischarge: portOfDischarge || "",
+          supplierModelCode: supplierModelCode || "",
         },
         technicalSpecifications: technicalSpecs.filter(s => s.title.trim()).map((s, index) => ({
           technicalSpecificationId: s.id || "",
@@ -1150,6 +1153,7 @@ export default function EditProductComponent({ productId, onClose }: EditProduct
                 warranty: warrantyNumber ? `${warrantyNumber} ${warrantyPeriod}` : null,
                 factoryAddress: factoryAddress || "",
                 portOfDischarge: portOfDischarge || "",
+                supplierModelCode: supplierModelCode || "",
               },
               productClass,
             }),
@@ -1238,6 +1242,7 @@ export default function EditProductComponent({ productId, onClose }: EditProduct
             warranty: warrantyNumber ? `${warrantyNumber} ${warrantyPeriod}` : null,
             factoryAddress: factoryAddress || "",
             portOfDischarge: portOfDischarge || "",
+            supplierModelCode: supplierModelCode || "",
           },
           mainImage: resolvedMainImage,
           dimensionalDrawing: resolvedDimensionalDrawing,
@@ -1843,6 +1848,10 @@ export default function EditProductComponent({ productId, onClose }: EditProduct
                 <div className="space-y-1">
                   <Label className="text-xs text-gray-500">Port of Discharge</Label>
                   <Input placeholder="e.g. Manila, PH" value={portOfDischarge} onChange={e => setPortOfDischarge(sanitizeCommas(e.target.value))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Supplier Model Code</Label>
+                  <Input placeholder="Enter supplier model code" value={supplierModelCode} onChange={e => setSupplierModelCode(sanitizeCommas(e.target.value))} />
                 </div>
               </CardContent>
             </Card>

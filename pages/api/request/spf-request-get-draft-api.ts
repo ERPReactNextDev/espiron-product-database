@@ -219,6 +219,7 @@ export default async function handler(
     const flatPorts           = splitRows(draft.product_offer_port_of_discharge);
     const flatSubtotals       = splitRows(draft.product_offer_subtotal);
     const flatSupplierBrands  = splitRows(draft.supplier_brand);
+    const flatSupplierModelCodes = splitRows((draft as any).supplier_model_code ?? null);
     const flatCompanyNames    = splitRows(draft.company_name);
     const flatContactNames    = splitRows(draft.contact_name);
     const flatContactNumbers  = splitRows(draft.contact_number);
@@ -340,6 +341,7 @@ export default async function handler(
           supplierBrand: flatSupplierBrands[flatIdx] || "-",
           company: flatCompanyNames[flatIdx] || "-",
         },
+        supplier_model_code: flatSupplierModelCodes[flatIdx] || "",
         contact_name: flatContactNames[flatIdx] || "-",
         contact_number: flatContactNumbers[flatIdx] || "-",
         __sellingCost: flatSellingCosts[flatIdx] || "-",

@@ -284,6 +284,7 @@ export default function EditProductPage() {
   const [warrantyPeriod, setWarrantyPeriod] = useState<"days" | "months" | "years">("months");
   const [factoryAddress, setFactoryAddress] = useState("");
   const [portOfDischarge, setPortOfDischarge] = useState("");
+  const [supplierModelCode, setSupplierModelCode] = useState("");
 
   type CommercialType = "BASIC" | "LIGHT" | "POLE";
   const [commercialType, setCommercialType] = useState<CommercialType>("BASIC");
@@ -407,6 +408,7 @@ export default function EditProductPage() {
         setUnitCost(data.commercialDetails.unitCost?.toString() || "");
         setFactoryAddress(data.commercialDetails.factoryAddress || "");
         setPortOfDischarge(data.commercialDetails.portOfDischarge || "");
+        setSupplierModelCode(data.commercialDetails.supplierModelCode || "");
 
         // Handle packaging - single dimension only
         setPackLength((data.commercialDetails.packaging?.length || "").replace(" cm", ""));
@@ -993,6 +995,7 @@ const handleSaveProduct = async () => {
           warranty: warrantyNumber ? `${warrantyNumber} ${warrantyPeriod}` : null,
           factoryAddress: factoryAddress || "",
           portOfDischarge: portOfDischarge || "",
+          supplierModelCode: supplierModelCode || "",
         },
         technicalSpecifications: technicalSpecs.filter(s => s.title.trim()).map((s, index) => ({
           technicalSpecificationId: s.id || "",
@@ -1111,6 +1114,7 @@ const handleSaveProduct = async () => {
             warranty: warrantyNumber ? `${warrantyNumber} ${warrantyPeriod}` : null,
             factoryAddress: factoryAddress || "",
             portOfDischarge: portOfDischarge || "",
+            supplierModelCode: supplierModelCode || "",
           },
           mainImage: imageLink || null,
           dimensionalDrawing: dimensionalLink || null,
@@ -1733,6 +1737,10 @@ const handleSaveProduct = async () => {
                 <div className="space-y-1">
                   <Label className="text-xs text-gray-500">Port of Discharge</Label>
                   <Input placeholder="e.g. Manila, PH" value={portOfDischarge} onChange={e => setPortOfDischarge(sanitizeCommas(e.target.value))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Supplier Model Code</Label>
+                  <Input placeholder="Enter supplier model code" value={supplierModelCode} onChange={e => setSupplierModelCode(sanitizeCommas(e.target.value))} />
                 </div>
               </CardContent>
             </Card>

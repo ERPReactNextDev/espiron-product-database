@@ -254,7 +254,7 @@ export function buildExcelItemsFromProductOffers(params: {
         const { qtyCtn, commercialType, packaging } = buildPackagingAndQtyText(prod);
         const qty = prod.qty ?? 1;
         const cost = Number(prod?.commercialDetails?.unitCost || 0);
-        const specsText = (prod.technicalSpecifications || [])
+        const specGroups = (prod.technicalSpecifications || [])
           .map((g: any) =>
             [
               g.title,
@@ -265,8 +265,14 @@ export function buildExcelItemsFromProductOffers(params: {
               .filter(Boolean)
               .join("\n"),
           )
-          .filter(Boolean)
-          .join("\n\n");
+          .filter(Boolean);
+
+        const supplierCode = (prod.supplier_model_code || "").trim();
+        if (supplierCode && supplierCode !== "-") {
+          specGroups.unshift(`SUPPLIER ITEM CODE\n${supplierCode}\n`);
+        }
+
+        const specsText = specGroups.join("\n\n");
 
         return {
           offerItemNumber: offers.length > 1 ? `${rowBase}-${optionIndexToLetters(i)}` : rowBase,
@@ -362,6 +368,7 @@ export function buildExcelItemsFromViewData(params: {
   rowQuotationsValidities: string[][];
   rowProductionLeadTimes: string[][];
   rowDeliveryLeadTimes: string[][];
+  rowSupplierModelCodes: string[][];
 }): SPFExcelItemRow[] {
   const {
     spfNumber,
@@ -383,6 +390,7 @@ export function buildExcelItemsFromViewData(params: {
     rowQuotationsValidities,
     rowProductionLeadTimes,
     rowDeliveryLeadTimes,
+    rowSupplierModelCodes,
   } = params;
   const qtys = (itemQtyString || "").split(",").map((q) => q.trim());
 
@@ -399,6 +407,11 @@ export function buildExcelItemsFromViewData(params: {
         ? []
         : prodImages.map((img, i) => {
             const specsForOpt = (rowSpecsFlat[rowIndex]?.[i] ?? []) as any;
+            const supplierCode = (rowSupplierModelCodes[rowIndex]?.[i] || "").trim();
+            const specsWithSupplierCode =
+              supplierCode && supplierCode !== "-"
+                ? ["SUPPLIER ITEM CODE", supplierCode, "", ...(Array.isArray(specsForOpt) ? specsForOpt : [])]
+                : specsForOpt;
             const { qtyCtn, commercialType, packaging } = formatCommercialDetailsPlainText(
               (rowCommercialTypes[rowIndex] ?? [])[i],
               (rowPackaging[rowIndex] ?? [])[i],
@@ -411,7 +424,7 @@ export function buildExcelItemsFromViewData(params: {
                   ? (rowItemCodes[rowIndex] ?? [])[i]
                   : `${spfNumber}-${String(rowIndex + 1).padStart(3, "0")}`,
               imageUrl: img,
-              technicalSpecifications: Array.isArray(specsForOpt) ? specsForOpt.join("\n") : "-",
+              technicalSpecifications: Array.isArray(specsWithSupplierCode) ? specsWithSupplierCode.join("\n") : "-",
               warranty: (rowWarranties[rowIndex] ?? [])[i] || "-",
               quotationsValidity: (() => {
                 const pv = (rowQuotationsValidities[rowIndex] ?? [])[i] || (rowPriceValidities[rowIndex] ?? [])[i];
@@ -504,7 +517,10 @@ function buildSpecsRichText(text: string): ExcelJS.CellRichTextValue | string {
   const lines = text.split("\n");
   const richText = lines.map((line, idx) => {
     const isLast = idx === lines.length - 1;
-    const isTitle = line.trim().length > 0 && !line.includes(":");
+    const trimmedLine = line.trim();
+    // Special case: if previous line was "SUPPLIER ITEM CODE", this line is the value and should not be bold
+    const isSupplierCodeValue = idx > 0 && lines[idx - 1].trim() === "SUPPLIER ITEM CODE";
+    const isTitle = trimmedLine.length > 0 && !line.includes(":") && !isSupplierCodeValue;
     return {
       text: line + (isLast ? "" : "\n"),
       font: isTitle ? { bold: true } : {},
@@ -607,7 +623,7 @@ export async function exportSPFRequestToExcel(spfNumber: string, items: SPFExcel
   sheet.mergeCells("F1:Q1");
 
   const agentHeader = sheet.getCell("A1");
-  agentHeader.value = "AGENT'S OFFER";
+  agentHeader.value = "PROJECT REQUIREMENT";
   agentHeader.font = { bold: true };
   agentHeader.alignment = { horizontal: "center", vertical: "middle" };
   agentHeader.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF00FF00" } };
@@ -623,10 +639,10 @@ export async function exportSPFRequestToExcel(spfNumber: string, items: SPFExcel
   });
 
   const columnTitles = [
-    "Agent Item #",
-    "Agent Image",
-    "Agent Item Qty",
-    "Agent Description",
+    "Item #",
+    "Image",
+    "Item Qty",
+    "Description",
     "",
     "Offer Item #",
     "Item Image",

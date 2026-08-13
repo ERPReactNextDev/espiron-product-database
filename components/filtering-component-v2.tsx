@@ -17,6 +17,7 @@ type Props = {
 };
 
 const NO_SUPPLIER_BRAND = "NO SUPPLIER BRAND";
+const NO_SUPPLIER_ITEM_CODE = "NO SUPPLIER ITEM CODE";
 
 const getEffectiveBrandOrigin = (p: any): string => p.brandOrigin || "CHINA";
 const getEffectivePricePoint = (p: any): string => p.pricePoint || "ECONOMY";
@@ -24,14 +25,17 @@ const getEffectiveBrandOriginLocal = (p: any): string => p.brandOrigin || "CHINA
 const getEffectivePricePointLocal = (p: any): string => p.pricePoint || "ECONOMY";
 const getEffectiveSupplierBrand = (p: any): string =>
   p.supplier?.supplierBrand?.trim() || NO_SUPPLIER_BRAND;
+const getEffectiveSupplierItemCode = (p: any): string =>
+  p.commercialDetails?.supplierModelCode?.trim() || NO_SUPPLIER_ITEM_CODE;
 
 const stepAccents: Record<string, { dot: string; ring: string; badge: string }> = {
-  "Product Usage":  { dot: "bg-sky-500",    ring: "ring-sky-200",    badge: "bg-sky-50 text-sky-700 border-sky-200" },
-  "Product Family": { dot: "bg-emerald-500", ring: "ring-emerald-200", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  "Product Class":  { dot: "bg-amber-500",   ring: "ring-amber-200",   badge: "bg-amber-50 text-amber-700 border-amber-200" },
-  "Price Point":    { dot: "bg-violet-500",  ring: "ring-violet-200",  badge: "bg-violet-50 text-violet-700 border-violet-200" },
-  "Brand Origin":   { dot: "bg-orange-500",  ring: "ring-orange-200",  badge: "bg-orange-50 text-orange-700 border-orange-200" },
-  "Supplier Brand": { dot: "bg-rose-500",    ring: "ring-rose-200",    badge: "bg-rose-50 text-rose-700 border-rose-200" },
+  "Product Usage":      { dot: "bg-sky-500",    ring: "ring-sky-200",    badge: "bg-sky-50 text-sky-700 border-sky-200" },
+  "Product Family":     { dot: "bg-emerald-500", ring: "ring-emerald-200", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  "Product Class":      { dot: "bg-amber-500",   ring: "ring-amber-200",   badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  "Price Point":        { dot: "bg-violet-500",  ring: "ring-violet-200",  badge: "bg-violet-50 text-violet-700 border-violet-200" },
+  "Brand Origin":       { dot: "bg-orange-500",  ring: "ring-orange-200",  badge: "bg-orange-50 text-orange-700 border-orange-200" },
+  "Supplier Brand":     { dot: "bg-rose-500",    ring: "ring-rose-200",    badge: "bg-rose-50 text-rose-700 border-rose-200" },
+  "Supplier Item Code": { dot: "bg-teal-500",    ring: "ring-teal-200",    badge: "bg-teal-50 text-teal-700 border-teal-200" },
 };
 
 const COLLAPSE_THRESHOLD = 6;
@@ -59,6 +63,7 @@ const BASE_STEP_ORDER = [
   "Price Point",
   "Brand Origin",
   "Supplier Brand",
+  "Supplier Item Code",
 ];
 
 /* ─────────────────────────────────────────────────── */
@@ -126,7 +131,8 @@ function BreadcrumbRow({
           .replace("Product Usage", "Usage")
           .replace("Product Family", "Family")
           .replace("Product Class", "Class")
-          .replace("Supplier Brand", "Brand");
+          .replace("Supplier Brand", "Brand")
+          .replace("Supplier Item Code", "Item Code");
 
         return (
           <div key={step} style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
@@ -221,6 +227,9 @@ export default function FilteringComponent({ products, onFilter }: Props) {
       if (!check("Brand Origin", getEffectiveBrandOrigin(p))) return false;
       if (filters["Supplier Brand"]?.length) {
         if (!filters["Supplier Brand"].includes(getEffectiveSupplierBrand(p))) return false;
+      }
+      if (filters["Supplier Item Code"]?.length) {
+        if (!filters["Supplier Item Code"].includes(getEffectiveSupplierItemCode(p))) return false;
       }
       for (const [k, vals] of Object.entries(filters) as [string, string[]][]) {
         if (!k.includes("||")) continue;
@@ -324,6 +333,25 @@ export default function FilteringComponent({ products, onFilter }: Props) {
     });
   }, [products, filters]);
 
+  const supplierItemCodes = useMemo(() => {
+    const filtered = products.filter((p) => {
+      if (filters["Product Usage"]?.length && !filters["Product Usage"].includes(p.categoryTypes?.[0]?.categoryTypeName)) return false;
+      if (filters["Product Family"]?.length && !filters["Product Family"].includes(p.productFamilies?.[0]?.productFamilyName)) return false;
+      if (filters["Product Class"]?.length && !filters["Product Class"].includes(p.productClass)) return false;
+      if (filters["Price Point"]?.length && !filters["Price Point"].includes(getEffectivePricePoint(p))) return false;
+      if (filters["Brand Origin"]?.length && !filters["Brand Origin"].includes(getEffectiveBrandOrigin(p))) return false;
+      if (filters["Supplier Brand"]?.length && !filters["Supplier Brand"].includes(getEffectiveSupplierBrand(p))) return false;
+      return true;
+    });
+    const codes = new Set<string>();
+    filtered.forEach((p) => { codes.add(getEffectiveSupplierItemCode(p)); });
+    return Array.from(codes).sort((a, b) => {
+      if (a === NO_SUPPLIER_ITEM_CODE) return 1;
+      if (b === NO_SUPPLIER_ITEM_CODE) return -1;
+      return a.localeCompare(b);
+    });
+  }, [products, filters]);
+
   /* ── FILTER ENGINE ── */
   useEffect(() => {
     (window as any).__ACTIVE_FILTERS__ = Object.values(filters).flat();
@@ -353,6 +381,9 @@ export default function FilteringComponent({ products, onFilter }: Props) {
       if (!check("Supplier", p.supplier?.company)) return false;
       if (filters["Supplier Brand"]?.length) {
         if (!filters["Supplier Brand"].includes(getEffectiveSupplierBrand(p))) return false;
+      }
+      if (filters["Supplier Item Code"]?.length) {
+        if (!filters["Supplier Item Code"].includes(getEffectiveSupplierItemCode(p))) return false;
       }
       for (const [k, vals] of Object.entries(filters) as [string, string[]][]) {
         if (!k.includes("||")) continue;
@@ -758,6 +789,27 @@ export default function FilteringComponent({ products, onFilter }: Props) {
           </div>
         )}
 
+        {/* STEP 7 — Supplier Item Code */}
+        {visibleSteps.includes("Supplier Item Code") && (
+          <div ref={setStepRef("Supplier Item Code")} className="scroll-mt-4">
+            <BackButton onClick={() => handleBack("Supplier Item Code")} />
+            <Section
+              title="Supplier Item Code"
+              items={supplierItemCodes}
+              filters={filters}
+              toggle={toggle}
+              setSearch={setSearch}
+              sourceProducts={sourceProducts}
+              products={products}
+              noSupplierBrandLabel={NO_SUPPLIER_ITEM_CODE}
+              stepNumber={7}
+            />
+            {techSpecGroupOrder.length > 0 && !visibleSteps.includes(techSpecGroupOrder[0]) && (
+              <NextButton label={techSpecGroupOrder[0]} onClick={() => advanceToNextStep("Supplier Item Code")} />
+            )}
+          </div>
+        )}
+
         {/* TECH SPEC GROUP STEPS */}
         {techSpecGroupOrder.map((groupTitle, groupIndex) => {
           if (!visibleSteps.includes(groupTitle)) return null;
@@ -880,6 +932,7 @@ function Section({
   const currentStepIndex = BASE_STEP_ORDER.indexOf(title);
   const isTechSpecId = title.includes("||");
   const isSupplierBrand = title === "Supplier Brand";
+  const isSupplierItemCode = title === "Supplier Item Code";
   const accent = stepAccents[title] ?? null;
 
   const baseList = products.filter((p: any) => {
@@ -894,6 +947,7 @@ function Section({
         else if (step === "Price Point") value = getEffectivePricePointLocal(p);
         else if (step === "Brand Origin") value = getEffectiveBrandOriginLocal(p);
         else if (step === "Supplier Brand") value = getEffectiveSupplierBrand(p);
+        else if (step === "Supplier Item Code") value = getEffectiveSupplierItemCode(p);
         return filters[step].includes(value);
       });
       if (!stepMatch) return false;
@@ -905,6 +959,7 @@ function Section({
       if (filters["Price Point"]?.length && !filters["Price Point"].includes(getEffectivePricePointLocal(p))) return false;
       if (filters["Brand Origin"]?.length && !filters["Brand Origin"].includes(getEffectiveBrandOriginLocal(p))) return false;
       if (filters["Supplier Brand"]?.length && !filters["Supplier Brand"].includes(getEffectiveSupplierBrand(p))) return false;
+      if (filters["Supplier Item Code"]?.length && !filters["Supplier Item Code"].includes(getEffectiveSupplierItemCode(p))) return false;
     }
     const selfGt = isTechSpecId ? title.split("||")[0] : null;
     const selfSn = isTechSpecId ? title.split("||")[1] : null;
@@ -940,6 +995,9 @@ function Section({
     } else if (isSupplierBrand) {
       const value = getEffectiveSupplierBrand(p);
       if (counts[value] !== undefined) counts[value]++;
+    } else if (isSupplierItemCode) {
+      const value = getEffectiveSupplierItemCode(p);
+      if (counts[value] !== undefined) counts[value]++;
     } else {
       let value: any;
       if (title === "Product Usage") value = p.categoryTypes?.[0]?.categoryTypeName;
@@ -954,6 +1012,7 @@ function Section({
 const visible = items.filter((i: string) => {
   if (!input) return true;
   if (i === NO_SUPPLIER_BRAND) return NO_SUPPLIER_BRAND.toLowerCase().includes(input.toLowerCase());
+  if (i === NO_SUPPLIER_ITEM_CODE) return NO_SUPPLIER_ITEM_CODE.toLowerCase().includes(input.toLowerCase());
 
   const extractNumbers = (str: string) => {
     const matches = str.match(/(\d+(\.\d+)?)/g);
@@ -1006,7 +1065,7 @@ const visible = items.filter((i: string) => {
     if (inputNums.length > 0) {
       let bestItem: string | null = null, bestDiff = Infinity, highestItem: string | null = null, highestValue = -Infinity;
       items.forEach((item: string) => {
-        if (item === NO_SUPPLIER_BRAND) return;
+        if (item === NO_SUPPLIER_BRAND || item === NO_SUPPLIER_ITEM_CODE) return;
         const nums = extractNumbers(item);
         if (nums.length === 0) return;
         const compareNum = nums[0];
@@ -1019,7 +1078,7 @@ const visible = items.filter((i: string) => {
     }
     let bestMatch: string | null = null, bestScore = Infinity;
     items.forEach((item: string) => {
-      if (item === NO_SUPPLIER_BRAND || /\d/.test(item)) return;
+      if (item === NO_SUPPLIER_BRAND || item === NO_SUPPLIER_ITEM_CODE || /\d/.test(item)) return;
       const score = levenshtein(input.toLowerCase(), item.toLowerCase());
       if (score < bestScore && score <= 3) { bestScore = score; bestMatch = item; }
     });
@@ -1090,7 +1149,7 @@ const visible = items.filter((i: string) => {
           <CommandGroup style={showScrollable ? { maxHeight: isCollapsed ? 200 : 240, overflowY: "auto" } : {}}>
             {visible.map((i: string) => {
               const isDisabled = (counts[i] ?? 0) === 0 && !filters[title]?.includes(i);
-              const isNoSupplier = i === NO_SUPPLIER_BRAND;
+              const isNoSupplier = i === NO_SUPPLIER_BRAND || i === NO_SUPPLIER_ITEM_CODE;
               const isSelected = filters[title]?.includes(i);
               const count = counts[i] ?? 0;
               return (

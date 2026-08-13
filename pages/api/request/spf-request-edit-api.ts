@@ -245,6 +245,7 @@ export default async function handler(
     const rowBranches:          string[] = [];
     const rowSpfRemarksPD:      string[] = [];
     const rowCommercialTypes:   string[] = [];
+    const rowSupplierModelCodes: string[] = [];
 
     for (let rowIdx = 0; rowIdx < rowCount; rowIdx++) {
       const rowProducts = rowMap[rowIdx] || [];
@@ -278,6 +279,7 @@ export default async function handler(
       const branches: string[] = [];
       const spfRemarksPD: string[] = [];
       const commercialTypes: string[] = [];
+      const supplierModelCodes: string[] = [];
 
       const rowBase = `${spf_number}-${String(rowIdx + 1).padStart(3, "0")}`;
       const optionIndexToLetters = (idx: number) => {
@@ -337,6 +339,7 @@ export default async function handler(
         ports.push(port);
         subtotals.push(String(subtotal));
         supplierBrands.push(p?.supplier?.supplierBrand || p?.supplier?.supplierBrandName || "-");
+        supplierModelCodes.push(p?.supplier_model_code || "-");
         priceValidities.push(priceValidity);
 
         /* ── Carry __sellingCost/__leadTime from existing products ── */
@@ -426,6 +429,7 @@ export default async function handler(
       rowPorts.push(ports.join(ROW_SEP));
       rowSubtotals.push(subtotals.join(ROW_SEP));
       rowSupplierBrands.push(supplierBrands.join(ROW_SEP));
+      rowSupplierModelCodes.push(supplierModelCodes.join(ROW_SEP));
       rowCompanyNames.push(companyNames.join(ROW_SEP));
       rowContactNames.push(contactNames.join(ROW_SEP));
       rowContactNumbers.push(contactNumbers.join(ROW_SEP));
@@ -468,6 +472,7 @@ export default async function handler(
     const finalPorts           = rowPorts.join(ROW_BOUNDARY);
     const finalSubtotals       = rowSubtotals.join(ROW_BOUNDARY);
     const finalSupplierBrands  = rowSupplierBrands.join(ROW_BOUNDARY);
+    const finalSupplierModelCodes = rowSupplierModelCodes.join(ROW_BOUNDARY);
     const finalCompanyNames    = rowCompanyNames.join(ROW_BOUNDARY);
     const finalContactNames    = rowContactNames.join(ROW_BOUNDARY);
     const finalContactNumbers  = rowContactNumbers.join(ROW_BOUNDARY);
@@ -526,6 +531,7 @@ export default async function handler(
       product_offer_factory_address:         finalFactories,
       product_offer_port_of_discharge:       finalPorts,
       product_offer_subtotal:                finalSubtotals,
+      supplier_model_code:                    finalSupplierModelCodes,
       spf_remarks_pd:                          finalSpfRemarksPD,
       company_name:   finalCompanyNames,
       contact_name:   finalContactNames,
@@ -575,6 +581,7 @@ export default async function handler(
         product_offer_factory_address:          finalFactories,
         product_offer_port_of_discharge:        finalPorts,
         product_offer_subtotal:                 finalSubtotals,
+        supplier_model_code:                     finalSupplierModelCodes,
 
         item_code: finalItemCode || item_code || null,
 

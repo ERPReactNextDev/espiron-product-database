@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { logProductEvent } from "@/lib/auditlogger";
+import { sanitizeCommas } from "@/lib/utils";
 
 const escapeRegExp = (string: string) => {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -584,6 +585,7 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
 { 
           ...product, 
           qty: product.qty ?? 1,
+          supplier_model_code: product.commercialDetails?.supplierModelCode || "",
           __tdsProductName: product.__tdsProductName ?? product.productName ?? "",
           __moq: product.__moq ?? (product?.commercialDetails?.moq != null ? String(product.commercialDetails.moq) : ""),
           // Store original specs for editing later
@@ -1318,6 +1320,24 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
                                     Unit: {unitCost}
                                   </span>
                                 </div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[10px] text-muted-foreground shrink-0">Supplier Model Code</span>
+                                  <input
+                                    type="text"
+                                    className="border rounded px-2 py-0.5 text-xs flex-1"
+                                    placeholder="Enter supplier model code"
+                                    value={prod.supplier_model_code || ""}
+                                    onChange={(e) => {
+                                      setProductOffers((prev) => {
+                                        const copy = { ...prev };
+                                        const row = [...(copy[index] || [])];
+                                        row[i] = { ...row[i], supplier_model_code: sanitizeCommas(e.target.value) };
+                                        copy[index] = row;
+                                        return copy;
+                                      });
+                                    }}
+                                  />
+                                </div>
                                   <div className="flex items-center gap-2 mt-1">
                                     <span className="text-[10px] text-muted-foreground shrink-0">Price Validity</span>
                                     <input
@@ -1936,7 +1956,7 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
             setShowPipeModal(true);
             setDraggedProduct(null);
             setShowTrash(false);
-          } else {
+} else {
             setProductOffers((prev) => {
               const copy = { ...prev };
               if (draggedProduct.__fromRow !== undefined) {
@@ -1946,7 +1966,13 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
               }
               copy[index] = [
                 ...(copy[index] || []),
-                { ...frozen, qty: frozen.qty ?? 1 },
+                {
+                  ...frozen,
+                  qty: frozen.qty ?? 1,
+                  supplier_model_code: frozen.supplier_model_code || frozen.commercialDetails?.supplierModelCode || "",
+                  __tdsProductName: frozen.__tdsProductName ?? frozen.productName ?? "",
+                  __moq: frozen.__moq ?? (frozen?.commercialDetails?.moq != null ? String(frozen.commercialDetails.moq) : ""),
+                },
               ];
               return copy;
             });

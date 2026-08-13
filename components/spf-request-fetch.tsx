@@ -45,6 +45,7 @@ const escapeRegExp = (string: string) => {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 import { ForPoolingButton } from "@/components/for-pooling-button";
+import { sanitizeCommas } from "@/lib/utils";
 import { toast } from "sonner";
 import { collection, query, where, onSnapshot, getDocs, limit, addDoc, doc, getDoc } from "firebase/firestore";
 import {
@@ -122,6 +123,7 @@ type SPFData = {
   spf_remarks_pd?: string;
   spf_remarks_procurement?: string;
   commercial_type?: string;
+  supplier_model_code?: string;
 };
 
 type SPFRequestData = {
@@ -1121,6 +1123,7 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
     const rowSpfRemarksProcurement = splitByRow(data.spf_remarks_procurement, rowStructure);
     const rowBranches = splitByRow(data.supplier_branch, rowStructure);
     const rowCommercialTypes = splitByRow(data.commercial_type, rowStructure);
+    const rowSupplierModelCodes = splitByRow(data.supplier_model_code, rowStructure);
     const rowSpecs = splitSpecsByRow(data.product_offer_technical_specification, rowStructure);
     const rowOriginalSpecs = splitSpecsByRow(data.original_technical_specification, rowStructure);
     const rowProductRefIDs = splitByRow(data.product_reference_id, rowStructure);
@@ -1148,6 +1151,7 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
       const branches = rowBranches[rowIndex] ?? [];
       const spfRemarksPD = rowSpfRemarksPD[rowIndex] ?? [];
       const commercialTypes = rowCommercialTypes[rowIndex] ?? [];
+      const supplierModelCodes = rowSupplierModelCodes[rowIndex] ?? [];
 
       const hasData = imgs.length > 0 && !(imgs.length === 1 && imgs[0] === "");
       if (!hasData) {
@@ -1219,6 +1223,7 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
           __leadTime: leads[i] ?? "-",
           mainImage: { url: img !== "-" ? img : "" },
           productName: codes[i] ?? `Option ${i + 1}`,
+          supplier_model_code: supplierModelCodes[i] && supplierModelCodes[i] !== "-" ? supplierModelCodes[i] : "",
           supplier: {
             supplierBrand: brands[i] !== "-" ? brands[i] : "",
             supplierBrandName: brands[i] !== "-" ? brands[i] : "",
@@ -1473,6 +1478,7 @@ price_validity: (() => {
 { 
           ...product, 
           qty: product.qty ?? 1,
+          supplier_model_code: product.commercialDetails?.supplierModelCode || "",
           __tdsProductName: product.__tdsProductName ?? product.productName ?? "",
           __moq: product.__moq ?? (product?.commercialDetails?.moq != null ? String(product.commercialDetails.moq) : ""),
           // Store original specs for editing later
@@ -1829,12 +1835,17 @@ price_validity: (() => {
     setIsExportingExcel(true);
     try {
       const rowSpecsFlat = rowSpecs.map((rowGroups) =>
-        rowGroups.map((groups) =>
-          groups.flatMap((g) => [
-            g.title,
-            ...g.specs.map((s) => s),
-          ].filter(Boolean)),
-        ),
+        rowGroups.map((groups) => {
+          const lines: string[] = [];
+          groups.forEach((g, gi) => {
+            if (gi > 0) lines.push("");
+            if (g.title) lines.push(g.title);
+            g.specs.forEach((s) => {
+              if (s) lines.push(s);
+            });
+          });
+          return lines;
+        }),
       );
       const items = buildExcelItemsFromViewData({
         spfNumber,
@@ -1856,6 +1867,7 @@ price_validity: (() => {
         rowQuotationsValidities,
         rowProductionLeadTimes,
         rowDeliveryLeadTimes,
+        rowSupplierModelCodes,
       });
       await exportSPFRequestToExcel(spfNumber, items);
     } catch (err) {
@@ -2013,6 +2025,7 @@ price_validity: (() => {
   const rowSubtotals = splitByRow(data?.product_offer_subtotal, rowStructure);
   const rowSupplierBrands = splitByRow(data?.supplier_brand, rowStructure);
   const rowBranches = splitByRow(data?.supplier_branch, rowStructure);
+  const rowSupplierModelCodes = splitByRow(data?.supplier_model_code, rowStructure);
   const rowSpecs = splitSpecsByRow(data?.product_offer_technical_specification, rowStructure);
   const rowCompanyNames = splitByRow(data?.company_name, rowStructure);
   const rowContactNames = splitByRow(data?.contact_name, rowStructure);
@@ -2462,6 +2475,24 @@ price_validity: (() => {
                                     }}
                                   />
                                 )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] text-muted-foreground shrink-0">Supplier Code</span>
+                                <input
+                                  type="text"
+                                  className="border rounded px-2 py-0.5 text-xs flex-1"
+                                  placeholder="Enter supplier code"
+                                  value={prod.supplier_model_code || ""}
+                                  onChange={(e) => {
+                                    setProductOffers((prev) => {
+                                      const copy = { ...prev };
+                                      const row = [...(copy[index] || [])];
+                                      row[i] = { ...row[i], supplier_model_code: sanitizeCommas(e.target.value) };
+                                      copy[index] = row;
+                                      return copy;
+                                    });
+                                  }}
+                                />
                               </div>
                               {/* Unit Cost - editable for price/both, read-only for specs */}
                               {revisionType === "specs" ? (
@@ -3213,7 +3244,13 @@ price_validity: (() => {
               }
               copy[index] = [
                 ...(copy[index] || []),
-                { ...frozen, qty: frozen.qty ?? 1, __tdsProductName: frozen.__tdsProductName ?? frozen.productName ?? "" },
+                {
+                  ...frozen,
+                  qty: frozen.qty ?? 1,
+                  supplier_model_code: frozen.supplier_model_code || frozen.commercialDetails?.supplierModelCode || "",
+                  __tdsProductName: frozen.__tdsProductName ?? frozen.productName ?? "",
+                  __moq: frozen.__moq ?? (frozen?.commercialDetails?.moq != null ? String(frozen.commercialDetails.moq) : ""),
+                },
               ];
               return copy;
             });
@@ -3487,6 +3524,24 @@ price_validity: (() => {
                               }}
                             />
                           )}
+                        </div>
+                        <div>
+                          <div className="text-gray-400 mb-0.5">Supplier Model Code</div>
+                          <input
+                            type="text"
+                            className="w-full border rounded px-1 py-0.5 text-[10px]"
+                            placeholder="Enter supplier model code"
+                            value={prod.supplier_model_code || ""}
+                            onChange={(e) => {
+                              setProductOffers((prev) => {
+                                const copy = { ...prev };
+                                const row = [...(copy[index] || [])];
+                                row[i] = { ...row[i], supplier_model_code: sanitizeCommas(e.target.value) };
+                                copy[index] = row;
+                                return copy;
+                              });
+                            }}
+                          />
                         </div>
                         <div>
                           <div className="text-gray-400 mb-0.5">Subtotal</div>
@@ -4071,6 +4126,7 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
         const prodQuotationsValidities = rowQuotationsValidities[rowIndex] ?? [];
         const prodProductionLeadTimes = rowProductionLeadTimes[rowIndex] ?? [];
         const prodDeliveryLeadTimes = rowDeliveryLeadTimes[rowIndex] ?? [];
+        const prodSupplierModelCodes = rowSupplierModelCodes[rowIndex] ?? [];
 
         const hasProducts =
           prodImages.length > 0 &&
@@ -4148,6 +4204,12 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                               <span className="text-gray-400 block">Qty</span>
                               <span className="font-medium">
                                 {prodQtys[i] || "-"}
+                              </span>
+                            </div>
+                            <div className="col-span-2">
+                              <span className="text-gray-400 block">Supplier Item Code</span>
+                              <span className="font-medium">
+                                {prodSupplierModelCodes[i] || "-"}
                               </span>
                             </div>
                             <div>
@@ -4371,6 +4433,7 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
         const prodSubtotals = rowSubtotals[rowIndex] ?? [];
         const prodBrands = rowSupplierBrands[rowIndex] ?? [];
         const prodBranches = rowBranches[rowIndex] ?? [];
+        const prodSupplierModelCodes = rowSupplierModelCodes[rowIndex] ?? [];
         const prodSpecs = rowSpecs[rowIndex] ?? [];
         const prodCompanyNames = rowCompanyNames[rowIndex] ?? [];
         const prodContactNames = rowContactNames[rowIndex] ?? [];
@@ -4503,6 +4566,11 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                             {prodBrands[i] && prodBrands[i] !== "-" && (
                               <p className="text-xs font-semibold text-blue-600 mt-1">
                                 {prodBrands[i]}
+                              </p>
+                            )}
+                            {prodSupplierModelCodes[i] && prodSupplierModelCodes[i] !== "-" && (
+                              <p className="text-xs font-medium text-gray-400 mt-0.5">
+                                {prodSupplierModelCodes[i]}
                               </p>
                             )}
                           </div>

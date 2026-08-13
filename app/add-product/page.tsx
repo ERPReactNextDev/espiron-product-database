@@ -290,6 +290,7 @@ export default function AddProductPage() {
   const [warrantyPeriod, setWarrantyPeriod] = useState<"days" | "months" | "years">("months");
   const [factoryAddress, setFactoryAddress] = useState("");
   const [portOfDischarge, setPortOfDischarge] = useState("");
+  const [supplierModelCode, setSupplierModelCode] = useState("");
 
   type CommercialType = "BASIC" | "LIGHT" | "POLE";
   const [commercialType, setCommercialType] = useState<CommercialType>("BASIC");
@@ -845,6 +846,7 @@ export default function AddProductPage() {
           warranty: warrantyNumber ? `${warrantyNumber} ${warrantyPeriod}` : null,
           factoryAddress: factoryAddress || "",
           portOfDischarge: portOfDischarge || "",
+          supplierModelCode: supplierModelCode || "",
         },
         technicalSpecifications: technicalSpecs.filter(s => s.title.trim()).map(s => ({ technicalSpecificationId: s.id || "", title: s.title, specs: s.specs.filter(r => r.specId.trim()).map(r => ({ specId: r.specId.trim(), value: r.value?.trim() || "" })) })),
         mainImage: imageLink ? { name: "external-image", url: imageLink, publicId: null } : null,
@@ -955,6 +957,7 @@ export default function AddProductPage() {
             warranty: warrantyNumber ? `${warrantyNumber} ${warrantyPeriod}` : null,
             factoryAddress: factoryAddress || "",
             portOfDischarge: portOfDischarge || "",
+            supplierModelCode: supplierModelCode || "",
           },
           mainImage: resolvedMainImage,
           dimensionalDrawing: resolvedDimensionalDrawing,
@@ -1582,6 +1585,10 @@ export default function AddProductPage() {
                 <div className="space-y-1">
                   <Label className="text-xs text-gray-500">Port of Discharge</Label>
                   <Input placeholder="e.g. Manila, PH" value={portOfDischarge} onChange={e => setPortOfDischarge(sanitizeCommas(e.target.value))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Supplier Model Code</Label>
+                  <Input placeholder="Enter supplier model code" value={supplierModelCode} onChange={e => setSupplierModelCode(sanitizeCommas(e.target.value))} />
                 </div>
 
               </CardContent>

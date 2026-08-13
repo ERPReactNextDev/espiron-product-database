@@ -196,6 +196,7 @@ setLoading(false);
     return filteredProducts.filter((p) =>
       p.productName?.toLowerCase().includes(lower) ||
       p.supplier?.supplierBrand?.toLowerCase().includes(lower) ||
+      p.commercialDetails?.supplierModelCode?.toLowerCase().includes(lower) ||
       p.categoryTypes?.[0]?.categoryTypeName?.toLowerCase().includes(lower) ||
       p.productTypes?.[0]?.productTypeName?.toLowerCase().includes(lower)
     );
@@ -503,6 +504,9 @@ setLoading(false);
                         <div className="p-3">
                           <h2 className="text-sm font-semibold line-clamp-2 text-gray-900 leading-snug">{p.productName}</h2>
                           <p className="text-xs font-medium text-blue-600 mt-0.5 line-clamp-1">{p.supplier?.supplierBrand || "—"}</p>
+                          {p.commercialDetails?.supplierModelCode && (
+                            <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-1">{p.commercialDetails.supplierModelCode}</p>
+                          )}
                         </div>
                       </div>
                     ))}
