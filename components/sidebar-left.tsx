@@ -34,6 +34,7 @@ import {
   Settings,
   StickyNote,
   BarChart3,
+  Mail,
 } from "lucide-react";
 
 import { useUser } from "@/contexts/UserContext";
@@ -65,6 +66,7 @@ const NAV_ITEMS: Array<{
   { href: "/analytics", icon: BarChart3, label: "Analytics", accessKey: "page:analytics" },
   { href: "/products", icon: Package, label: "Products", accessKey: "page:products" },
   { href: "/suppliers", icon: Truck, label: "Suppliers", accessKey: "page:suppliers" },
+  { href: "/email", icon: Mail, label: "Email" },
   { href: "/requests", icon: ClipboardList, label: "Requests", badgeKey: "requests", accessKey: "page:requests" },
   { href: "/history", icon: History, label: "History", accessKey: "page:history" },
   { href: "/notes", icon: StickyNote, label: "Notes", accessKey: "page:notes" },
