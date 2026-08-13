@@ -276,7 +276,7 @@ export async function POST(req: NextRequest) {
         html = html.replace(/<img[^>]+(width|height)=["']?1["']?[^>]*>/gi, "");
 
         // Extract attachment metadata
-        const attachments = (parsed.attachments ?? []).map((att, idx) => ({
+        const attachments = (parsed.attachments ?? []).map((att: any, idx: number) => ({
           partId: att.related ? `related_${idx}` : String(idx + 1),
           attachmentIndex: idx,
           filename: att.filename || att.contentType?.split("/")[1] || `attachment_${idx + 1}`,
@@ -285,20 +285,20 @@ export async function POST(req: NextRequest) {
           encoding: (att as { transferEncoding?: string }).transferEncoding || "base64",
           cid: att.cid || null,
           isInline: att.contentDisposition === "inline",
-        })).filter((att) => !att.isInline || att.filename);
+        })).filter((att: any) => !att.isInline || att.filename);
 
         return ok({
           message: {
             uid: msg.uid, flags: [...(msg.flags ?? [])], html, text: parsed.text ?? "",
             attachments,
             headers: {
-              from: Array.isArray(parsed.from) ? parsed.from.map((a) => a.text).join(", ") : parsed.from?.text,
-              to: Array.isArray(parsed.to) ? parsed.to.map((a) => a.text).join(", ") : parsed.to?.text,
-              cc: Array.isArray(parsed.cc) ? parsed.cc.map((a) => a.text).join(", ") : parsed.cc?.text,
+              from: Array.isArray(parsed.from) ? parsed.from.map((a: any) => a.text).join(", ") : parsed.from?.text,
+              to: Array.isArray(parsed.to) ? parsed.to.map((a: any) => a.text).join(", ") : parsed.to?.text,
+              cc: Array.isArray(parsed.cc) ? parsed.cc.map((a: any) => a.text).join(", ") : parsed.cc?.text,
               subject: parsed.subject,
               date: parsed.date?.toISOString(),
               "message-id": parsed.messageId,
-              "reply-to": Array.isArray(parsed.replyTo) ? parsed.replyTo.map((a) => a.text).join(", ") : parsed.replyTo?.text,
+              "reply-to": Array.isArray(parsed.replyTo) ? parsed.replyTo.map((a: any) => a.text).join(", ") : parsed.replyTo?.text,
             },
           },
         });
