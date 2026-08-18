@@ -73,7 +73,7 @@ const initialLoadDoneRef = useRef(false);
     return 1;
   });
 
-  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
   const [itemsPerPage, setItemsPerPage] = useState(12);
   const [columns, setColumns] = useState(6);
 
@@ -86,54 +86,34 @@ const initialLoadDoneRef = useRef(false);
     localStorage.setItem("productCardScale", cardScale.toString());
   }, [cardScale]);
 
-  useEffect(() => {
-    const updateGridPagination = () => {
-      if (!gridRef.current) return;
+useEffect(() => {
+  if (!gridEl) return;
 
-      const containerWidth = gridRef.current.offsetWidth;
+  const updateGridPagination = () => {
+    const containerWidth = gridEl.offsetWidth;
+    if (!containerWidth) return;
 
-      // 
-      if (!containerWidth) return;
+    const cardMinWidth = 220 * cardScale;
+    const cols = Math.max(1, Math.floor(containerWidth / cardMinWidth));
 
-      const cardMinWidth = 220 * cardScale;
-      const cols = Math.max(1, Math.floor(containerWidth / cardMinWidth));
+    setColumns(cols);
+    setItemsPerPage(cols * 4);
+  };
 
-      setColumns(cols);
-      setItemsPerPage(cols * 4);
-    };
-
-  // 
   updateGridPagination();
 
-  // 
-  const timeout = setTimeout(updateGridPagination, 50);
+  const resizeObserver = new ResizeObserver(updateGridPagination);
+  resizeObserver.observe(gridEl);
 
   window.addEventListener("resize", updateGridPagination);
+  window.addEventListener("focus", updateGridPagination);
 
   return () => {
+    resizeObserver.disconnect();
     window.removeEventListener("resize", updateGridPagination);
-    clearTimeout(timeout);
+    window.removeEventListener("focus", updateGridPagination);
   };
-}, [cardScale]);
-
-  useEffect(() => {
-    const handleFocus = () => {
-      if (!gridRef.current) return;
-
-      const containerWidth = gridRef.current.offsetWidth;
-      if (!containerWidth) return;
-
-      const cardMinWidth = 220 * cardScale;
-      const cols = Math.max(1, Math.floor(containerWidth / cardMinWidth));
-
-      setColumns(cols);
-      setItemsPerPage(cols * 4);
-    };
-
-    window.addEventListener("focus", handleFocus);
-
-    return () => window.removeEventListener("focus", handleFocus);
-  }, [cardScale]);
+}, [cardScale, gridEl]);
 
   useEffect(() => {
     if (!userId) { router.push("/login"); return; }
@@ -443,7 +423,7 @@ setLoading(false);
                   </div>
                 ) : (
                   <div
-                    ref={gridRef}
+                    ref={setGridEl}
                     className="grid gap-3 md:gap-4 w-full"
                     style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
                   >

@@ -236,8 +236,8 @@ const [isRefreshing, setIsRefreshing] = useState(false);
 
     fetchLatestRevisions();
     
-    // Poll every 5 seconds as fallback to ensure real-time updates
-    const interval = setInterval(fetchLatestRevisions, 5000);
+    // Poll every 30 seconds as fallback to ensure real-time updates (reduced from 5s to save bandwidth)
+    const interval = setInterval(fetchLatestRevisions, 30000);
     return () => clearInterval(interval);
   }, [requests]);
 
