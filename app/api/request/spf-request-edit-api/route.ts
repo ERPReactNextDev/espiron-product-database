@@ -109,11 +109,8 @@ const supplierCache = new Map<
 >();
 
 export async function POST(req: NextRequest) {
-  if (req.method !== "POST") {
-    return NextResponse.json({ message: "Method not allowed" }, { status: 405 });
-  }
-
   try {
+    const body = await req.json();
     const {
       spf_number,
       referenceid,
