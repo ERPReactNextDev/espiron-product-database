@@ -165,6 +165,11 @@ export default function RequestsPage() {
   const [searchTerm, setSearchTerm]   = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 20;
+  const LOAD_LIMIT = PAGE_SIZE; // 1 DB fetch = 1 full page
+  const [dbOffset, setDbOffset] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasMoreFromDB, setHasMoreFromDB] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 const [isRefreshing, setIsRefreshing] = useState(false);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
@@ -311,15 +316,23 @@ const [isRefreshing, setIsRefreshing] = useState(false);
   /* ─────────────────────── */
   /* Fetch SPF requests      */
   /* ─────────────────────── */
-  const fetchRequests = useCallback(async () => {
+  const fetchRequests = useCallback(async (offset = 0, append = false) => {
     try {
       setFetchError(null);
       setCreatedSPFLoaded(false);
-      setLoadingPage(true);
+      if (append) setLoadingMore(true); else setLoadingPage(true);
 
       // Pass allowed statuses to API for server-side filtering
-      const statusParams = ALLOWED_STATUSES.map(s => `status=${encodeURIComponent(s)}`).join('&');
-      const res = await fetch(`/api/request/spf-request-fetch-api?page=1&${statusParams}`);
+      const isSearching = Boolean(searchTerm.trim());
+      const params = new URLSearchParams();
+      // When searching, bypass the incremental page limit entirely and
+      // fetch everything that matches in one shot.
+      params.set("limit", isSearching ? "1000" : String(LOAD_LIMIT));
+      params.set("offset", isSearching ? "0" : String(offset));
+      ALLOWED_STATUSES.forEach((s) => params.append("status", s));
+      if (isSearching) params.set("search", searchTerm.trim());
+
+      const res = await fetch(`/api/request/spf-request-fetch-api?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch SPF requests");
 
       const data = await res.json();
@@ -331,15 +344,38 @@ const [isRefreshing, setIsRefreshing] = useState(false);
           : null,
       }));
 
-      setRequests(mapped);
-      await fetchCreatedSPF(mapped.map((r: any) => r.spf_number));
+      setRequests((prev) => (append ? [...prev, ...mapped] : mapped));
+      setDbOffset(offset + mapped.length);
+      setTotalCount(data.total ?? 0);
+      setHasMoreFromDB(Boolean(data.hasMore));
+
+      const combinedSpfNumbers = append
+        ? [...requestsRef.current.map((r) => r.spf_number), ...mapped.map((r: any) => r.spf_number)]
+        : mapped.map((r: any) => r.spf_number);
+      await fetchCreatedSPF(combinedSpfNumbers);
     } catch (err: any) {
       setFetchError(err.message || "Failed to fetch SPF requests");
       setCreatedSPFLoaded(true);
     } finally {
       setLoadingPage(false);
+      setLoadingMore(false);
     }
-  }, [fetchCreatedSPF]);
+  }, [fetchCreatedSPF, searchTerm]);
+
+  const loadMoreFromDB = () => {
+    if (loadingMore || !hasMoreFromDB) return;
+    fetchRequests(dbOffset, true);
+  };
+
+  const goToNextPage = async () => {
+    const nextPage = currentPage + 1;
+    const neededCount = nextPage * PAGE_SIZE;
+    // If the page we're navigating to needs rows we haven't loaded yet, fetch them first
+    if (neededCount > requests.length && hasMoreFromDB && !loadingMore) {
+      await fetchRequests(dbOffset, true);
+    }
+    setCurrentPage(nextPage);
+  };
 
   useEffect(() => {
     fetchRequests();
@@ -556,14 +592,32 @@ const [isRefreshing, setIsRefreshing] = useState(false);
     return Array.from(statusSet).sort((a, b) => a.localeCompare(b));
   }, [createdSPF]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE));
+  const loadedRequests = filteredRequests;
+  // While actively searching, everything matching is already loaded —
+  // no need (or ability) to "load more" from the DB.
+  const hasMoreToLoad = hasMoreFromDB && !searchTerm.trim();
+
+  // Base total pages on the TRUE db total, not just what's loaded so far,
+  // so Next isn't artificially capped by how much we've fetched.
+  const totalPages = Math.max(1, Math.ceil((searchTerm.trim() ? loadedRequests.length : totalCount) / PAGE_SIZE));
 
   const paginatedRequests = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredRequests.slice(start, start + PAGE_SIZE);
-  }, [filteredRequests, currentPage]);
+    return loadedRequests.slice(start, start + PAGE_SIZE);
+  }, [loadedRequests, currentPage]);
 
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter, sortBy, sortOrder]);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, sortBy, sortOrder]);
+
+  useEffect(() => {
+    setCurrentPage(1); // jump back to page 1 whenever the search term changes
+    const t = setTimeout(() => {
+      fetchRequests(0, false);
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
 
   /* ─────────────────────── */
   /* Helpers                 */
@@ -797,17 +851,28 @@ const [isRefreshing, setIsRefreshing] = useState(false);
       {/* ── DESKTOP PAGINATION BAR ── */}
       <div className="hidden md:flex items-center justify-between px-6 py-2 bg-white/70 backdrop-blur-md border-b shrink-0">
         <span className="text-sm text-gray-500">
-          Page {currentPage} of {totalPages} · {filteredRequests.length} requests
+          Page {currentPage} of {totalPages} · {totalCount} requests
         </span>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {hasMoreToLoad && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs"
+              disabled={loadingMore}
+              onClick={loadMoreFromDB}
+            >
+              {loadingMore ? "Loading..." : `Load More (${totalCount - dbOffset} more)`}
+            </Button>
+          )}
           <Button size="sm" variant="outline" disabled={isRefreshing} onClick={handleRefresh}>
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </Button>
           <Button size="sm" variant="outline" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>
             Previous
           </Button>
-          <Button size="sm" variant="outline" disabled={currentPage === totalPages || totalPages === 0} onClick={() => setCurrentPage((p) => p + 1)}>
-            Next
+          <Button size="sm" variant="outline" disabled={(currentPage === totalPages && !hasMoreFromDB) || loadingMore} onClick={goToNextPage}>
+            {loadingMore ? "Loading..." : "Next"}
           </Button>
         </div>
       </div>
@@ -1052,33 +1117,44 @@ const [isRefreshing, setIsRefreshing] = useState(false);
       </div>
 
       {/* ── MOBILE PAGINATION ── */}
-      {totalPages > 1 && (
+      {(totalPages > 1 || hasMoreToLoad) && (
         <div
-          className="md:hidden flex justify-center items-center gap-3 py-3 border-t bg-white/70 backdrop-blur-sm shrink-0"
+          className="md:hidden flex flex-col items-center gap-2 py-3 border-t bg-white/70 backdrop-blur-sm shrink-0"
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 80px)" }}
         >
-          <button
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => p - 1)}
-            className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            disabled={isRefreshing}
-            onClick={handleRefresh}
-            className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
-          >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          </button>
-          <span className="text-sm font-medium text-gray-600">{currentPage} / {totalPages}</span>
-          <button
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((p) => p + 1)}
-            className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
+          <div className="flex justify-center items-center gap-3">
+            <button
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => p - 1)}
+              className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              disabled={isRefreshing}
+              onClick={handleRefresh}
+              className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <span className="text-sm font-medium text-gray-600">{currentPage} / {totalPages}</span>
+            <button
+              disabled={(currentPage === totalPages && !hasMoreFromDB) || loadingMore}
+              onClick={goToNextPage}
+              className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+          {hasMoreToLoad && (
+            <button
+              disabled={loadingMore}
+              onClick={loadMoreFromDB}
+              className="h-8 px-4 rounded-lg border bg-white text-xs font-medium text-gray-600 disabled:opacity-50"
+            >
+              {loadingMore ? "Loading..." : `Load More (${totalCount - dbOffset} more)`}
+            </button>
+          )}
         </div>
       )}
 

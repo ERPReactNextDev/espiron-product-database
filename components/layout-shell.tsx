@@ -83,6 +83,7 @@ export default function LayoutShell({
   const [lastScrollY, setLastScrollY] = useState(0);
 
 // Handle scroll behavior for mobile navigation (LinkedIn-style hide/show)
+  // NOTE: Disabled - sidebar now stays always visible per user request
   // NOTE: pages scroll inside their own nested `overflow-y-auto` div, not
   // `window`. Native `scroll` events don't bubble, but capture-phase
   // listeners on `window` still catch them on the way down, so we attach
@@ -90,51 +91,9 @@ export default function LayoutShell({
   useEffect(() => {
     if (!isMobile) return;
 
-    let debounceTimeout: NodeJS.Timeout;
-    let idleTimeout: NodeJS.Timeout;
-    const IDLE_HIDE_DELAY = 500; // ms of no scrolling before auto-hiding
-
-    const handleScroll = (e: Event) => {
-      const target = e.target as HTMLElement | Document;
-      const currentScrollY =
-        target instanceof Document
-          ? window.scrollY
-          : target.scrollTop ?? window.scrollY;
-
-      if (debounceTimeout) clearTimeout(debounceTimeout);
-      if (idleTimeout) clearTimeout(idleTimeout);
-
-      debounceTimeout = setTimeout(() => {
-        if (currentScrollY > lastScrollY && currentScrollY > 100) {
-          setIsNavVisible(false);
-        } else if (currentScrollY < lastScrollY) {
-          setIsNavVisible(true);
-        }
-
-        setLastScrollY(currentScrollY);
-
-        // Steady/idle: whether the last motion was scroll-up or
-        // scroll-down, once movement stops (and we're past the top),
-        // auto-hide the nav after a short delay.
-        if (currentScrollY > 100) {
-          idleTimeout = setTimeout(() => {
-            setIsNavVisible(false);
-          }, IDLE_HIDE_DELAY);
-        }
-      }, 10);
-    };
-
-    window.addEventListener("scroll", handleScroll, {
-      passive: true,
-      capture: true,
-    });
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll, true);
-      if (debounceTimeout) clearTimeout(debounceTimeout);
-      if (idleTimeout) clearTimeout(idleTimeout);
-    };
-  }, [isMobile, lastScrollY]);
+    // Always keep navigation visible - no scroll-based hiding
+    setIsNavVisible(true);
+  }, [isMobile]);
 
   const isLogin = pathname === "/login";
 

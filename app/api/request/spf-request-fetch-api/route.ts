@@ -2,17 +2,17 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { supabase } from "@/utils/supabase";
 
-const PAGE_SIZE = 100;
+const DEFAULT_LIMIT = 10;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const from   = searchParams.get("from")   ?? undefined;
   const to     = searchParams.get("to")     ?? undefined;
-  const page   = searchParams.get("page")   ?? "1";
   const search = searchParams.get("search") ?? "";
   const status = searchParams.getAll("status");
+  const limit  = Math.max(1, parseInt(searchParams.get("limit") ?? String(DEFAULT_LIMIT), 10));
+  const offset = Math.max(0, parseInt(searchParams.get("offset") ?? "0", 10));
 
-  const pageNum    = Math.max(1, parseInt(page, 10));
   const searchTerm = search.trim();
 
   try {
@@ -38,6 +38,8 @@ export async function GET(req: NextRequest) {
       query = query.or(`spf_number.ilike.${s},customer_name.ilike.${s},item_code.ilike.${s}`);
     }
 
+    query = query.range(offset, offset + limit - 1);
+
     const { data, error, count } = await query;
 
     if (error) {
@@ -56,16 +58,14 @@ export async function GET(req: NextRequest) {
       item_code:            r.item_code ?? null,
     }));
 
-    const total      = count || 0;
-    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-    const safePage   = Math.min(pageNum, totalPages);
+    const total = count || 0;
 
     return NextResponse.json({
       requests: safeData,
       total,
-      page:      safePage,
-      totalPages,
-      pageSize:  PAGE_SIZE,
+      limit,
+      offset,
+      hasMore: offset + safeData.length < total,
     });
   } catch (err: any) {
     console.error("Server error:", err);

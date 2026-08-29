@@ -4233,26 +4233,10 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                                 <>
                                   <div>
                                     <span className="text-gray-400 block">
-                                      Qty/Per Carton
-                                    </span>
-                                    <span className="font-medium">
-                                      {qtyCtn}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <span className="text-gray-400 block">
                                       Commercial Type
                                     </span>
                                     <span className="font-medium">
                                       {commercialType}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <span className="text-gray-400 block">
-                                      Packaging
-                                    </span>
-                                    <span className="font-medium">
-                                      {packaging}
                                     </span>
                                   </div>
                                   <div>
@@ -4263,6 +4247,22 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                                       $
                                       {Number(prodSubtotals[i] || 0).toLocaleString()}
                                     </span>
+                                  </div>
+                                  <div className="col-span-2 border-t border-gray-100 pt-1.5 mt-0.5">
+                                    <span className="text-gray-400 block mb-0.5">
+                                      Qty/Per Carton
+                                    </span>
+                                    <div className="font-medium">
+                                      {qtyCtn}
+                                    </div>
+                                  </div>
+                                  <div className="col-span-2">
+                                    <span className="text-gray-400 block mb-0.5">
+                                      Packaging
+                                    </span>
+                                    <div className="font-medium">
+                                      {packaging}
+                                    </div>
                                   </div>
                                 </>
                               );
@@ -4888,19 +4888,19 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
               isMobile ? "px-4 pt-4 pb-3 border-b shrink-0" : "space-y-2 shrink-0"
             }
           >
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <ForPoolingButton show={showPoolingButton} spfNumber={spfNumber} />
-                <DialogTitle className="flex items-center gap-2">
+                <DialogTitle className="flex items-center gap-2 flex-wrap text-sm sm:text-base">
                   SPF Request View
                   {latestVersionLabel && (
-                    <span className="text-[11px] px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200 font-mono">
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200 font-mono">
                       {latestVersionLabel}
                     </span>
                   )}
                 </DialogTitle>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
                 <SPFRequestFetchVersionHistory
                   spfNumber={spfNumber}
                   isMobile={isMobile}
@@ -4913,12 +4913,14 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="gap-1.5 text-xs"
+                  className="gap-1.5 text-xs shrink-0"
                   onClick={handleDownloadExcelView}
                   disabled={isExportingExcel || !data}
                 >
                   <Download size={12} />
-                  {isExportingExcel ? "Generating..." : "XLSX"}
+                  <span className="hidden sm:inline">
+                    {isExportingExcel ? "Generating..." : "XLSX"}
+                  </span>
                 </Button>
               </div>
             </div>
@@ -4953,40 +4955,48 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
               )}
 
               {canEditOffer && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 text-xs border-orange-300 text-orange-700 hover:bg-orange-50"
-                  onClick={() => {
-                    // Check if revision_type is already set in data
-                    const existingRevisionType = data?.revision_type;
-                    if (existingRevisionType) {
-                      // Map database value to RevisionType
-                      const typeMap: Record<string, RevisionType> = {
-                        "Price Update": "price",
-                        "Change Item Specs & Qty": "specs",
-                        "Both": "both",
-                      };
-                      const mappedType = typeMap[existingRevisionType];
-                      if (mappedType) {
-                        // Skip selector and go directly to edit mode
-                        setRevisionType(mappedType);
-                        setOpen(false);
-                        setTimeout(() => {
-                          enterEditMode(mappedType);
-                          setEditMode(true);
-                          setOpen(true);
-                        }, 50);
-                        return;
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 text-xs border-orange-300 text-orange-700 hover:bg-orange-50"
+                    onClick={() => {
+                      // Check if revision_type is already set in data
+                      const existingRevisionType = data?.revision_type;
+                      if (existingRevisionType) {
+                        // Map database value to RevisionType
+                        const typeMap: Record<string, RevisionType> = {
+                          "Price Update": "price",
+                          "Change Item Specs & Qty": "specs",
+                          "Both": "both",
+                        };
+                        const mappedType = typeMap[existingRevisionType];
+                        if (mappedType) {
+                          // Skip selector and go directly to edit mode
+                          setRevisionType(mappedType);
+                          setOpen(false);
+                          setTimeout(() => {
+                            enterEditMode(mappedType);
+                            setEditMode(true);
+                            setOpen(true);
+                          }, 50);
+                          return;
+                        }
                       }
-                    }
-                    // Show selector if no revision_type set
-                    setShowRevisionSelector(true);
-                  }}
-                >
-                  <Pencil size={12} />
-                  Edit (Revise)
-                </Button>
+                      // Show selector if no revision_type set
+                      setShowRevisionSelector(true);
+                    }}
+                  >
+                    <Pencil size={12} />
+                    Edit (Revise)
+                  </Button>
+                  {isMobile && data?.revision_remarks && (
+                    <span className="text-[11px] text-orange-700 truncate max-w-[160px]">
+                      {data.revision_type ? `${data.revision_type}: ` : ""}
+                      {data.revision_remarks}
+                    </span>
+                  )}
+                </>
               )}
 
               {canRequestProcurementRevision && (
@@ -5007,8 +5017,8 @@ className="relative flex flex-col p-2 border shadow hover:shadow-md break-inside
               )}
             </div>
 
-            {/* Speech balloon for revision remarks */}
-            {isForRevision && data?.revision_remarks && (
+            {/* Speech balloon for revision remarks — desktop only, mobile shows inline text beside Edit */}
+            {!isMobile && isForRevision && data?.revision_remarks && (
               <div className="relative mt-2 max-w-md">
                 <div className="relative bg-orange-50 border-2 border-orange-300 rounded-2xl px-4 py-3 shadow-sm">
                   <div className="flex items-center gap-2 mb-1">

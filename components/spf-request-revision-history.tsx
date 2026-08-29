@@ -250,56 +250,7 @@ export default function SPFRequestRevisionHistory({
 
       const { data: revisionData, error } = await supabase
         .from("spf_request_revision_history")
-        .select(`
-          spf_number,
-          customer_name,
-          contact_person,
-          contact_number,
-          registered_address,
-          delivery_address,
-          billing_address,
-          collection_address,
-          tin_no,
-          payment_terms,
-          warranty,
-          delivery_date,
-          special_instructions,
-          sales_person,
-          prepared_by,
-          approved_by,
-          noted_by,
-          referenceid,
-          tsm,
-          manager,
-          start_date,
-          end_date,
-          status,
-          item_description,
-          item_photo,
-          item_code,
-          item_qty,
-          date_request_tsa,
-          date_approved_tsm,
-          date_approved_sales_head,
-          remarks,
-          spf_revision_remarks_sales,
-          spf_revision_remarks_engineering,
-          spf_revision_approval_sales_status,
-          revision_number,
-          revision_result,
-          revision_date,
-          project_name,
-          project_location,
-          project_status,
-          win_rate_probability_percentage,
-          moq,
-          quotations_validity,
-          production_lead_time,
-          delivery_lead_time,
-          is_cancelled,
-          is_cancelled_reason,
-          is_cancelled_reason_others_remarks
-        `)
+        .select("*")
         .eq("spf_number", spfNumber)
         .order("revision_number", { ascending: false })
         .limit(50); // Limit to 50 most recent revisions to reduce bandwidth

@@ -58,7 +58,6 @@ const initialLoadDoneRef = useRef(false);
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [viewTarget, setViewTarget] = useState<string | null>(null);
@@ -74,8 +73,11 @@ const initialLoadDoneRef = useRef(false);
   });
 
   const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
-  const [itemsPerPage, setItemsPerPage] = useState(12);
   const [columns, setColumns] = useState(6);
+  const pageSize = columns * 4;
+  const LOAD_CHUNK = 30;
+  const [loadedCount, setLoadedCount] = useState(LOAD_CHUNK);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     const saved = localStorage.getItem("productCardScale");
@@ -89,7 +91,7 @@ const initialLoadDoneRef = useRef(false);
 useEffect(() => {
   if (!gridEl) return;
 
-  const updateGridPagination = () => {
+  const updateGridColumns = () => {
     const containerWidth = gridEl.offsetWidth;
     if (!containerWidth) return;
 
@@ -97,21 +99,20 @@ useEffect(() => {
     const cols = Math.max(1, Math.floor(containerWidth / cardMinWidth));
 
     setColumns(cols);
-    setItemsPerPage(cols * 4);
   };
 
-  updateGridPagination();
+  updateGridColumns();
 
-  const resizeObserver = new ResizeObserver(updateGridPagination);
+  const resizeObserver = new ResizeObserver(updateGridColumns);
   resizeObserver.observe(gridEl);
 
-  window.addEventListener("resize", updateGridPagination);
-  window.addEventListener("focus", updateGridPagination);
+  window.addEventListener("resize", updateGridColumns);
+  window.addEventListener("focus", updateGridColumns);
 
   return () => {
     resizeObserver.disconnect();
-    window.removeEventListener("resize", updateGridPagination);
-    window.removeEventListener("focus", updateGridPagination);
+    window.removeEventListener("resize", updateGridColumns);
+    window.removeEventListener("focus", updateGridColumns);
   };
 }, [cardScale, gridEl]);
 
@@ -182,18 +183,31 @@ setLoading(false);
     );
   }, [searchTerm, filteredProducts]);
 
-  const totalPages = Math.max(1, Math.ceil(searchedProducts.length / itemsPerPage));
+  // Loaded pool — grows via "Load More" (keeps this light in memory,
+  // doesn't hit Firestore again, just reveals more of what's already fetched)
+  const loadedProducts = useMemo(() => {
+    return searchedProducts.slice(0, loadedCount);
+  }, [searchedProducts, loadedCount]);
 
-  const paginatedProducts = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return searchedProducts.slice(start, start + itemsPerPage);
-  }, [searchedProducts, currentPage, itemsPerPage]);
+  const hasMoreToLoad = loadedCount < searchedProducts.length;
+
+  // Pagination — operates only within the loaded pool, so the DOM only
+  // ever renders PAGE_SIZE cards at a time regardless of how much is loaded
+  const totalPages = Math.max(1, Math.ceil(loadedProducts.length / pageSize));
+
+  const visibleProducts = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return loadedProducts.slice(start, start + pageSize);
+  }, [loadedProducts, currentPage, pageSize]);
+
+  useEffect(() => {
+    setLoadedCount(LOAD_CHUNK);
+    setCurrentPage(1);
+  }, [searchTerm, filteredProducts]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [totalPages, currentPage]);
-
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, filteredProducts]);
 
   const isFiltered = filteredProducts.length !== products.length;
 
@@ -392,28 +406,8 @@ setLoading(false);
             </div>
           ) : (
             <>
-              {totalPages > 1 && (
-                <div className="flex justify-center items-center gap-3 py-3 border-t bg-white/70 backdrop-blur-sm shrink-0 px-4">
-                  <button
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(p => p - 1)}
-                    className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <span className="text-sm font-medium text-gray-600">{currentPage} / {totalPages}</span>
-                  <button
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(p => p + 1)}
-                    className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-
-              <div className="flex-1 overflow-y-auto px-3 md:px-6 pt-3 pb-24 md:pb-4">
-                {paginatedProducts.length === 0 ? (
+              <div className="flex-1 overflow-y-auto px-3 md:px-6 pt-3 pb-32 md:pb-4">
+                {visibleProducts.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 text-center">
                     <div className="h-14 w-14 rounded-full bg-white/60 flex items-center justify-center mb-3">
                       <Search className="h-6 w-6 text-gray-300" />
@@ -427,7 +421,7 @@ setLoading(false);
                     className="grid gap-3 md:gap-4 w-full"
                     style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
                   >
-                    {paginatedProducts.map((p) => (
+                    {visibleProducts.map((p) => (
                       <div
                         key={p.id}
                         className="group border border-gray-200 rounded-2xl bg-white/80 backdrop-blur-sm shadow-sm hover:shadow-md flex flex-col overflow-hidden transition-shadow duration-200"
@@ -491,6 +485,34 @@ setLoading(false);
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
+
+              <div className="flex flex-col items-center gap-2 py-3 border-t bg-white/70 backdrop-blur-sm shrink-0 px-4 fixed bottom-[62px] left-0 right-0 md:static z-30 md:z-20">
+                <div className="flex justify-center items-center gap-3">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => p - 1)}
+                    className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <span className="text-sm font-medium text-gray-600">{currentPage} / {totalPages}</span>
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((p) => p + 1)}
+                    className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+                {hasMoreToLoad && (
+                  <button
+                    onClick={() => setLoadedCount((n) => n + LOAD_CHUNK)}
+                    className="h-8 px-4 rounded-lg border bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 shadow-sm"
+                  >
+                    Load More ({searchedProducts.length - loadedCount} more available)
+                  </button>
                 )}
               </div>
             </>

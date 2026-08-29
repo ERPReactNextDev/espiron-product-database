@@ -18,7 +18,7 @@ import DownloadSupplier from "@/components/download-supplier";
 import SupplierProducts from "@/components/company-x-supplier-brand-products";
 
 import { Pencil, Trash2, Filter, Upload, Search, Plus, ChevronLeft, ChevronRight } from "lucide-react";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { collection, onSnapshot, query, where, limit as fsLimit } from "firebase/firestore";
 import { getCountryCallingCode, CountryCode } from "libphonenumber-js";
 import { db } from "@/lib/firebase";
 import { useNotificationTriggers } from "@/hooks/use-notification-triggers";
@@ -129,6 +129,10 @@ export default function Suppliers() {
   const [itemsPerPage, setItemsPerPage] = useState(DESKTOP_ITEMS_PER_PAGE);
   const [currentPage, setCurrentPage] = useState(1);
 
+  const LOAD_CHUNK = 10;
+  const [queryLimit, setQueryLimit] = useState(LOAD_CHUNK); // drives the Firestore `limit()`
+  const [hasMoreFromDB, setHasMoreFromDB] = useState(true);
+
   useEffect(() => {
     if (userId === null) return;
     if (!userId) { router.push("/login"); return; }
@@ -136,8 +140,20 @@ export default function Suppliers() {
 
   useEffect(() => {
     if (!userId) return;
-    const q = query(collection(db, "suppliers"), where("isActive", "==", true));
+    // When actively searching/filtering, temporarily widen the limit so we're
+    // effectively querying "everything" — Firestore has no substring search,
+    // so narrowing has to happen client-side against a fuller batch.
+    const isNarrowing = Boolean(search.trim()) ||
+      Boolean(filters.company || filters.email || filters.hasContacts !== null || filters.phoneCountry || filters.addressCountry);
+    const effectiveLimit = isNarrowing ? 5000 : queryLimit;
+
+    const q = query(
+      collection(db, "suppliers"),
+      where("isActive", "==", true),
+      fsLimit(effectiveLimit)
+    );
     const unsub = onSnapshot(q, (snapshot) => {
+      setHasMoreFromDB(snapshot.size === effectiveLimit);
       const list = snapshot.docs.map((doc) => {
         const data = doc.data();
         return {
@@ -197,9 +213,9 @@ export default function Suppliers() {
       setLoading(false);
     });
     return () => unsub();
-  }, [userId, onSupplierAdded, onSupplierUpdated]);
+  }, [userId, onSupplierAdded, onSupplierUpdated, queryLimit, search, filters]);
 
-  useEffect(() => { setCurrentPage(1); }, [search, filters]);
+  useEffect(() => { setCurrentPage(1); setQueryLimit(LOAD_CHUNK); }, [search, filters]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -258,11 +274,16 @@ export default function Suppliers() {
       });
   }, [suppliers, search, filters]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredSuppliers.length / itemsPerPage));
+  // `suppliers` is now already bounded by the Firestore query's limit(),
+  // so filteredSuppliers IS the loaded pool — no extra client-side slicing needed.
+  const loadedSuppliers = filteredSuppliers;
+  const hasMoreToLoad = hasMoreFromDB;
+
+  const totalPages = Math.max(1, Math.ceil(loadedSuppliers.length / itemsPerPage));
 
   const paginatedSuppliers = useMemo(() => {
-    return filteredSuppliers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  }, [filteredSuppliers, currentPage, itemsPerPage]);
+    return loadedSuppliers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  }, [loadedSuppliers, currentPage, itemsPerPage]);
 
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) setCurrentPage(1);
@@ -346,7 +367,17 @@ export default function Suppliers() {
         <span className="text-sm text-gray-500">
           Page {currentPage} of {totalPages} · {filteredSuppliers.length} suppliers
         </span>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {hasMoreToLoad && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs"
+              onClick={() => setQueryLimit((n) => n + LOAD_CHUNK)}
+            >
+              Load More
+            </Button>
+          )}
           <Button size="sm" variant="outline" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>Previous</Button>
           <Button size="sm" variant="outline" disabled={currentPage === totalPages || totalPages === 0} onClick={() => setCurrentPage(p => p + 1)}>Next</Button>
         </div>
@@ -650,16 +681,26 @@ export default function Suppliers() {
       </div>
 
       {/* ── MOBILE PAGINATION — bg-white → bg-white/70 ── */}
-      {totalPages > 1 && (
-        <div className="md:hidden flex justify-center items-center gap-3 py-3 border-t bg-white/70 backdrop-blur-sm shrink-0"
+      {(totalPages > 1 || hasMoreToLoad) && (
+        <div className="md:hidden flex flex-col items-center gap-2 py-3 border-t bg-white/70 backdrop-blur-sm shrink-0"
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 80px)" }}>
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40">
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="text-sm font-medium text-gray-600">{currentPage} / {totalPages}</span>
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40">
-            <ChevronRight className="h-4 w-4" />
-          </button>
+          <div className="flex justify-center items-center gap-3">
+            <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-sm font-medium text-gray-600">{currentPage} / {totalPages}</span>
+            <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+          {hasMoreToLoad && (
+            <button
+              onClick={() => setQueryLimit((n) => n + LOAD_CHUNK)}
+              className="h-8 px-4 rounded-lg border bg-white text-xs font-medium text-gray-600"
+            >
+              Load More
+            </button>
+          )}
         </div>
       )}
 
