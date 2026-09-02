@@ -46,6 +46,26 @@ const firebaseConfigLogs = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID_LOGS,
 };
 
+/* =================================
+   MAIN FIREBASE (BACKUP)
+================================= */
+
+const firebaseConfigBackup = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY_BACKUP,
+
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN_BACKUP,
+
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID_BACKUP,
+
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET_BACKUP,
+
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID_BACKUP,
+
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID_BACKUP,
+
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID_BACKUP,
+};
+
 
 
 /* =================================
@@ -77,6 +97,16 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 
 const storage = getStorage(app);
+
+/* =================================
+   INITIALIZE BACKUP APP
+================================= */
+
+const backupApp = getApps().find((a) => a.name === "backup")
+  ? getApp("backup")
+  : initializeApp(firebaseConfigBackup, "backup");
+
+const dbBackup = getFirestore(backupApp);
 
 /* =================================
    INITIALIZE LOGS APP
@@ -128,4 +158,4 @@ if (typeof window !== "undefined" && "serviceWorker" in navigator) {
    EXPORTS
 ================================= */
 
-export { app, db, dbLogs, dbCollab, storage, analytics, messaging };
+export { app, db, dbLogs, dbCollab, backupApp, dbBackup, storage, analytics, messaging };

@@ -334,6 +334,14 @@ setLoading(false);
             onChange={(e) => setSearchTerm(e.target.value)}
             className="max-w-md bg-white/70"
           />
+          <div className="flex items-center gap-2">
+            <button className="px-4 py-1.5 rounded-full border border-green-600 text-green-600 text-sm font-medium bg-transparent hover:bg-green-50 transition-colors">
+              Server 1
+            </button>
+            <button className="px-4 py-1.5 rounded-full border border-green-600 text-green-600 text-sm font-medium bg-transparent hover:bg-green-50 transition-colors">
+              Server 2
+            </button>
+          </div>
           <div className="flex items-center gap-2 ml-auto text-sm text-gray-500">
             <button onClick={() => setCardScale(p => Math.max(p - 0.1, 0.6))} className="text-lg font-bold px-1">−</button>
             <span className="w-10 text-center text-xs">{(cardScale * 100).toFixed(0)}%</span>

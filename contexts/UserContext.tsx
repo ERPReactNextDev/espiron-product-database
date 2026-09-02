@@ -13,6 +13,7 @@ type UserContextType = {
   loading: boolean;
   splashDone: boolean;
   setSplashDone: (done: boolean) => void;
+  department: string | null;
 };
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -20,6 +21,7 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [userId, setUserIdState] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [department, setDepartment] = useState<string | null>(null);
 
   const [splashDone, setSplashDoneState] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -71,6 +73,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       .then((data) => {
         if (data?.userId) {
           setUserIdState(data.userId);
+          setDepartment(data.department || null);
         }
       })
       .finally(() => {
@@ -110,7 +113,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [userId]);
 
   return (
-    <UserContext.Provider value={{ userId, setUserId, loading, splashDone, setSplashDone }}>
+    <UserContext.Provider value={{ userId, setUserId, loading, splashDone, setSplashDone, department }}>
       {children}
     </UserContext.Provider>
   );

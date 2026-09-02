@@ -1034,7 +1034,10 @@ export default function DownloadProduct({ products, iconOnly = false }: Props) {
 
         <DialogHeader>
 
-          <DialogTitle>Download Product</DialogTitle>
+          <DialogTitle>Download Products</DialogTitle>
+          <p className="text-sm text-gray-500 mt-2">
+            Download all {products.length} products from the database
+          </p>
 
         </DialogHeader>
 
@@ -1042,7 +1045,7 @@ export default function DownloadProduct({ products, iconOnly = false }: Props) {
 
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
 
-          <Button onClick={handleDownload}>Download</Button>
+          <Button onClick={handleDownload}>Download {products.length} Products</Button>
 
         </DialogFooter>
 

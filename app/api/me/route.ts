@@ -42,7 +42,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ userId: user.id.toString() });
+    return NextResponse.json({ 
+      userId: user.id.toString(),
+      department: user.Department 
+    });
   } catch (err) {
     console.error("ME API ERROR:", err);
     return NextResponse.json(null, { status: 500 });

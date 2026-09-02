@@ -6,21 +6,59 @@ import { useWallpaper } from "@/contexts/WallpaperContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Palette, Sparkles, Building2, Wrench, ChevronDown, Bell } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Palette, Sparkles, Building2, Wrench, ChevronDown, Bell, AlertTriangle, Database } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NotificationSettings } from "@/components/notifications/NotificationSettings";
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
-  const { userId } = useUser();
+  const { userId, department } = useUser();
   const { wallpaper } = useWallpaper();
   const isEngineer = theme === "engineer";
+  const isIT = department === "IT";
 const [mounted, setMounted] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleMigration = async () => {
+    setIsMigrating(true);
+    setMigrationResult(null);
+    
+    try {
+      const response = await fetch('/api/migrate-database', {
+        method: 'POST',
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setMigrationResult(`Success! Migrated ${data.results.length} collections.`);
+      } else {
+        setMigrationResult(`Error: ${data.error}`);
+      }
+    } catch (error) {
+      setMigrationResult('Error: Failed to migrate database');
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
   if (!mounted) {
     return null;
@@ -273,6 +311,70 @@ const [mounted, setMounted] = useState(false);
           </CardContent>
         )}
       </Card>
+
+      {/* Danger Zone - IT Only */}
+      {isIT && (
+      <Card className="border-red-600 bg-red-50">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-red-600">
+              <AlertTriangle className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-red-600 font-bold">
+                Danger Zone
+              </CardTitle>
+              <CardDescription className="text-gray-600">
+                Critical database operations
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="destructive"
+                className="w-full"
+                disabled={isMigrating}
+              >
+                <Database className="h-4 w-4 mr-2" />
+                {isMigrating ? "Migrating Database..." : "Migrate Live to Backup"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-red-600">
+                  Are you absolutely sure?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will <strong>delete all existing data</strong> in the backup database and copy all collections from the live database to the backup. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleMigration}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  Yes, migrate database
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          
+          {migrationResult && (
+            <div className={`p-3 rounded-lg text-sm ${
+              migrationResult.startsWith('Success') 
+                ? 'bg-green-100 text-green-800 border border-green-300' 
+                : 'bg-red-100 text-red-800 border border-red-300'
+            }`}>
+              {migrationResult}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      )}
 
       {/* Info Section */}
       <div className={`text-center text-sm text-muted-foreground ${theme === "comic" ? "font-comic" : theme === "engineer" ? "font-engineer" : "font-formal"}`}>
