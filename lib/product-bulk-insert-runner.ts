@@ -1,14 +1,10 @@
 /**
 
- * Server/client Firestore bulk insert used when a product Excel upload is approved.
+ * Server/client Firestore bulk insert used when a product CSV upload is approved.
 
  * Auditing uses the original requester's referenceID / userId.
 
  */
-
-
-
-import type { Workbook } from "exceljs";
 
 import {
 
@@ -156,7 +152,7 @@ export type ParsedProductRow = {
 
 
 
-export type ExcelColumnsByWs = Record<string, { title: string; specId: string; col: number }[]>;
+export type CSVColumnsMap = { title: string; specId: string; col: number }[];
 
 
 
@@ -186,543 +182,180 @@ const cleanVal = (val: unknown): string => {
 
 /* ─────────────────────────────────────────────────────────────────
 
- * Build excel column map from workbook (spec columns only)
+ * Parse CSV text into rows
 
  * ───────────────────────────────────────────────────────────────── */
 
-export function buildExcelColumnsMapFromWorkbook(workbook: Workbook): ExcelColumnsByWs {
-
-  const out: ExcelColumnsByWs = {};
-
-
-
-  for (let wsIndex = 0; wsIndex < workbook.worksheets.length; wsIndex++) {
-
-    const ws = workbook.worksheets[wsIndex];
-
-    const h1 = ws.getRow(1);
-
-    const h2 = ws.getRow(2);
-
-
-
-    const cols: { title: string; specId: string; col: number }[] = [];
-
-
-
-    for (let col = 1; col <= ws.columnCount; col++) {
-
-      const specId    = cleanVal(h1.getCell(col).value);
-
-      const groupTitle = cleanVal(h2.getCell(col).value);
-
-
-
-      // Skip first 9 static cols (includes Supplier Model Code)
-
-      if (col < 10) continue;
-
-
-
-      // Skip all known non-spec headers
-
-      const SKIP_SPECS = [
-
-        "COMMERCIAL DETAILS", "DRAWINGS", "WARRANTY",
-
-        "POLE", "LIGHT (SINGLE DIMENSION)", "LIGHT (MULTIPLE DIMENSION)",
-
-      ];
-
-      const SKIP_H1 = [
-
-        "Unit Cost", "Length", "Width", "Height", "pcs/carton",
-
-        "Factory Address", "Port of Discharge",
-
-        "Dimensional Drawing", "Illuminance Level",
-
-        "Available Countries", "MOQ",
-
-        "Warranty Number", "Warranty Period",
-
-        "Commercial Type",
-
-        "POLE - Qty Per Container", "POLE - Landed Cost", "POLE - SRP",
-
-        "LIGHT (Single) - Unit Cost", "LIGHT (Single) - Length", "LIGHT (Single) - Width",
-
-        "LIGHT (Single) - Height", "LIGHT (Single) - Qty/Box",
-
-        "LIGHT (Single) - Landed Cost", "LIGHT (Single) - SRP",
-
-        "LIGHT (Multiple) - Item Names", "LIGHT (Multiple) - Unit Costs",
-
-        "LIGHT (Multiple) - Lengths", "LIGHT (Multiple) - Widths",
-
-        "LIGHT (Multiple) - Heights", "LIGHT (Multiple) - Qty/Boxes",
-
-        "LIGHT (Multiple) - Landed Costs", "LIGHT (Multiple) - SRPs",
-
-      ];
-
-
-
-      if (SKIP_SPECS.includes(groupTitle)) continue;
-
-      if (SKIP_H1.includes(specId)) continue;
-
-
-
-      if (!groupTitle || !specId) continue;
-
-
-
-      cols.push({ title: groupTitle, specId, col });
-
-    }
-
-
-
-    out[String(wsIndex)] = cols;
-
-  }
-
-
-
-  return out;
-
-}
-
-
-
-/* ─────────────────────────────────────────────────────────────────
-
- * Parse a workbook into flat rows
-
- * ───────────────────────────────────────────────────────────────── */
-
-export function parseWorkbookRowsNew(workbook: Workbook): ParsedProductRow[] {
-
+export function parseCSVRows(csvText: string): ParsedProductRow[] {
   const result: ParsedProductRow[] = [];
-
-
-
-  const extractHyperlink = (cell: any): string => {
-
-    if (!cell) return "";
-
-    const v = cell.value;
-
-    if (!v) return "";
-
-    if (typeof v === "object") {
-
-      if (v.hyperlink) return v.hyperlink;
-
-      if (v.text) return v.text;
-
-      return String(v);
-
-    }
-
-    return cleanVal(v);
-
+  
+  // Parse CSV
+  const rows = parseCSV(csvText);
+  if (rows.length < 2) return result; // Need header + at least one data row
+  
+  const headers = rows[0];
+  const dataRows = rows.slice(1);
+  
+  // Build column index map
+  const colMap: Record<string, number> = {};
+  headers.forEach((h, i) => {
+    colMap[h] = i;
+  });
+  
+  const getCol = (row: string[], colName: string): string => {
+    const idx = colMap[colName];
+    return idx !== undefined && idx < row.length ? cleanVal(row[idx]) : "";
   };
-
-
-
+  
   const convertDrive = (url?: string): string => {
-
     if (!url) return "";
-
     if (!url.includes("drive.google.com")) return url;
-
     const m1 = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-
     const m2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-
     const fileId = m1?.[1] || m2?.[1] || "";
-
     return fileId ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000` : url;
-
   };
-
-
-
-  for (let wsIndex = 0; wsIndex < workbook.worksheets.length; wsIndex++) {
-
-    const ws = workbook.worksheets[wsIndex];
-
-    const h1 = ws.getRow(1);
-
-    const h2 = ws.getRow(2);
-
-
-
-    // Build column index maps
-
-    const specCols: { title: string; specId: string; col: number }[] = [];
-
-
-
-    interface ColMap {
-
-      unitCost: number; length: number; width: number; height: number;
-
-      pcsPerCarton: number; factoryAddress: number; portOfDischarge: number;
-
-      dimensionalURL: number; illuminanceURL: number;
-
-      countries: number; moq: number;
-
-      warrantyNumber: number; warrantyPeriod: number;
-
-      commercialType: number;
-
-      poleQty: number; poleLanded: number; poleSrp: number;
-
-      lightSingleUC: number; lightSingleL: number; lightSingleW: number;
-
-      lightSingleH: number; lightSingleQty: number; lightSingleLanded: number; lightSingleSrp: number;
-
-      lightMultiItemNames: number; lightMultiUC: number; lightMultiL: number;
-
-      lightMultiW: number; lightMultiH: number; lightMultiQty: number;
-
-      lightMultiLanded: number; lightMultiSrp: number;
-
-      lightMultiTotalUC: number; lightMultiTotalLanded: number; lightMultiTotalSrp: number;
-
-    }
-
-
-
-    const cm: ColMap = {
-
-      unitCost: -1, length: -1, width: -1, height: -1,
-
-      pcsPerCarton: -1, factoryAddress: -1, portOfDischarge: -1,
-
-      dimensionalURL: -1, illuminanceURL: -1,
-
-      countries: -1, moq: -1,
-
-      warrantyNumber: -1, warrantyPeriod: -1,
-
-      commercialType: -1,
-
-      poleQty: -1, poleLanded: -1, poleSrp: -1,
-
-      lightSingleUC: -1, lightSingleL: -1, lightSingleW: -1,
-
-      lightSingleH: -1, lightSingleQty: -1, lightSingleLanded: -1, lightSingleSrp: -1,
-
-      lightMultiItemNames: -1, lightMultiUC: -1, lightMultiL: -1,
-
-      lightMultiW: -1, lightMultiH: -1, lightMultiQty: -1,
-
-      lightMultiLanded: -1, lightMultiSrp: -1,
-
-      lightMultiTotalUC: -1, lightMultiTotalLanded: -1, lightMultiTotalSrp: -1,
-
-    };
-
-
-
-    // Multi-row column arrays (for pipe-joining)
-
-    const multiItemNameCols: number[] = [];
-
-    const multiUCCols: number[] = [];
-
-    const multiLCols: number[] = [];
-
-    const multiWCols: number[] = [];
-
-    const multiHCols: number[] = [];
-
-    const multiQtyCols: number[] = [];
-
-    const multiLandedCols: number[] = [];
-
-    const multiSrpCols: number[] = [];
-
-
-
-    for (let col = 1; col <= ws.columnCount; col++) {
-
-      const spec  = cleanVal(h1.getCell(col).value);
-
-      const group = cleanVal(h2.getCell(col).value);
-
-
-
-      if (col < 10) continue;
-
-
-
-      // Static commercial cols (old BASIC format)
-
-      if (spec === "Unit Cost" && group === "COMMERCIAL DETAILS") { cm.unitCost = col; continue; }
-
-      if (spec === "Length" && group === "") { cm.length = col; continue; }
-
-      if (spec === "Width") { cm.width = col; continue; }
-
-      if (spec === "Height") { cm.height = col; continue; }
-
-      if (spec === "pcs/carton") { cm.pcsPerCarton = col; continue; }
-
-      if (spec === "Factory Address") { cm.factoryAddress = col; continue; }
-
-      if (spec === "Port of Discharge") { cm.portOfDischarge = col; continue; }
-
-      if (spec === "Dimensional Drawing") { cm.dimensionalURL = col; continue; }
-
-      if (spec === "Illuminance Level") { cm.illuminanceURL = col; continue; }
-
-      if (spec === "Available Countries") { cm.countries = col; continue; }
-
-      if (spec === "MOQ") { cm.moq = col; continue; }
-
-      if (spec === "Warranty Number") { cm.warrantyNumber = col; continue; }
-
-      if (spec === "Warranty Period") { cm.warrantyPeriod = col; continue; }
-
-      if (spec === "Commercial Type") { cm.commercialType = col; continue; }
-
-
-
-      // POLE
-
-      if (spec === "POLE - Qty Per Container") { cm.poleQty = col; continue; }
-
-      if (spec === "POLE - Landed Cost") { cm.poleLanded = col; continue; }
-
-      if (spec === "POLE - SRP") { cm.poleSrp = col; continue; }
-
-
-
-      // LIGHT Single
-
-      if (spec === "LIGHT (Single) - Unit Cost") { cm.lightSingleUC = col; continue; }
-
-      if (spec === "LIGHT (Single) - Length") { cm.lightSingleL = col; continue; }
-
-      if (spec === "LIGHT (Single) - Width") { cm.lightSingleW = col; continue; }
-
-      if (spec === "LIGHT (Single) - Height") { cm.lightSingleH = col; continue; }
-
-      if (spec === "LIGHT (Single) - Qty/Box") { cm.lightSingleQty = col; continue; }
-
-      if (spec === "LIGHT (Single) - Landed Cost") { cm.lightSingleLanded = col; continue; }
-
-      if (spec === "LIGHT (Single) - SRP") { cm.lightSingleSrp = col; continue; }
-
-
-
-      // LIGHT Multiple — fixed 8 pipe-delimited columns (no numbering)
-
-      if (spec === "LIGHT (Multiple) - Item Names")   { multiItemNameCols.push(col); continue; }
-
-      if (spec === "LIGHT (Multiple) - Unit Costs")   { multiUCCols.push(col); continue; }
-
-      if (spec === "LIGHT (Multiple) - Lengths")      { multiLCols.push(col); continue; }
-
-      if (spec === "LIGHT (Multiple) - Widths")       { multiWCols.push(col); continue; }
-
-      if (spec === "LIGHT (Multiple) - Heights")      { multiHCols.push(col); continue; }
-
-      if (spec === "LIGHT (Multiple) - Qty/Boxes")    { multiQtyCols.push(col); continue; }
-
-      if (spec === "LIGHT (Multiple) - Landed Costs") { multiLandedCols.push(col); continue; }
-
-      if (spec === "LIGHT (Multiple) - SRPs")         { multiSrpCols.push(col); continue; }
-
-
-
-      // LIGHT Multiple Totals (download-only)
-
-      if (spec === "LIGHT (Multiple) - Total Unit Cost")   { cm.lightMultiTotalUC = col; continue; }
-
-      if (spec === "LIGHT (Multiple) - Total Landed Cost") { cm.lightMultiTotalLanded = col; continue; }
-
-      if (spec === "LIGHT (Multiple) - Total SRP")         { cm.lightMultiTotalSrp = col; continue; }
-
-
-
-      // Skip group-only labels
-
-      const SKIP_GROUPS = ["COMMERCIAL DETAILS", "DRAWINGS", "WARRANTY", "POLE", "LIGHT (SINGLE DIMENSION)", "LIGHT (MULTIPLE DIMENSION)"];
-
-      if (SKIP_GROUPS.includes(group)) continue;
-
-
-
-      if (!group || !spec) continue;
-
-      specCols.push({ title: group, specId: spec, col });
-
-    }
-
-
-
-    const getCell = (row: any, colIdx: number) =>
-
-      colIdx > 0 ? cleanVal(row.getCell(colIdx).value) : "";
-
-    const cleanCM = (v: string) => v.replace(/[^0-9.]/g, "");
-
-    const joinCols = (row: any, cols: number[]) =>
-
-      cols.map((c) => cleanVal(row.getCell(c).value)).join(" | ");
-
-
-
-    let lastUsage = "", lastFamily = "", lastClass = "", lastPP = "";
-
-    let lastBO = "", lastSB = "", lastImg = "";
-
-
-    for (let r = 4; r <= ws.actualRowCount; r++) {
-
-      const row = ws.getRow(r);
-
-
-
-      const usage        = cleanVal(row.getCell(1).value) || lastUsage;
-
-      const productName  = cleanVal(row.getCell(2).value) || "";
-
-      const family       = cleanVal(row.getCell(3).value) || lastFamily;
-
-      const productClass = cleanVal(row.getCell(4).value) || lastClass;
-
-      const pricePoint   = cleanVal(row.getCell(5).value) || lastPP;
-
-      const brandOrigin  = cleanVal(row.getCell(6).value) || lastBO;
-
-      const supplierBrand = cleanVal(row.getCell(7).value) || lastSB;
-
-      const imageURL     = convertDrive(extractHyperlink(row.getCell(8))) || lastImg;
-
-      const supplierModelCodeStatic = cleanVal(row.getCell(9).value);
-
-
-
-      lastUsage = usage; lastFamily = family; lastClass = productClass;
-
-      lastPP = pricePoint; lastBO = brandOrigin; lastSB = supplierBrand; lastImg = imageURL;
-
-
-
-      if (!usage || !family) continue;
-
-      if (!productClass && !pricePoint && !brandOrigin && !supplierBrand) continue;
-
-
-
-      const specValues: Record<string, string> = {};
-
-      for (const sc of specCols) {
-
-        specValues[`${sc.title}||${sc.specId}`] = cleanVal(row.getCell(sc.col).value);
-
+  
+  const cleanCM = (v: string) => v.replace(/[^0-9.]/g, "");
+  
+  let lastUsage = "", lastFamily = "", lastClass = "", lastPP = "";
+  let lastBO = "", lastSB = "", lastImg = "";
+  
+  for (const row of dataRows) {
+    const usage = getCol(row, "Product Usage") || lastUsage;
+    const productName = getCol(row, "Product Name") || "";
+    const family = getCol(row, "Product Family") || lastFamily;
+    const productClass = getCol(row, "Product Class") || lastClass;
+    const pricePoint = getCol(row, "Price Point") || lastPP;
+    const brandOrigin = getCol(row, "Brand Origin") || lastBO;
+    const supplierBrand = getCol(row, "Supplier Brand") || lastSB;
+    const imageURL = convertDrive(getCol(row, "Image URL")) || lastImg;
+    const supplierModelCode = getCol(row, "Supplier Model Code");
+    
+    lastUsage = usage; lastFamily = family; lastClass = productClass;
+    lastPP = pricePoint; lastBO = brandOrigin; lastSB = supplierBrand; lastImg = imageURL;
+    
+    if (!usage || !family) continue;
+    if (!productClass && !pricePoint && !brandOrigin && !supplierBrand) continue;
+    
+    // Build spec values from columns that aren't predefined
+    const specValues: Record<string, string> = {};
+    const SKIP_COLS = [
+      "Product Usage", "Product Name", "Product Family", "Product Class", "Price Point",
+      "Brand Origin", "Supplier Brand", "Image URL", "Supplier Model Code",
+      "Unit Cost", "Length", "Width", "Height", "pcs/carton",
+      "Factory Address", "Port of Discharge",
+      "Dimensional Drawing", "Illuminance Level",
+      "Available Countries", "MOQ",
+      "Warranty Number", "Warranty Period", "Commercial Type",
+      "POLE - Qty Per Container", "POLE - Landed Cost", "POLE - SRP",
+      "LIGHT (Single) - Unit Cost", "LIGHT (Single) - Length", "LIGHT (Single) - Width",
+      "LIGHT (Single) - Height", "LIGHT (Single) - Qty/Box",
+      "LIGHT (Single) - Landed Cost", "LIGHT (Single) - SRP",
+      "LIGHT (Multiple) - Item Names", "LIGHT (Multiple) - Unit Costs",
+      "LIGHT (Multiple) - Lengths", "LIGHT (Multiple) - Widths",
+      "LIGHT (Multiple) - Heights", "LIGHT (Multiple) - Qty/Boxes",
+      "LIGHT (Multiple) - Landed Costs", "LIGHT (Multiple) - SRPs",
+      "LIGHT (Multiple) - Total Unit Cost", "LIGHT (Multiple) - Total Landed Cost", "LIGHT (Multiple) - Total SRP",
+    ];
+    
+    headers.forEach((h, i) => {
+      if (!SKIP_COLS.includes(h) && i < row.length) {
+        // For CSV, we use the header as both title and specId since we don't have group structure
+        specValues[`${h}||${h}`] = cleanVal(row[i]);
       }
-
-
-
-      result.push({
-
-        usage, productName, family, productClass, pricePoint, brandOrigin, supplierBrand, imageURL,
-
-        dimensionalURL: convertDrive(extractHyperlink(cm.dimensionalURL > 0 ? row.getCell(cm.dimensionalURL) : null)),
-
-        illuminanceURL: convertDrive(extractHyperlink(cm.illuminanceURL > 0 ? row.getCell(cm.illuminanceURL) : null)),
-
-        unitCost: getCell(row, cm.unitCost),
-
-        length: cleanCM(getCell(row, cm.length)),
-
-        width: cleanCM(getCell(row, cm.width)),
-
-        height: cleanCM(getCell(row, cm.height)),
-
-        pcsPerCarton: getCell(row, cm.pcsPerCarton),
-
-        factoryAddress: getCell(row, cm.factoryAddress),
-
-        portOfDischarge: getCell(row, cm.portOfDischarge),
-
-        supplierModelCode: supplierModelCodeStatic,
-
-        countries: getCell(row, cm.countries),
-
-        moq: getCell(row, cm.moq),
-
-        warrantyNumber: getCell(row, cm.warrantyNumber),
-
-        warrantyPeriod: getCell(row, cm.warrantyPeriod),
-
-        commercialType: getCell(row, cm.commercialType) || "BASIC",
-
-        poleQtyPerContainer: getCell(row, cm.poleQty),
-
-        poleLandedCost: getCell(row, cm.poleLanded),
-
-        poleSrp: getCell(row, cm.poleSrp),
-
-        lightSingleUnitCost: getCell(row, cm.lightSingleUC),
-
-        lightSingleLength: cleanCM(getCell(row, cm.lightSingleL)),
-
-        lightSingleWidth: cleanCM(getCell(row, cm.lightSingleW)),
-
-        lightSingleHeight: cleanCM(getCell(row, cm.lightSingleH)),
-
-        lightSingleQtyPerBox: getCell(row, cm.lightSingleQty),
-
-        lightSingleLandedCost: getCell(row, cm.lightSingleLanded),
-
-        lightSingleSrp: getCell(row, cm.lightSingleSrp),
-
-        lightMultiItemNames: joinCols(row, multiItemNameCols),
-
-        lightMultiUnitCosts: joinCols(row, multiUCCols),
-
-        lightMultiLengths: joinCols(row, multiLCols),
-
-        lightMultiWidths: joinCols(row, multiWCols),
-
-        lightMultiHeights: joinCols(row, multiHCols),
-
-        lightMultiQtyPerBoxes: joinCols(row, multiQtyCols),
-
-        lightMultiLandedCosts: joinCols(row, multiLandedCols),
-
-        lightMultiSrps: joinCols(row, multiSrpCols),
-
-        lightMultiTotalUnitCost: getCell(row, cm.lightMultiTotalUC),
-
-        lightMultiTotalLandedCost: getCell(row, cm.lightMultiTotalLanded),
-
-        lightMultiTotalSrp: getCell(row, cm.lightMultiTotalSrp),
-
-        wsIndex, rowIndex: r, specValues,
-
-      });
-
-    }
-
+    });
+    
+    result.push({
+      usage, productName, family, productClass, pricePoint, brandOrigin, supplierBrand, imageURL,
+      dimensionalURL: convertDrive(getCol(row, "Dimensional Drawing")),
+      illuminanceURL: convertDrive(getCol(row, "Illuminance Level")),
+      unitCost: getCol(row, "Unit Cost"),
+      length: cleanCM(getCol(row, "Length")),
+      width: cleanCM(getCol(row, "Width")),
+      height: cleanCM(getCol(row, "Height")),
+      pcsPerCarton: getCol(row, "pcs/carton"),
+      factoryAddress: getCol(row, "Factory Address"),
+      portOfDischarge: getCol(row, "Port of Discharge"),
+      supplierModelCode: supplierModelCode,
+      countries: getCol(row, "Available Countries"),
+      moq: getCol(row, "MOQ"),
+      warrantyNumber: getCol(row, "Warranty Number"),
+      warrantyPeriod: getCol(row, "Warranty Period"),
+      commercialType: getCol(row, "Commercial Type") || "BASIC",
+      poleQtyPerContainer: getCol(row, "POLE - Qty Per Container"),
+      poleLandedCost: getCol(row, "POLE - Landed Cost"),
+      poleSrp: getCol(row, "POLE - SRP"),
+      lightSingleUnitCost: getCol(row, "LIGHT (Single) - Unit Cost"),
+      lightSingleLength: cleanCM(getCol(row, "LIGHT (Single) - Length")),
+      lightSingleWidth: cleanCM(getCol(row, "LIGHT (Single) - Width")),
+      lightSingleHeight: cleanCM(getCol(row, "LIGHT (Single) - Height")),
+      lightSingleQtyPerBox: getCol(row, "LIGHT (Single) - Qty/Box"),
+      lightSingleLandedCost: getCol(row, "LIGHT (Single) - Landed Cost"),
+      lightSingleSrp: getCol(row, "LIGHT (Single) - SRP"),
+      lightMultiItemNames: getCol(row, "LIGHT (Multiple) - Item Names"),
+      lightMultiUnitCosts: getCol(row, "LIGHT (Multiple) - Unit Costs"),
+      lightMultiLengths: getCol(row, "LIGHT (Multiple) - Lengths"),
+      lightMultiWidths: getCol(row, "LIGHT (Multiple) - Widths"),
+      lightMultiHeights: getCol(row, "LIGHT (Multiple) - Heights"),
+      lightMultiQtyPerBoxes: getCol(row, "LIGHT (Multiple) - Qty/Boxes"),
+      lightMultiLandedCosts: getCol(row, "LIGHT (Multiple) - Landed Costs"),
+      lightMultiSrps: getCol(row, "LIGHT (Multiple) - SRPs"),
+      lightMultiTotalUnitCost: getCol(row, "LIGHT (Multiple) - Total Unit Cost"),
+      lightMultiTotalLandedCost: getCol(row, "LIGHT (Multiple) - Total Landed Cost"),
+      lightMultiTotalSrp: getCol(row, "LIGHT (Multiple) - Total SRP"),
+      wsIndex: 0, rowIndex: 0, specValues,
+    });
   }
-
-
-
+  
   return result;
-
 }
 
+function parseCSV(text: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentCell = "";
+  let inQuotes = false;
+  
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+    
+    if (inQuotes) {
+      if (char === '"' && nextChar === '"') {
+        currentCell += '"';
+        i++; // Skip next quote
+      } else if (char === '"') {
+        inQuotes = false;
+      } else {
+        currentCell += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ',') {
+        currentRow.push(currentCell);
+        currentCell = "";
+      } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
+        currentRow.push(currentCell);
+        rows.push(currentRow);
+        currentRow = [];
+        currentCell = "";
+        if (char === '\r') i++; // Skip \n after \r
+      } else if (char !== '\r') {
+        currentCell += char;
+      }
+    }
+  }
+  
+  // Add last cell and row
+  if (currentCell || currentRow.length > 0) {
+    currentRow.push(currentCell);
+    rows.push(currentRow);
+  }
+  
+  return rows;
+}
 
 
 /* ─────────────────────────────────────────────────────────────────
@@ -1038,7 +671,7 @@ async function createMissingTemplateSpecs(
 
   categoryTypeId: string, productFamilyId: string,
 
-  excelColumns: { title: string; specId: string }[],
+  csvColumns: { title: string; specId: string }[],
 
 ) {
 
@@ -1058,7 +691,7 @@ async function createMissingTemplateSpecs(
 
   const groups = new Map<string, { specId: string }[]>();
 
-  for (const col of excelColumns) {
+  for (const col of csvColumns) {
 
     if (!groups.has(col.title)) groups.set(col.title, []);
 
@@ -1204,8 +837,6 @@ export async function insertParsedProductBulk(params: {
 
   rows: ParsedProductRow[];
 
-  excelColumnsByWsIndex: ExcelColumnsByWs;
-
   referenceID: string;
 
   userId: string;
@@ -1214,7 +845,7 @@ export async function insertParsedProductBulk(params: {
 
 }): Promise<{ inserted: number }> {
 
-  const { rows, excelColumnsByWsIndex, referenceID, userId, filename } = params;
+  const { rows, referenceID, userId, filename } = params;
 
 
 
@@ -1242,13 +873,14 @@ export async function insertParsedProductBulk(params: {
 
 
 
-    const excelColumns = excelColumnsByWsIndex[String(row.wsIndex)] ?? [];
+    // CSV doesn't have worksheet structure, so we use empty columns array
+    const csvColumns: { title: string; specId: string }[] = [];
 
     const syncKey = `${category.id}_${productFamily.id}`;
 
     if (!syncedFamilies.has(syncKey)) {
 
-      await createMissingTemplateSpecs(category.id, productFamily.id, excelColumns);
+      await createMissingTemplateSpecs(category.id, productFamily.id, csvColumns);
 
       await syncExistingProductsToTemplate(category.id, productFamily.id);
 
