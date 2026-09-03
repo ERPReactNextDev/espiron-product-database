@@ -28,6 +28,8 @@ import {
 
 import { Upload } from "lucide-react";
 
+import ExcelJS from "exceljs";
+
 
 
 import {
@@ -72,7 +74,9 @@ import {
 
 import {
 
-  parseCSVRows,
+  buildExcelColumnsMapFromWorkbook,
+
+  parseWorkbookRowsNew,
 
   type ParsedProductRow,
 
@@ -456,6 +460,11 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
   const [requestingApproval, setRequestingApproval] = useState(false);
 
+  const [approvalExcelColumns, setApprovalExcelColumns] = useState<Record<
+
+    string, { title: string; specId: string; col: number }[]
+
+  > | null>(null);
 
   const [approvalRowsPending, setApprovalRowsPending] = useState<ParsedProductRow[] | null>(null);
 
@@ -769,9 +778,17 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
     try {
 
-      const text = await file.text();
+      const workbook = new ExcelJS.Workbook();
 
-      const allRows = parseCSVRows(text);
+      const buffer = await file.arrayBuffer();
+
+      await workbook.xlsx.load(buffer);
+
+
+
+      // Use new parser from runner
+
+      const allRows = parseWorkbookRowsNew(workbook);
 
       setParsedRows(allRows);
 
@@ -788,6 +805,8 @@ export default function UploadProduct({ iconOnly = false }: Props) {
       }
 
 
+
+      const excelColumnsByWsIndex = buildExcelColumnsMapFromWorkbook(workbook);
 
       const { dupeRows, nonDupes } = await checkForDuplicates(allRows);
 
@@ -818,6 +837,8 @@ export default function UploadProduct({ iconOnly = false }: Props) {
         if (!profile) { toast.error("User profile not loaded"); setUploading(false); return; }
 
         setUploading(false);
+
+        setApprovalExcelColumns(excelColumnsByWsIndex);
 
         setApprovalFilename(file.name);
 
@@ -865,7 +886,7 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
 
 
-      await performUpload(allRows);
+      await performUpload(allRows, workbook);
 
     } catch (error) {
 
@@ -883,7 +904,7 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
   const submitProductUploadForApproval = async (message: string) => {
 
-    if (!userId || !approvalRowsPending) return;
+    if (!userId || !approvalRowsPending || !approvalExcelColumns) return;
 
     setRequestingApproval(true);
 
@@ -913,6 +934,8 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
           rows,
 
+          excelColumnsByWsIndex: approvalExcelColumns,
+
           rowCount: rows.length,
 
           duplicateSummary: approvalDupSummary || null,
@@ -921,7 +944,7 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
       });
 
-      await logProductEvent({ whatHappened: "Product For Approval Requested", referenceID: profile.referenceID, userId, extra: { source: "csv_upload", filename: approvalFilename, rows: rows.length } });
+      await logProductEvent({ whatHappened: "Product For Approval Requested", referenceID: profile.referenceID, userId, extra: { source: "excel_upload", filename: approvalFilename, rows: rows.length } });
 
       toast.success("Upload request sent for approval");
 
@@ -932,6 +955,8 @@ export default function UploadProduct({ iconOnly = false }: Props) {
       setFile(null);
 
       setApprovalRowsPending(null);
+
+      setApprovalExcelColumns(null);
 
       setApprovalDupSummary("");
 
@@ -975,9 +1000,11 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
     setUploading(true);
 
-    const text = await file.text();
+    const workbook = new ExcelJS.Workbook();
 
-    await performUpload(nonDuplicateParsedRows);
+    await workbook.xlsx.load(await file.arrayBuffer());
+
+    await performUpload(nonDuplicateParsedRows, workbook);
 
   };
 
@@ -1005,7 +1032,11 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
     setUploading(true);
 
-    await performUpload(parsedRows);
+    const workbook = new ExcelJS.Workbook();
+
+    await workbook.xlsx.load(await file.arrayBuffer());
+
+    await performUpload(parsedRows, workbook);
 
   };
 
@@ -1017,7 +1048,7 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
    * ───────────────────────────────────────────────────────────────── */
 
-  const performUpload = async (rowsToUpload: ParsedProductRow[]) => {
+  const performUpload = async (rowsToUpload: ParsedProductRow[], workbook: ExcelJS.Workbook) => {
 
     cancelRef.current = false;
 
@@ -1053,8 +1084,81 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
 
 
-      // CSV doesn't have worksheet structure, so we don't build column maps
+      // Build spec column map per worksheet
+
       const wsColumnsMap = new Map<number, { title: string; specId: string; col: number }[]>();
+
+      for (let wsIndex = 0; wsIndex < workbook.worksheets.length; wsIndex++) {
+
+        const ws = workbook.worksheets[wsIndex];
+
+        const h1 = ws.getRow(1);
+
+        const h2 = ws.getRow(2);
+
+        const cols: { title: string; specId: string; col: number }[] = [];
+
+
+
+        const SKIP_GROUPS = ["COMMERCIAL DETAILS", "DRAWINGS", "WARRANTY", "POLE", "LIGHT (SINGLE DIMENSION)", "LIGHT (MULTIPLE DIMENSION)"];
+
+        const SKIP_SPECS  = [
+
+          "Unit Cost", "Length", "Width", "Height", "pcs/carton",
+
+          "Factory Address", "Port of Discharge",
+
+          "Dimensional Drawing", "Illuminance Level",
+
+          "Available Countries", "MOQ",
+
+          "Warranty Number", "Warranty Period", "Commercial Type",
+
+          "POLE - Qty Per Container", "POLE - Landed Cost", "POLE - SRP",
+
+          "LIGHT (Single) - Unit Cost", "LIGHT (Single) - Length", "LIGHT (Single) - Width",
+
+          "LIGHT (Single) - Height", "LIGHT (Single) - Qty/Box",
+
+          "LIGHT (Single) - Landed Cost", "LIGHT (Single) - SRP",
+
+          "LIGHT (Multiple) - Item Names", "LIGHT (Multiple) - Unit Costs",
+
+          "LIGHT (Multiple) - Lengths", "LIGHT (Multiple) - Widths",
+
+          "LIGHT (Multiple) - Heights", "LIGHT (Multiple) - Qty/Boxes",
+
+          "LIGHT (Multiple) - Landed Costs", "LIGHT (Multiple) - SRPs",
+
+        ];
+
+
+
+        for (let col = 1; col <= ws.columnCount; col++) {
+
+          const specId = cleanExcelValue(h1.getCell(col).value);
+
+          const group  = cleanExcelValue(h2.getCell(col).value);
+
+
+
+          if (col < 10) continue;
+
+          if (!group || !specId) continue;
+
+          if (SKIP_GROUPS.includes(group)) continue;
+
+          if (SKIP_SPECS.includes(specId)) continue;
+
+
+
+          cols.push({ title: group, specId, col });
+
+        }
+
+        wsColumnsMap.set(wsIndex, cols);
+
+      }
 
 
 
@@ -1082,7 +1186,7 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
 
 
-        const excelColumns = wsColumnsMap.get(0) ?? [];
+        const excelColumns = wsColumnsMap.get(row.wsIndex) ?? [];
 
         const syncKey = `${category.id}_${productFamily.id}`;
 
@@ -1208,7 +1312,7 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
           userId: userId ?? undefined,
 
-          extra: { source: "csv_upload", filename: file?.name ?? "" },
+          extra: { source: "excel_upload", filename: file?.name ?? "" },
 
         });
 
@@ -1238,7 +1342,7 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
         userId: userId ?? undefined,
 
-        extra: { source: "csv_upload", filename: file?.name ?? "" },
+        extra: { source: "excel_upload", filename: file?.name ?? "" },
 
       });
 
@@ -1332,7 +1436,7 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
               <Upload className="w-10 h-10 text-gray-500" />
 
-              <p className="text-sm text-gray-600">Drag & Drop your CSV file here</p>
+              <p className="text-sm text-gray-600">Drag & Drop your Excel file here</p>
 
               <p className="text-xs text-gray-400">or click to browse</p>
 
@@ -1354,7 +1458,7 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
             </div>
 
-            <input id="product-upload-input" type="file" accept=".csv" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+            <input id="product-upload-input" type="file" accept=".xlsx" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
 
           </div>
 
@@ -1414,6 +1518,8 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
             setApprovalRowsPending(null);
 
+            setApprovalExcelColumns(null);
+
             setApprovalDupSummary("");
 
             setApprovalAfterDuplicate(false);
@@ -1422,9 +1528,9 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
         }}
 
-        actionLabel="Upload products (CSV)"
+        actionLabel="Upload products (Excel)"
 
-        entityLabel={approvalFilename || "CSV file"}
+        entityLabel={approvalFilename || "Excel file"}
 
         detailLines={[
 
