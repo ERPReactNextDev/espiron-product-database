@@ -21,7 +21,6 @@ import {
 import SPFRequestFetch from "@/components/spf-request-fetch";
 import SPFRequestCreate, { type SPFRequest } from "@/components/spf-request-create";
 import { CollaborationHubRowTrigger } from "@/components/collaboration-hub-row-trigger";
-import { ForPoolingButton } from "@/components/for-pooling-button";
 import SPFRequestDownloadAll from "@/components/spf-request-download-all";
 import SpecialInstructionsDialog from "@/components/special-instructions-dialog";
 
@@ -956,10 +955,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2 flex-nowrap items-center">
-                        <ForPoolingButton
-                         show={spfStatus?.toLowerCase() === "approved by procurement"}
-                          spfNumber={req.spf_number}
-                        />
                         <CollaborationHubRowTrigger
                           requestId={String(createdSPFIds[req.spf_number] || "")}
                           spfNumber={req.spf_number}

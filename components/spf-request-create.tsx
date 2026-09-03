@@ -34,7 +34,6 @@ import { sanitizeCommas } from "@/lib/utils";
 const escapeRegExp = (string: string) => {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
-import { ForPoolingButton } from "@/components/for-pooling-button";
 import { toast } from "sonner";
 import { Download } from "lucide-react";
 import { exportSPFRequestToExcel, buildExcelItemsFromProductOffers } from "@/lib/spf-excel-export";
@@ -1040,7 +1039,6 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
       <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <ForPoolingButton show={showPoolingButton} spfNumber={formData.spf_number} />
             <DialogTitle className="text-sm font-semibold truncate">
               {formData.spf_number || "Create SPF"}
             </DialogTitle>
@@ -1810,7 +1808,6 @@ const [isSavingDraft, setIsSavingDraft] = useState(false);
     <>
       <DialogHeader className="w-full mb-4 relative">
         <div className="flex items-center justify-center gap-2">
-          <ForPoolingButton show={showPoolingButton} spfNumber={formData.spf_number} />
           <DialogTitle className="text-center">
             Create SPF Request
           </DialogTitle>
