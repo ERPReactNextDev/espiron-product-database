@@ -27,7 +27,7 @@ export default function SettingsPage() {
   const { userId, department } = useUser();
   const { wallpaper } = useWallpaper();
   const isEngineer = theme === "engineer";
-  const isIT = department === "IT";
+  const isIT = department?.toLowerCase() === "it";
 const [mounted, setMounted] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);

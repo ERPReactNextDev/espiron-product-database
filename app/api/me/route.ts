@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     });
 
     // Force logout if department is no longer allowed
-    if (!ALLOWED_DEPARTMENTS.includes(user.Department)) {
+    if (!ALLOWED_DEPARTMENTS.includes(user.Department) && !ALLOWED_DEPARTMENTS.map(d => d.toLowerCase()).includes(user.Department?.toLowerCase())) {
       return NextResponse.json(
         { forceLogout: true, message: "Your role no longer has access. You have been logged out." },
         { status: 403, headers: { "Set-Cookie": clearCookie } }
