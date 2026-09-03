@@ -868,7 +868,7 @@ export default function EditProductComponent({ productId, onClose }: EditProduct
             [field]: typeof value === "number"
               ? value
               : field === "itemName"
-              ? sanitizeCommas(value)
+              ? sanitizeCommas(value).toUpperCase()
               : Number(value) || 0,
           }
         : row,
