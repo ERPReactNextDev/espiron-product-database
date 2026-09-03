@@ -11,7 +11,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { collection, query, where, getCountFromServer } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { supabase } from "@/utils/supabase";
-import { ImageIcon, X, Upload, Trash2, CheckCircle2 } from "lucide-react";
+import { ImageIcon, X, Upload, Trash2, CheckCircle2, AlertTriangle } from "lucide-react";
 
 type UserData = {
   Firstname: string;
@@ -34,6 +34,7 @@ export default function Dashboard() {
   const [totalProducts, setTotalProducts]   = useState<number | null>(null);
   const [totalSuppliers, setTotalSuppliers] = useState<number | null>(null);
   const [totalSPF, setTotalSPF]             = useState<number | null>(null);
+  const [quotaExceeded, setQuotaExceeded]   = useState(false);
 
   /* ── Auth guard ── */
   useEffect(() => {
@@ -68,8 +69,16 @@ export default function Dashboard() {
           .from("spf_request")
           .select("*", { count: "exact", head: true });
         setTotalSPF(count ?? 0);
-      } catch (err) {
+      } catch (err: any) {
         console.error("fetchCounts error:", err);
+        // Firebase Firestore quota exceeded = code "resource-exhausted"
+        // Supabase quota errors usually come back with a message containing "quota"
+        if (
+          err?.code === "resource-exhausted" ||
+          err?.message?.toLowerCase().includes("quota")
+        ) {
+          setQuotaExceeded(true);
+        }
       }
     }
 
@@ -238,6 +247,51 @@ export default function Dashboard() {
           onClose={() => setThemeOpen(false)}
         />
       )}
+
+      {/* ── Quota Exceeded Modal ── */}
+      {quotaExceeded && (
+        <QuotaExceededBanner onClose={() => setQuotaExceeded(false)} />
+      )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Quota Exceeded Warning ── */
+function QuotaExceededBanner({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 h-8 w-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+        >
+          <X className="h-4 w-4 text-gray-600" />
+        </button>
+
+        <div className="flex flex-col items-center text-center px-6 pt-10 pb-6">
+          <div className="relative mb-4">
+            {/* Glow effect */}
+            <div className="absolute inset-0 rounded-full bg-yellow-400 blur-xl opacity-60 animate-pulse" />
+            <div className="relative h-16 w-16 rounded-full bg-yellow-400 flex items-center justify-center shadow-lg">
+              <AlertTriangle className="h-8 w-8 text-gray-900" strokeWidth={2.5} />
+            </div>
+          </div>
+
+          <h2 className="text-xl font-bold text-gray-900">Warning!</h2>
+          <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+            Firebase quota exceeded. Some data (products, suppliers, requests)
+            may not load until the quota resets. Please try again later.
+          </p>
+
+          <button
+            onClick={onClose}
+            className="mt-6 w-full h-11 rounded-lg bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-semibold text-sm transition-colors"
+          >
+            Okay, got it
+          </button>
+        </div>
       </div>
     </div>
   );

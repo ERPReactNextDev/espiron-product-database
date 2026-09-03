@@ -132,6 +132,15 @@ export default function Suppliers() {
   const LOAD_CHUNK = 10;
   const [queryLimit, setQueryLimit] = useState(LOAD_CHUNK); // drives the Firestore `limit()`
   const [hasMoreFromDB, setHasMoreFromDB] = useState(true);
+  const LOAD_MORE_COOLDOWN_MS = 1200; // rate limit: min gap between "Load More" clicks
+  const [loadMoreRateLimited, setLoadMoreRateLimited] = useState(false);
+
+  const handleLoadMore = () => {
+    if (loadMoreRateLimited) return;
+    setLoadMoreRateLimited(true);
+    setTimeout(() => setLoadMoreRateLimited(false), LOAD_MORE_COOLDOWN_MS);
+    setQueryLimit((n) => n + LOAD_CHUNK);
+  };
 
   useEffect(() => {
     if (userId === null) return;
@@ -373,9 +382,10 @@ export default function Suppliers() {
               size="sm"
               variant="outline"
               className="text-xs"
-              onClick={() => setQueryLimit((n) => n + LOAD_CHUNK)}
+              disabled={loadMoreRateLimited}
+              onClick={handleLoadMore}
             >
-              Load More
+              {loadMoreRateLimited ? "Please wait…" : "Load More"}
             </Button>
           )}
           <Button size="sm" variant="outline" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>Previous</Button>
@@ -695,10 +705,11 @@ export default function Suppliers() {
           </div>
           {hasMoreToLoad && (
             <button
-              onClick={() => setQueryLimit((n) => n + LOAD_CHUNK)}
-              className="h-8 px-4 rounded-lg border bg-white text-xs font-medium text-gray-600"
+              disabled={loadMoreRateLimited}
+              onClick={handleLoadMore}
+              className="h-8 px-4 rounded-lg border bg-white text-xs font-medium text-gray-600 disabled:opacity-50"
             >
-              Load More
+              {loadMoreRateLimited ? "Please wait…" : "Load More"}
             </button>
           )}
         </div>

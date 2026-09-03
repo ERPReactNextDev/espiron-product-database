@@ -76,7 +76,9 @@ const initialLoadDoneRef = useRef(false);
   const [columns, setColumns] = useState(6);
   const pageSize = columns * 4;
   const LOAD_CHUNK = 30;
+  const LOAD_MORE_COOLDOWN_MS = 1200; // rate limit: min gap between "Load More" clicks
   const [loadedCount, setLoadedCount] = useState(LOAD_CHUNK);
+  const [loadMoreRateLimited, setLoadMoreRateLimited] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
@@ -516,10 +518,16 @@ setLoading(false);
                 </div>
                 {hasMoreToLoad && (
                   <button
-                    onClick={() => setLoadedCount((n) => n + LOAD_CHUNK)}
-                    className="h-8 px-4 rounded-lg border bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 shadow-sm"
+                    disabled={loadMoreRateLimited}
+                    onClick={() => {
+                      if (loadMoreRateLimited) return;
+                      setLoadMoreRateLimited(true);
+                      setTimeout(() => setLoadMoreRateLimited(false), LOAD_MORE_COOLDOWN_MS);
+                      setLoadedCount((n) => n + LOAD_CHUNK);
+                    }}
+                    className="h-8 px-4 rounded-lg border bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 shadow-sm disabled:opacity-50"
                   >
-                    Load More ({searchedProducts.length - loadedCount} more available)
+                    {loadMoreRateLimited ? "Please wait…" : `Load More (${searchedProducts.length - loadedCount} more available)`}
                   </button>
                 )}
               </div>

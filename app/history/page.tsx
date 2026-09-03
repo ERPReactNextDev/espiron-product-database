@@ -191,6 +191,7 @@ type CollectionTab = "suppliers" | "products" | "productFamilies" | "productUsag
 
 
 const PAGE_SIZE = 20;
+const NEXT_PAGE_COOLDOWN_MS = 1200;
 
 
 
@@ -354,7 +355,13 @@ async function resolveNames(referenceIDs: string[]): Promise<void> {
 
         }
 
-        nameCache.set(refId, user?.Firstname ? `${user.Firstname} ${user.Lastname ?? ""}`.trim() : refId);
+        // Only cache if we got a real name, otherwise cache the reference ID as fallback
+        if (user?.Firstname) {
+          const fullName = `${user.Firstname} ${user.Lastname ?? ""}`.trim();
+          nameCache.set(refId, fullName);
+        } else {
+          nameCache.set(refId, refId);
+        }
 
       } catch { nameCache.set(refId, refId); }
 
@@ -634,6 +641,8 @@ interface TabLayoutProps {
 
   fetching: boolean;
 
+  rateLimited?: boolean;
+
   onSearchChange: (value: string) => void;
 
   onActionFilterChange: (value: string) => void;
@@ -665,6 +674,8 @@ function TabLayout({
   filteredCount,
 
   fetching,
+
+  rateLimited = false,
 
   onSearchChange,
 
@@ -760,11 +771,11 @@ function TabLayout({
 
             </Button>
 
-            <Button size="sm" variant="outline" disabled={!hasMore || fetching}
+            <Button size="sm" variant="outline" disabled={!hasMore || fetching || rateLimited}
 
               onClick={onNextPage}>
 
-              Next <ChevronRight className="h-3.5 w-3.5 ml-1" />
+              {rateLimited ? "Please wait…" : <>Next <ChevronRight className="h-3.5 w-3.5 ml-1" /></>}
 
             </Button>
 
@@ -863,6 +874,7 @@ export default function HistoryPage() {
   const [activeTab, setActiveTab] = useState<CollectionTab>("suppliers");
 
   const [fetching, setFetching] = useState(false);
+  const [rateLimited, setRateLimited] = useState(false);
 
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
@@ -1012,7 +1024,10 @@ export default function HistoryPage() {
 
     logs.forEach((log) => {
 
-      if (log.performedBy) log.performedByName = nameCache.get(log.performedBy) ?? log.performedBy;
+      if (log.performedBy) {
+        const resolvedName = nameCache.get(log.performedBy);
+        log.performedByName = resolvedName && resolvedName !== log.performedBy ? resolvedName : log.performedBy;
+      }
 
     });
 
@@ -1059,6 +1074,11 @@ export default function HistoryPage() {
 
 
   const loadNextPage = async (tab: CollectionTab) => {
+
+    if (fetching || rateLimited) return; // rate limit: block spam clicks
+
+    setRateLimited(true);
+    setTimeout(() => setRateLimited(false), NEXT_PAGE_COOLDOWN_MS);
 
     setFetching(true);
 
@@ -1126,7 +1146,14 @@ export default function HistoryPage() {
 
 
 
-  const displayName = (log: AuditLog) => log.performedByName || log.performedBy || "—";
+  const displayName = (log: AuditLog) => {
+    // If we have a resolved name that's different from the reference ID, use it
+    if (log.performedByName && log.performedByName !== log.performedBy) {
+      return log.performedByName;
+    }
+    // Return the cached name or fallback to reference ID
+    return nameCache.get(log.performedBy || "") || log.performedBy || "—";
+  };
 
 
 
@@ -1403,6 +1430,8 @@ export default function HistoryPage() {
               filteredCount={filtered("suppliers").length}
 
               fetching={fetching}
+
+              rateLimited={rateLimited}
 
               onSearchChange={(value) => updateTab("suppliers", { search: value })}
 
