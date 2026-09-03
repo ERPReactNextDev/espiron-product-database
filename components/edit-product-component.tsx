@@ -1907,7 +1907,7 @@ export default function EditProductComponent({ productId, onClose }: EditProduct
             <Card>
               <CardHeader><CardTitle className="text-sm text-center">ADD PRODUCT NAME</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                <Input value={productName} onChange={e => setProductName(e.target.value.replace(/,/g, ''))} placeholder="Enter product name..." className="h-9" />
+                <Input value={productName} onChange={e => setProductName(e.target.value.replace(/,/g, '').toUpperCase())} placeholder="Enter product name..." className="h-9" />
               </CardContent>
             </Card>
             <Card>
