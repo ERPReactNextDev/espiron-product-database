@@ -122,8 +122,8 @@ useEffect(() => {
     const unsub = onSnapshot(q, (snap) => {
 const list = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
 const sortedList = list.sort((a: any, b: any) => {
-  const dateA = a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || a.updatedAt?.toMillis?.() || new Date(a.updatedAt).getTime() || 0;
-  const dateB = b.createdAt?.toMillis?.() || new Date(b.createdAt).getTime() || b.updatedAt?.toMillis?.() || new Date(b.updatedAt).getTime() || 0;
+  const dateA = a.updatedAt?.toMillis?.() || new Date(a.updatedAt).getTime() || a.createdAt?.toMillis?.() || new Date(a.createdAt).getTime() || 0;
+  const dateB = b.updatedAt?.toMillis?.() || new Date(b.updatedAt).getTime() || b.createdAt?.toMillis?.() || new Date(b.createdAt).getTime() || 0;
   return dateB - dateA;
 });
 

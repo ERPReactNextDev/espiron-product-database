@@ -201,7 +201,7 @@ function PhoneField({
   };
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/[^\d\s\-().]/g, "");
+    const raw = e.target.value.replace(/[^\d\s\-().]/g, "").replace(/,/g, "");
     setLocalNumber(raw);
     const dialCode = `+${getCountryCallingCode(country)}`;
     const digits = raw.replace(/\D/g, "");
@@ -349,7 +349,7 @@ function AddSupplier({ open, onOpenChange }: AddSupplierProps) {
     setter: React.Dispatch<React.SetStateAction<string[]>>,
     index: number,
     value: string,
-  ) => setter((prev) => prev.map((item, i) => (i === index ? value : item)));
+  ) => setter((prev) => prev.map((item, i) => (i === index ? value.replace(/,/g, "") : item)));
 
   const addRowAfter = (
     setter: React.Dispatch<React.SetStateAction<string[]>>,
@@ -395,7 +395,7 @@ function AddSupplier({ open, onOpenChange }: AddSupplierProps) {
 
   // Single branch helpers
   const updateSingleEmail = (index: number, value: string) => {
-    setSingleEmails((prev) => prev.map((e, i) => (i === index ? value : e)));
+    setSingleEmails((prev) => prev.map((e, i) => (i === index ? value.replace(/,/g, "") : e)));
   };
 
   const addSingleEmail = () => setSingleEmails((prev) => [...prev, ""]);
@@ -403,11 +403,11 @@ function AddSupplier({ open, onOpenChange }: AddSupplierProps) {
     setSingleEmails((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
 
   const updateSingleContactName = (index: number, value: string) => {
-    setSingleContactNames((prev) => prev.map((n, i) => (i === index ? value : n)));
+    setSingleContactNames((prev) => prev.map((n, i) => (i === index ? value.replace(/,/g, "") : n)));
   };
 
   const updateSingleContactNumber = (index: number, value: string) => {
-    setSingleContactNumbers((prev) => prev.map((n, i) => (i === index ? value : n)));
+    setSingleContactNumbers((prev) => prev.map((n, i) => (i === index ? value.replace(/,/g, "") : n)));
   };
 
   const updateSingleContactType = (index: number, value: "phone" | "other") => {
@@ -430,7 +430,7 @@ function AddSupplier({ open, onOpenChange }: AddSupplierProps) {
   // Branch helpers
   const updateBranch = (index: number, field: keyof BranchData, value: any) => {
     setBranches((prev) =>
-      prev.map((b, i) => (i === index ? { ...b, [field]: value } : b))
+      prev.map((b, i) => (i === index ? { ...b, [field]: typeof value === 'string' ? value.replace(/,/g, "") : value } : b))
     );
   };
 
@@ -438,7 +438,7 @@ function AddSupplier({ open, onOpenChange }: AddSupplierProps) {
     setBranches((prev) =>
       prev.map((b, i) =>
         i === branchIndex
-          ? { ...b, emails: b.emails.map((e, j) => (j === emailIndex ? value : e)) }
+          ? { ...b, emails: b.emails.map((e, j) => (j === emailIndex ? value.replace(/,/g, "") : e)) }
           : b
       )
     );
@@ -472,7 +472,7 @@ function AddSupplier({ open, onOpenChange }: AddSupplierProps) {
           ? {
               ...b,
               contacts: b.contacts.map((c, j) =>
-                j === contactIndex ? { ...c, [field]: value } : c
+                j === contactIndex ? { ...c, [field]: value.replace(/,/g, "") } : c
               ),
             }
           : b
@@ -822,7 +822,7 @@ function AddSupplier({ open, onOpenChange }: AddSupplierProps) {
               <Label>Company</Label>
               <Input
                 value={company}
-                onChange={(e) => setCompany(e.target.value)}
+                onChange={(e) => setCompany(e.target.value.replace(/,/g, ""))}
                 placeholder="Company name"
               />
               {companyError && (
@@ -833,7 +833,7 @@ function AddSupplier({ open, onOpenChange }: AddSupplierProps) {
               <Label>Supplier Brand</Label>
               <Input
                 value={supplierBrand}
-                onChange={(e) => setSupplierBrand(e.target.value)}
+                onChange={(e) => setSupplierBrand(e.target.value.replace(/,/g, ""))}
                 placeholder="Brand name"
               />
             </div>
@@ -861,7 +861,7 @@ function AddSupplier({ open, onOpenChange }: AddSupplierProps) {
                 <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
                   <Textarea
                     value={singleAddress}
-                    onChange={(e) => setSingleAddress(e.target.value)}
+                    onChange={(e) => setSingleAddress(e.target.value.replace(/,/g, ""))}
                     placeholder="Full address"
                   />
                   <div className="pt-1">
