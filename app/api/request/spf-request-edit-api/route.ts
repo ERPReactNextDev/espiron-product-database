@@ -62,7 +62,7 @@ const buildStoredCommercial = (commercialDetails: any, productName?: string): St
         const unitCost = Number(row?.unitCost ?? 0) || 0;
         packagingLines.push(itemName);
         packagingLines.push(`Qty: ${qtyPerCarton}`);
-        packagingLines.push(`${length} ├ù ${width} ├ù ${height}`);
+        packagingLines.push(`${length} \u00D7 ${width} \u00D7 ${height}`);
         packagingLines.push(`${unitCost.toFixed(2)} USD`);
       }
       return {

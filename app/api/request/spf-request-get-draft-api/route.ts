@@ -63,7 +63,7 @@ function parseHumanReadableMultiPackaging(packagingStr: string | undefined): Mul
       dimensions = lines[i + 1] || "";
       unitCostStr = lines[i + 2] || "";
     }
-    const dimParts = dimensions.split("×").map((p) => p.trim());
+    const dimParts = dimensions.split("\u00D7").map((p) => p.trim());
     const costMatch = unitCostStr.match(/^([\d.]+)/);
     rows.push({
       itemName,

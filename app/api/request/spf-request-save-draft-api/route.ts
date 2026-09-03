@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
               const width = (r?.width ?? "-").toString();
               const height = (r?.height ?? "-").toString();
               const rowUnitCost = Number(r?.unitCost ?? 0) || 0;
-              return `${itemName}\nQty: ${qtyPerCarton}\n${length} ├ù ${width} ├ù ${height}\n${rowUnitCost} USD`;
+              return `${itemName}\nQty: ${qtyPerCarton}\n${length} \u00D7 ${width} \u00D7 ${height}\n${rowUnitCost} USD`;
             })
             .join("\n");
         } else {
