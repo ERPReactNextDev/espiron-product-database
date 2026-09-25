@@ -943,7 +943,9 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formattedDateApprovedSalesHead}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formattedDate}</td>
                     <td className="px-4 py-3">
-                      {spfStatus ? (
+                      {req.is_cancelled ? (
+                        <StatusBadge status={req.status} isCancelled={req.is_cancelled} />
+                      ) : spfStatus ? (
                         <StatusBadge
                           status={getStatusLabel(spfStatus)}
                           isCancelled={spfStatus?.toLowerCase() === "cancelled"}
@@ -961,7 +963,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                           status={spfStatus}
                         />
                         {!isProcurementStatus(req.spf_number) && spfStatus?.toLowerCase() !== "cancelled" && spfStatus?.toLowerCase() !== "processing by pd" && spfStatus?.toLowerCase() !== "for revision by pd" && spfStatus?.toLowerCase() !== "for revision by tl" && (
-                          <Button className="rounded-none h-9 px-4 shrink-0" variant="outline" onClick={() => {
+                          <Button className="rounded-none h-9 w-24 px-0 shrink-0" variant="outline" onClick={() => {
                             setSpecialInstructionsDialog({
                               open: true,
                               instructions: req.special_instructions || "",
@@ -974,11 +976,8 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                             Create
                           </Button>
                         )}
-                        {req.is_cancelled && spfStatus?.toLowerCase() !== "cancelled" && (
-                          <StatusBadge status={req.status} isCancelled={req.is_cancelled} />
-                        )}
                         {spfStatus && (
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center gap-2 shrink-0 [&_button]:h-9 [&_button]:w-24 [&_button]:px-0 [&_button]:rounded-none">
                             <SPFRequestFetch
                               spfNumber={req.spf_number}
                               onOpen={() => markSPFRequestAsRead(req.spf_number)}
@@ -1060,7 +1059,9 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                   <p><span className="text-gray-400">Approved By:</span> {req.approved_by || "-"}</p>
                 </div>
                   <div>
-                    {spfStatus ? (
+                    {req.is_cancelled ? (
+                      <StatusBadge status={req.status} isCancelled={req.is_cancelled} />
+                    ) : spfStatus ? (
                       <StatusBadge
                         status={getStatusLabel(spfStatus)}
                         isCancelled={spfStatus?.toLowerCase() === "cancelled"}
@@ -1091,11 +1092,8 @@ const [isRefreshing, setIsRefreshing] = useState(false);
                       Create
                     </Button>
                   )}
-                  {req.is_cancelled && spfStatus?.toLowerCase() !== "cancelled" && (
-                    <StatusBadge status={req.status} isCancelled={req.is_cancelled} />
-                  )}
                   {spfStatus && (
-                    <div className="flex-1">
+                    <div className="flex-1 [&_button]:h-9 [&_button]:w-full [&_button]:rounded-xl">
                       <SPFRequestFetch
                         spfNumber={req.spf_number}
                         onOpen={() => markSPFRequestAsRead(req.spf_number)}
