@@ -65,17 +65,24 @@ const [mounted, setMounted] = useState(false);
   }
 
   return (
-    <div className={`p-6 ${isEngineer && !wallpaper ? "engineer-blueprint-bg" : ""}`}>
-      <div className="container mx-auto max-w-4xl space-y-6 pb-12">
+    <div className="h-dvh flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="space-y-1">
-        <h1 className={`text-3xl font-bold ${theme === "comic" ? "font-comic-title text-red-500 comic-text-outline" : theme === "engineer" ? "font-engineer-title text-orange-600 engineer-text-shadow" : "font-formal-title text-red-600"}`}>
-          Settings
-        </h1>
-        <p className={`text-muted-foreground ${theme === "comic" ? "font-comic" : theme === "engineer" ? "font-engineer" : "font-formal"}`}>
-          Customize your application experience
-        </p>
+      <div className={`shrink-0 bg-white px-6 pt-6 pb-3 ${
+        theme === "comic" ? "border-b-4 border-gray-800" : theme === "engineer" ? "border-b-4 border-gray-800" : "border-b border-gray-200"
+      }`}>
+        <div className="container mx-auto max-w-4xl space-y-1">
+          <h1 className={`text-3xl font-bold ${theme === "comic" ? "font-comic-title text-red-500 comic-text-outline" : theme === "engineer" ? "font-engineer-title text-orange-600 engineer-text-shadow" : "font-formal-title text-red-600"}`}>
+            Settings
+          </h1>
+          <p className={`text-muted-foreground ${theme === "comic" ? "font-comic" : theme === "engineer" ? "font-engineer" : "font-formal"}`}>
+            Customize your application experience
+          </p>
+        </div>
       </div>
+
+      {/* Content */}
+      <div className={`flex-1 overflow-auto p-6 ${isEngineer && !wallpaper ? "engineer-blueprint-bg" : ""}`}>
+        <div className="container mx-auto max-w-4xl space-y-6 pb-12">
 
       {/* Theme Settings */}
       <Card className={theme === "comic" ? "comic-card" : theme === "engineer" ? "engineer-card" : "formal-card"}>
@@ -378,6 +385,7 @@ const [mounted, setMounted] = useState(false);
       {/* Info Section */}
       <div className={`text-center text-sm text-muted-foreground ${theme === "comic" ? "font-comic" : theme === "engineer" ? "font-engineer" : "font-formal"}`}>
         <p>Changes are saved automatically and apply across all pages.</p>
+      </div>
       </div>
       </div>
     </div>

@@ -371,7 +371,7 @@ export function EmailShell() {
   // ── Mobile single-column sliding panels ───────────────────────────────────
   return (
     <div className="relative flex-1 h-full overflow-hidden">
-      <div className={cn("absolute inset-0 transition-transform duration-300", mobileView === "folders" ? "translate-x-0" : "-translate-x-full")}>
+      <div className={cn("absolute inset-0 transition-transform duration-300 bg-white", mobileView === "folders" ? "translate-x-0" : "-translate-x-full")}>
         <EmailFoldersPane
           accounts={accounts} activeAccountId={activeAccountId}
           onAccountSwitch={(id) => { setActiveAccountId(id); setMobileView("messages"); }}
