@@ -147,7 +147,7 @@ export default function LayoutShell({
         {/* SidebarLeft handles both desktop (left sidebar) and mobile (bottom nav) */}
         {userId && !isLogin && <SidebarLeft isNavVisible={isNavVisible} setIsNavVisible={setIsNavVisible} />}
 
-        <main className={`relative flex-1 overflow-y-auto overscroll-contain transition-all duration-300 ${
+        <main className={`relative flex-1 overflow-y-auto transition-all duration-300 ${
         isMobile 
           ? isNavVisible 
             ? 'pb-[calc(62px+env(safe-area-inset-bottom))]' 

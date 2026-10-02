@@ -65,9 +65,8 @@ const [mounted, setMounted] = useState(false);
   }
 
   return (
-    <div className={`container mx-auto max-w-4xl p-6 space-y-6 pb-12 ${
-      isEngineer && !wallpaper ? "engineer-blueprint-bg" : ""
-    }`}>
+    <div className={`p-6 ${isEngineer && !wallpaper ? "engineer-blueprint-bg" : ""}`}>
+      <div className="container mx-auto max-w-4xl space-y-6 pb-12">
       {/* Header */}
       <div className="space-y-1">
         <h1 className={`text-3xl font-bold ${theme === "comic" ? "font-comic-title text-red-500 comic-text-outline" : theme === "engineer" ? "font-engineer-title text-orange-600 engineer-text-shadow" : "font-formal-title text-red-600"}`}>
@@ -379,6 +378,7 @@ const [mounted, setMounted] = useState(false);
       {/* Info Section */}
       <div className={`text-center text-sm text-muted-foreground ${theme === "comic" ? "font-comic" : theme === "engineer" ? "font-engineer" : "font-formal"}`}>
         <p>Changes are saved automatically and apply across all pages.</p>
+      </div>
       </div>
     </div>
   );
