@@ -49,20 +49,25 @@ function TitleUpdater({ pathname }: { pathname: string | null }) {
       "/for-approval": "For Approval",
       "/roles":        "Roles",
       "/api-management": "API Management",
+      "/email":        "Email",
+      "/notes":        "Notes",
+      "/settings":     "Settings",
+      "/analytics":    "Analytics",
     };
 
     const pageTitle = pathname ? titles[pathname] : null;
     // Use activeNotificationCount (count of SPF rows with notifications) for consistent badge
     // Only show notification badge when user is logged in
     const totalNotifications = userId ? activeNotificationCount + unreadChatCount + forApprovalCount : 0;
+    const displayCount = totalNotifications > 9 ? "9+" : totalNotifications;
 
     if (pageTitle) {
       document.title = totalNotifications > 0
-        ? `(${totalNotifications}) ${pageTitle} - Espiron | PD`
+        ? `(${displayCount}) ${pageTitle} - Espiron | PD`
         : `${pageTitle} - Espiron | PD`;
     } else {
       document.title = totalNotifications > 0
-        ? `(${totalNotifications}) Espiron | PD`
+        ? `(${displayCount}) Espiron | PD`
         : "Espiron | PD";
     }
   }, [pathname, activeNotificationCount, unreadChatCount, forApprovalCount, userId]);
