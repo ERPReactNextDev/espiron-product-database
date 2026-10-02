@@ -801,21 +801,6 @@ function AddSupplier({ open, onOpenChange }: AddSupplierProps) {
 
         <Separator className="my-4" />
 
-        {user && (
-          <div className="rounded-md border p-3 text-sm space-y-1 bg-muted/40 mb-6">
-            <div>
-              <span className="font-medium">Welcome:</span> {user.Firstname}{" "}
-              {user.Lastname}
-            </div>
-            <div>
-              <span className="font-medium">Role:</span> {user.Role}
-            </div>
-            <div>
-              <span className="font-medium">Email:</span> {user.Email}
-            </div>
-          </div>
-        )}
-
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">

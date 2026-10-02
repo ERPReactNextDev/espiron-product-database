@@ -340,6 +340,7 @@ export default function EditProductPage() {
   const [productFamilies, setProductFamilies] = useState<ProductFamily[]>([]);
   const [selectedProductFamily, setSelectedProductFamily] = useState<ProductFamily | null>(null);
   const [technicalSpecs, setTechnicalSpecs] = useState<TechnicalSpecification[]>([]);
+  const [globalDragMode, setGlobalDragMode] = useState(false);
   const [productFamilySearch, setProductFamilySearch] = useState("");
   const [newProductType, setNewProductType] = useState("");
   const [selectedCategoryTypes, setSelectedCategoryTypes] = useState<SelectedCategoryType[]>([]);
@@ -527,9 +528,9 @@ export default function EditProductPage() {
   const updateTitle = (i: number, v: string) => setTechnicalSpecs(p => p.map((x, idx) => idx === i ? { ...x, title: sanitizeCommas(v) } : x));
   const addSpecRow = (si: number) => setTechnicalSpecs(p => p.map((x, i) => i === si ? { ...x, specs: [...x.specs, emptySpecRow()] } : x));
   const removeSpecRow = (si: number, ri: number) => setTechnicalSpecs(p => p.map((x, i) => i === si ? { ...x, specs: x.specs.length > 1 ? x.specs.filter((_, r) => r !== ri) : x.specs } : x));
-  const updateSpecField = (si: number, ri: number, field: keyof SpecRow, v: string) => {
+  const updateSpecField = (si: number, ri: number, field: keyof SpecRow, v: string | string[]) => {
     const copy = [...technicalSpecs];
-    (copy[si].specs[ri] as any)[field] = sanitizeCommas(v);
+    (copy[si].specs[ri] as any)[field] = Array.isArray(v) ? v : sanitizeCommas(v);
     setTechnicalSpecs(copy);
   };
 
@@ -1748,11 +1749,26 @@ const handleSaveProduct = async () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="font-semibold">Technical Specifications</Label>
-                <Button size="sm" variant="outline" onClick={addTechnicalSpec} className="h-8 text-xs rounded-xl">+ Add Group</Button>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs">Drag Mode:</Label>
+                    <Checkbox
+                      checked={globalDragMode}
+                      onCheckedChange={(checked) => setGlobalDragMode(checked as boolean)}
+                    />
+                    <span className="text-xs">{globalDragMode ? "On" : "Off"}</span>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={addTechnicalSpec} className="h-8 text-xs rounded-xl">+ Add Group</Button>
+                </div>
+              </div>
+              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-[10px] text-blue-700 font-medium">
+                  💡 Tip: Use the pipe symbol (|) to separate multiple values in specifications (e.g., "5W | 10W"). When dragging a product to a request, you can select which specific value to use.
+                </p>
               </div>
               <div className="max-h-150 overflow-y-auto pr-1 space-y-3">
                 {technicalSpecs.map((item, index) => (
-                  <Card key={index} draggable onDragStart={() => handleDragStart(index)} onDragOver={handleDragOver} onDrop={() => handleDrop(index)} className="border-2 border-blue-200 bg-blue-50 cursor-move">
+                  <Card key={index} draggable={globalDragMode} onDragStart={() => handleDragStart(index)} onDragOver={handleDragOver} onDrop={() => handleDrop(index)} className={`border-2 ${globalDragMode ? "border-blue-200 bg-blue-50 cursor-move" : "border-gray-200 bg-white cursor-default"}`}>
                     <CardContent className="p-3 space-y-3">
                       <div className="space-y-1">
                         <Label className="text-[10px] font-bold uppercase text-orange-600 tracking-widest block text-center">Group Title</Label>
@@ -1766,7 +1782,14 @@ const handleSaveProduct = async () => {
                         </div>
                       </div>
                       {item.specs.map((row, rIndex) => (
-                        <div key={rIndex} draggable onDragStart={() => handleRowDragStart(index, rIndex)} onDragOver={e => e.preventDefault()} onDrop={() => handleRowDrop(index, rIndex)} className="border-2 border-orange-200 rounded-xl p-3 bg-orange-50 space-y-2 cursor-move">
+                        <div
+                          key={rIndex}
+                          draggable={globalDragMode}
+                          onDragStart={() => handleRowDragStart(index, rIndex)}
+                          onDragOver={e => e.preventDefault()}
+                          onDrop={() => handleRowDrop(index, rIndex)}
+                          className={`border-2 rounded-xl p-3 space-y-2 ${globalDragMode ? "border-orange-200 bg-orange-50 cursor-move" : "border-gray-200 bg-white cursor-default"}`}
+                        >
                           <div className="grid grid-cols-2 gap-2">
                             <div className="space-y-1">
                               <Label className="text-[10px] text-blue-600 font-bold uppercase">Specification</Label>
@@ -1777,6 +1800,123 @@ const handleSaveProduct = async () => {
                               <Input className="border-orange-300 bg-white text-sm" placeholder="e.g. 40W" value={row.value ?? ""} onChange={e => updateSpecField(index, rIndex, "value", e.target.value)} />
                             </div>
                           </div>
+                          {!globalDragMode && row.isDimension && (
+                            <div className="grid grid-cols-3 gap-2 mt-2">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-green-600 font-bold uppercase">Length</Label>
+                                <Input
+                                  className="border-green-300 bg-white text-sm"
+                                  placeholder="Length"
+                                  value={row.length}
+                                  onChange={e => updateSpecField(index, rIndex, "length", e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-green-600 font-bold uppercase">Width</Label>
+                                <Input
+                                  className="border-green-300 bg-white text-sm"
+                                  placeholder="Width"
+                                  value={row.width}
+                                  onChange={e => updateSpecField(index, rIndex, "width", e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-green-600 font-bold uppercase">Height</Label>
+                                <Input
+                                  className="border-green-300 bg-white text-sm"
+                                  placeholder="Height"
+                                  value={row.height}
+                                  onChange={e => updateSpecField(index, rIndex, "height", e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {!globalDragMode && row.isRanging && (
+                            <div className="grid grid-cols-2 gap-2 mt-2">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-purple-600 font-bold uppercase">Range From</Label>
+                                <Input
+                                  className="border-purple-300 bg-white text-sm"
+                                  placeholder="From"
+                                  value={row.rangeFrom}
+                                  onChange={e => updateSpecField(index, rIndex, "rangeFrom", e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-purple-600 font-bold uppercase">Range To</Label>
+                                <Input
+                                  className="border-purple-300 bg-white text-sm"
+                                  placeholder="To"
+                                  value={row.rangeTo}
+                                  onChange={e => updateSpecField(index, rIndex, "rangeTo", e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {!globalDragMode && row.isSlashing && (
+                            <div className="space-y-2 mt-2">
+                              <Label className="text-[10px] text-red-600 font-bold uppercase">Slash Values</Label>
+                              {row.slashValues.map((val, svIndex) => (
+                                <div key={svIndex} className="flex gap-2">
+                                  <Input
+                                    className="border-red-300 bg-white text-sm"
+                                    placeholder={`Value ${svIndex + 1}`}
+                                    value={val}
+                                    onChange={e => {
+                                      const newSlashValues = [...row.slashValues];
+                                      newSlashValues[svIndex] = e.target.value;
+                                      updateSpecField(index, rIndex, "slashValues", newSlashValues);
+                                    }}
+                                  />
+                                  {row.slashValues.length > 1 && (
+                                    <Button
+                                      size="icon"
+                                      variant="outline"
+                                      className="h-8 w-8 shrink-0"
+                                      onClick={() => {
+                                        const newSlashValues = row.slashValues.filter((_, i) => i !== svIndex);
+                                        updateSpecField(index, rIndex, "slashValues", newSlashValues);
+                                      }}
+                                    >
+                                      <Minus className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                              ))}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs"
+                                onClick={() => {
+                                  updateSpecField(index, rIndex, "slashValues", [...row.slashValues, ""]);
+                                }}
+                              >
+                                <Plus className="h-3 w-3 mr-1" /> Add Value
+                              </Button>
+                            </div>
+                          )}
+                          {!globalDragMode && row.isRating && (
+                            <div className="grid grid-cols-2 gap-2 mt-2">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-yellow-600 font-bold uppercase">IP First</Label>
+                                <Input
+                                  className="border-yellow-300 bg-white text-sm"
+                                  placeholder="e.g. 65"
+                                  value={row.ipFirst}
+                                  onChange={e => updateSpecField(index, rIndex, "ipFirst", e.target.value)}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-yellow-600 font-bold uppercase">IP Second</Label>
+                                <Input
+                                  className="border-yellow-300 bg-white text-sm"
+                                  placeholder="e.g. 67"
+                                  value={row.ipSecond}
+                                  onChange={e => updateSpecField(index, rIndex, "ipSecond", e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          )}
                           <div className="flex justify-end gap-2">
                             <Button size="sm" variant="outline" className="border-blue-400 text-blue-700 h-7 px-2.5 text-xs" onClick={() => addSpecRow(index)}><Plus className="h-3 w-3 mr-1" /> Row</Button>
                             <Button size="sm" variant="outline" className="border-orange-400 text-orange-700 h-7 px-2.5 text-xs" disabled={item.specs.length === 1} onClick={() => removeSpecRow(index, rIndex)}><Minus className="h-3 w-3 mr-1" /> Remove</Button>
