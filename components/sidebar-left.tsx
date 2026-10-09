@@ -65,7 +65,7 @@ const NAV_ITEMS: Array<{
 }> = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/analytics", icon: BarChart3, label: "Analytics", accessKey: "page:analytics" },
-  { href: "/spf-quotation-tracking", icon: FileText, label: "SPF Tracking", accessKey: "page:requests" },
+  { href: "/spf-quotation-tracking", icon: FileText, label: "Tracking", accessKey: "page:requests" },
   { href: "/products", icon: Package, label: "Products", accessKey: "page:products" },
   { href: "/suppliers", icon: Truck, label: "Suppliers", accessKey: "page:suppliers" },
   { href: "/email", icon: Mail, label: "Email" },
