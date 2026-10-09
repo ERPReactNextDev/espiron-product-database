@@ -1,26 +1,25 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useUser } from "@/contexts/UserContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useWallpaper } from "@/contexts/WallpaperContext";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { AccessGuard } from "@/components/AccessGuard";
 import { supabase } from "@/utils/supabase";
 import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
   Search,
   RefreshCw,
-  BarChart3,
   Clock,
-  Package,
   FileText,
   DollarSign,
-  Tag,
   Download,
+  X,
+  Loader2,
+  ArrowUp,
+  Trophy,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
@@ -78,6 +77,7 @@ type SPFCreation = {
 };
 
 const ROW_SEP = "|ROW|";
+const PAGE_SIZE = 30; // rows revealed per scroll chunk
 
 /* ─────────────────────────────────────────────────────────────── */
 /* STATUS BADGE                                                     */
@@ -228,52 +228,43 @@ function formatPairedByItemCode(
 }
 
 /* ─────────────────────────────────────────────────────────────── */
-/* MOBILE HOOK                                                     */
+/* SUMMARY CARD (matches KpiCard styling)                          */
 /* ─────────────────────────────────────────────────────────────── */
-function useIsMobile(breakpoint = 768) {
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
-    setIsMobile(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, [breakpoint]);
-  return isMobile;
-}
-
-/* ─────────────────────────────────────────────────────────────── */
-/* SUMMARY CARD                                                    */
-/* ─────────────────────────────────────────────────────────────── */
-function SummaryCard({
-  icon,
-  label,
-  value,
-  sub,
-  valueClassName = "text-xl",
-}: {
-  icon: React.ReactNode;
+type SummaryCardProps = {
   label: string;
-  value: string | number;
-  sub?: string;
-  valueClassName?: string;
-}) {
-  return (
-    <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl p-3 sm:p-4 flex items-start gap-2 sm:gap-3 shadow-sm min-w-0">
-      <div className="p-1.5 sm:p-2 rounded-lg bg-red-50 text-red-600 shrink-0">{icon}</div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] sm:text-xs text-gray-500 uppercase font-medium tracking-wide truncate">{label}</p>
-        <p
-          className={`${valueClassName} font-bold text-gray-900 truncate`}
-          title={String(value)}
+  value: string;
+  hint?: string;
+  icon: React.ReactNode;
+  accent: string;
+  loading?: boolean;
+  cardClass: string;
+  className?: string;
+  big?: boolean;
+};
+
+const SummaryCard = ({ label, value, hint, icon, accent, loading, cardClass, className = "", big }: SummaryCardProps) => (
+  <div className={`bg-white p-4 flex flex-col justify-between gap-3 ${cardClass} ${className}`}>
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-sm text-gray-600 font-medium">{label}</span>
+      <span className={`h-9 w-9 rounded-lg flex items-center justify-center ${accent}`}>{icon}</span>
+    </div>
+    <div>
+      {loading ? (
+        <div className="h-8 w-32 rounded bg-gray-200 animate-pulse" />
+      ) : (
+        <div
+          className={`font-bold text-gray-900 tabular-nums leading-none truncate ${
+            big ? "text-3xl md:text-4xl" : "text-2xl"
+          }`}
+          title={value}
         >
           {value}
-        </p>
-        {sub && <p className="text-xs text-gray-400 mt-0.5 truncate">{sub}</p>}
-      </div>
+        </div>
+      )}
+      {hint && <div className="mt-1.5 text-xs text-gray-500 truncate">{hint}</div>}
     </div>
-  );
-}
+  </div>
+);
 
 /* ─────────────────────────────────────────────────────────────── */
 /* MAIN PAGE                                                       */
@@ -282,22 +273,26 @@ export default function AnalyticsPage() {
   const { userId } = useUser();
   const { theme } = useTheme();
   const { wallpaper } = useWallpaper();
+  const isComic = theme === "comic";
   const isEngineer = theme === "engineer";
-  const isMobile = useIsMobile();
+  const isBold = isComic || isEngineer;
 
   /* ── State ── */
   const [records, setRecords] = useState<SPFCreation[]>([]);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loadingPage, setLoadingPage] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showMobileSummary, setShowMobileSummary] = useState(false);
+
+  // scrolling
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const [showTop, setShowTop] = useState(false);
 
   const [userMap, setUserMap] = useState<Record<string, { Firstname: string; Lastname: string }>>({});
 
-  /* ── Search / pagination ── */
+  /* ── Search / infinite scroll ── */
   const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 20;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   /* ── Filter / sort ── */
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -327,7 +322,7 @@ export default function AnalyticsPage() {
 
       const results = await Promise.all(userPromises);
       const newUserMap: Record<string, { Firstname: string; Lastname: string }> = {};
-      
+
       results.forEach((result) => {
         if (result && result.userData) {
           newUserMap[result.refId] = {
@@ -460,7 +455,7 @@ export default function AnalyticsPage() {
   }, [records]);
 
   /* ─────────────────────── */
-  /* Filtered + paginated    */
+  /* Filtered + visible      */
   /* ─────────────────────── */
   const filteredRecords = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
@@ -508,16 +503,59 @@ export default function AnalyticsPage() {
     return filtered;
   }, [records, searchTerm, statusFilter, sortBy, sortOrder]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE));
+  const hasMore = visibleCount < filteredRecords.length;
 
-  const paginatedRecords = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredRecords.slice(start, start + PAGE_SIZE);
-  }, [filteredRecords, currentPage]);
+  const visibleRecords = useMemo(
+    () => filteredRecords.slice(0, visibleCount),
+    [filteredRecords, visibleCount],
+  );
 
+  // filters / sort changed -> start from the top again
   useEffect(() => {
-    setCurrentPage(1);
+    setVisibleCount(PAGE_SIZE);
+    scrollRef.current?.scrollTo({ top: 0 });
   }, [searchTerm, statusFilter, sortBy, sortOrder]);
+
+  // infinite scroll: reveal the next chunk when the footer nears the viewport
+  useEffect(() => {
+    const el = sentinelRef.current;
+    const root = scrollRef.current;
+    if (!el || !root) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore) setVisibleCount((c) => c + PAGE_SIZE);
+      },
+      { root, rootMargin: "400px 0px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, visibleCount]);
+
+  // Top authors by SRP (follows the active filters)
+  const pesoCompact = (n: number) =>
+    `₱${new Intl.NumberFormat("en-PH", { notation: "compact", maximumFractionDigits: 2 }).format(n)}`;
+
+  const topAuthors = useMemo(() => {
+    const byAuthor = new Map<string, { value: number; count: number }>();
+    filteredRecords.forEach((r) => {
+      const refId = r.item_added_author || r.tsm || "";
+      const u = userMap[refId];
+      const name = (
+        u && u.Firstname && u.Lastname ? `${u.Firstname} ${u.Lastname}` : refId || "Unassigned"
+      )
+        .trim()
+        .toUpperCase();
+      const cur = byAuthor.get(name) || { value: 0, count: 0 };
+      cur.value += computeTotalSrp(r) ?? 0;
+      cur.count += 1;
+      byAuthor.set(name, cur);
+    });
+    return [...byAuthor.entries()]
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [filteredRecords, userMap]);
+  const maxAuthorValue = topAuthors[0]?.value || 1;
 
   /* ─────────────────────── */
   /* Unique statuses         */
@@ -584,6 +622,21 @@ export default function AnalyticsPage() {
     setIsRefreshing(false);
   };
 
+  const authorLabel = (rec: SPFCreation) => {
+    const refId = rec.item_added_author || rec.tsm;
+    if (!refId) return "-";
+    const user = userMap[refId];
+    if (user && user.Firstname && user.Lastname) {
+      return `${user.Firstname} ${user.Lastname}`;
+    }
+    return refId;
+  };
+
+  /* ── theme-aware styles ── */
+  const cardClass = isBold
+    ? "rounded-lg border-2 border-gray-800 shadow-[4px_4px_0_0_#1f2937]"
+    : "rounded-xl border border-gray-200 shadow-sm";
+
   const handleDownloadExcel = () => {
     const exportData = filteredRecords.map((rec) => {
       const totalSrp = computeTotalSrp(rec);
@@ -601,16 +654,11 @@ export default function AnalyticsPage() {
         rec.spf_creation_start_time,
         rec.spf_creation_end_time,
       );
-      const refId = rec.item_added_author || rec.tsm;
-      const user = userMap[refId || ""];
-      const authorName = user && user.Firstname && user.Lastname
-        ? `${user.Firstname} ${user.Lastname}`
-        : refId || "-";
 
       return {
         "SPF Number": rec.spf_number || "-",
         "Customer Name": rec.customer_name || "-",
-        "Author": authorName,
+        "Author": authorLabel(rec),
         "Date Created": fmt(rec.request_date_created),
         "Date Updated": fmt(rec.date_updated),
         "Duration": duration,
@@ -639,6 +687,30 @@ export default function AnalyticsPage() {
   /* ════════════════════════════════════════════════════════════ */
   /* RENDER                                                       */
   /* ════════════════════════════════════════════════════════════ */
+  const hasAnyFilter = Boolean(searchTerm || statusFilter);
+
+  const searchBar = (
+    <div className="relative w-full md:w-80">
+      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+      <Input
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        placeholder="Search SPF, customer, or brand..."
+        className="pl-8 pr-8 h-9"
+      />
+      {searchTerm && (
+        <button
+          type="button"
+          onClick={() => setSearchTerm("")}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          aria-label="Clear search"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <AccessGuard accessKey="page:analytics">
       <div className="h-dvh flex flex-col overflow-hidden">
@@ -647,31 +719,15 @@ export default function AnalyticsPage() {
         <div className="hidden md:flex flex-col gap-3 px-6 pt-6 pb-3 shrink-0 bg-white/80 backdrop-blur-md border-b">
           <SidebarTrigger />
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="h-6 w-6 text-red-600" />
-              <h1 className="text-2xl font-semibold shrink-0">SPF Creation Analytics</h1>
-            </div>
-            <div className="flex flex-wrap gap-2 items-center">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Search SPF, customer, brand..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="h-9 w-72 rounded-md border pl-9 pr-3 text-sm bg-white/70"
-                />
-              </div>
-              <span className="text-sm text-muted-foreground">
-                {filteredRecords.length} results
-              </span>
-              {(searchTerm !== "" || statusFilter !== null) && (
-                <Button variant="ghost" onClick={clearFilters} className="text-xs h-8 px-2">
-                  Clear Filters
-                </Button>
-              )}
-              <Button size="sm" variant="outline" onClick={handleDownloadExcel} className="text-xs h-8 px-3 gap-2">
-                <Download className="h-4 w-4" />
+            <h1 className="text-2xl font-semibold shrink-0">SPF Creation Analytics</h1>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {searchBar}
+              <Button size="sm" variant="outline" disabled={isRefreshing} onClick={handleRefresh}>
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRefreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleDownloadExcel}>
+                <Download className="h-3.5 w-3.5 mr-1.5" />
                 Download Excel
               </Button>
             </div>
@@ -684,7 +740,7 @@ export default function AnalyticsPage() {
               size="sm"
               variant={statusFilter === null ? "default" : "outline"}
               onClick={() => setStatusFilter(null)}
-              className="text-xs"
+              className="text-xs h-8"
             >
               All
             </Button>
@@ -694,11 +750,22 @@ export default function AnalyticsPage() {
                 size="sm"
                 variant={statusFilter === s ? "default" : "outline"}
                 onClick={() => setStatusFilter(s)}
-                className="text-xs"
+                className="text-xs h-8"
               >
                 {s}
               </Button>
             ))}
+            {hasAnyFilter && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={clearFilters}
+                className="text-xs h-8 px-2.5"
+              >
+                <X className="h-4 w-4 mr-1" />
+                Clear Filters
+              </Button>
+            )}
             <div className="w-px h-6 bg-gray-300 mx-2" />
             <span className="text-xs text-gray-500 font-medium">Sort by:</span>
             <select
@@ -727,439 +794,410 @@ export default function AnalyticsPage() {
 
         {/* ── MOBILE HEADER ── */}
         <div className="md:hidden shrink-0 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 pt-5 pb-3">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-red-600" />
-              <h1 className="text-lg font-bold text-gray-900">SPF Analytics</h1>
-            </div>
+          <div className="flex items-center justify-between">
+            <h1 className="text-lg font-bold text-gray-900">SPF Analytics</h1>
+            <Button size="sm" variant="outline" disabled={isRefreshing} onClick={handleRefresh}>
+              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+            </Button>
           </div>
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search SPF, customer..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full h-10 pl-9 pr-3 bg-white/70 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-300"
-            />
-          </div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs text-gray-500 font-medium shrink-0">Status:</span>
-            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
-              <Button
-                size="sm"
-                variant={statusFilter === null ? "default" : "outline"}
-                onClick={() => setStatusFilter(null)}
-                className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
-              >
-                All
-              </Button>
-              {uniqueStatuses.map((s) => (
+          <div className="mt-3 space-y-2">
+            {searchBar}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-500 font-medium shrink-0">Status:</span>
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
                 <Button
-                  key={s}
                   size="sm"
-                  variant={statusFilter === s ? "default" : "outline"}
-                  onClick={() => setStatusFilter(s)}
+                  variant={statusFilter === null ? "default" : "outline"}
+                  onClick={() => setStatusFilter(null)}
                   className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
                 >
-                  {s}
+                  All
                 </Button>
-              ))}
+                {uniqueStatuses.map((s) => (
+                  <Button
+                    key={s}
+                    size="sm"
+                    variant={statusFilter === s ? "default" : "outline"}
+                    onClick={() => setStatusFilter(s)}
+                    className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
+                  >
+                    {s}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 font-medium">Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) =>
+                  setSortBy(e.target.value as "date_updated" | "date_created" | "alphabetical")
+                }
+                className="h-7 px-2 rounded-md border text-xs bg-white/70"
+              >
+                <option value="date_updated">Date Updated</option>
+                <option value="date_created">Date Created</option>
+                <option value="alphabetical">Alphabetical</option>
+              </select>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                className="text-xs h-7 px-2"
+              >
+                {sortOrder === "asc" ? "↑" : "↓"}
+              </Button>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400 font-medium">
+                {filteredRecords.length} result{filteredRecords.length !== 1 ? "s" : ""}
+              </span>
+              {hasAnyFilter && (
+                <Button variant="ghost" onClick={clearFilters} className="text-xs h-7 px-2">
+                  Clear
+                </Button>
+              )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 font-medium">Sort:</span>
-            <select
-              value={sortBy}
-              onChange={(e) =>
-                setSortBy(e.target.value as "date_updated" | "date_created" | "alphabetical")
-              }
-              className="h-7 px-2 rounded-md border text-xs bg-white/70"
-            >
-              <option value="date_updated">Date Updated</option>
-              <option value="date_created">Date Created</option>
-              <option value="alphabetical">Alphabetical</option>
-            </select>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-              className="text-xs h-7 px-2"
-            >
-              {sortOrder === "asc" ? "↑" : "↓"}
-            </Button>
-          </div>
-          <div className="flex items-center justify-between mt-1">
-            <button
-              onClick={() => setShowMobileSummary((v) => !v)}
-              className="flex items-center gap-1 text-xs text-gray-400 font-medium"
-            >
-              {filteredRecords.length} result{filteredRecords.length !== 1 ? "s" : ""}
-              <ChevronDown
-                className={`h-3.5 w-3.5 transition-transform ${
-                  showMobileSummary ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-            {(searchTerm !== "" || statusFilter !== null) && (
-              <Button variant="ghost" onClick={clearFilters} className="text-xs h-7 px-2">
-                Clear
-              </Button>
-            )}
-          </div>
         </div>
 
-        {/* ── DESKTOP PAGINATION BAR ── */}
-        <div className="hidden md:flex items-center justify-between px-6 py-2 bg-white/70 backdrop-blur-md border-b shrink-0">
-          <span className="text-sm text-gray-500">
-            Page {currentPage} of {totalPages} · {filteredRecords.length} records
-          </span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={isRefreshing} onClick={handleRefresh}>
-              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((p) => p - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={currentPage === totalPages || totalPages === 0}
-              onClick={() => setCurrentPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-
-        {/* ── SUMMARY CARDS (desktop only, scrollable section) ── */}
-        <div className={`hidden md:grid grid-cols-3 gap-3 px-6 py-3 shrink-0 bg-white/60 border-b ${
-          isEngineer && !wallpaper ? "engineer-blueprint-bg" : ""
-        }`}>
-          <SummaryCard
-            icon={<FileText className="h-4 w-4" />}
-            label="Total Records"
-            value={stats.total}
-            sub={`${filteredRecords.length} shown`}
-          />
-          <SummaryCard
-            icon={<DollarSign className="h-4 w-4" />}
-            label="Total SRP"
-            value={`₱ ${srpFmt.format(stats.totalSrp)}`}
-            sub="Sum of all records"
-          />
-          <SummaryCard
-            icon={<Clock className="h-4 w-4" />}
-            label="Avg Creation Time"
-            value={stats.avgDurationStr}
-            sub={`${stats.withDuration} timed records`}
-          />
-        </div>
-
-        {/* ── DESKTOP TABLE ── */}
+        {/* ── ONE SCROLL AREA: KPIs + list ── */}
         <div
-          className={`hidden md:block flex-1 min-h-0 overflow-auto bg-white/60 backdrop-blur-sm ${
+          ref={scrollRef}
+          onScroll={(e) => setShowTop(e.currentTarget.scrollTop > 600)}
+          className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-auto bg-white/60 backdrop-blur-sm ${
             isEngineer && !wallpaper ? "engineer-blueprint-bg" : ""
           }`}
         >
-          <table className="w-full text-sm border-collapse">
-            <thead className="bg-red-50/80 backdrop-blur-sm sticky top-0 z-30">
-              <tr>
-                {[
-                  "SPF Number",
-                  "Customer Name",
-                  "Author",
-                  "Date Created",
-                  "Date Updated",
-                  "Duration",
-                  "Product Offer Qty",
-                  "Final Selling Cost",
-                  "TOTAL SRP",
-                ].map((h, i) => (
-                  <th
-                    key={h}
-                    className={`px-4 py-3 text-left font-bold border-b whitespace-nowrap ${
-                      i === 0 ? "sticky left-0 bg-red-50/80 backdrop-blur-sm z-20" : ""
-                    }`}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {isRefreshing || loadingPage ? (
-                <tr>
-                  <td colSpan={9} className="text-center py-10 text-muted-foreground">
-                    Loading...
-                  </td>
-                </tr>
-              ) : filteredRecords.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="text-center py-10 text-muted-foreground">
-                    No SPF creation records found.
-                  </td>
-                </tr>
-              ) : (
-                paginatedRecords.map((rec) => {
-                  const duration = formatDuration(
-                    rec.spf_creation_start_time,
-                    rec.spf_creation_end_time,
-                  );
-                  const totalSrp = computeTotalSrp(rec);
-                  const qtyDisplay = formatPairedByItemCode(
-                    rec.product_offer_qty,
-                    rec.item_code,
-                    formatTextCell,
-                  );
-                  const sellingCostDisplay = formatPairedByItemCode(
-                    rec.final_selling_cost,
-                    rec.item_code,
-                    formatPesoCell,
-                  );
-
-                  return (
-                    <tr
-                      key={rec.id}
-                      className="border-b hover:bg-white/60 align-middle"
-                    >
-                      <td className="px-4 py-3 font-medium uppercase sticky left-0 bg-white/60 backdrop-blur-sm z-20">
-                        {rec.spf_number || "-"}
-                      </td>
-                      <td className="px-4 py-3 uppercase">{rec.customer_name || "-"}</td>
-                      <td className="px-4 py-3 text-xs">
-                        {(() => {
-                          const refId = rec.item_added_author || rec.tsm;
-                          if (!refId) return "-";
-                          const user = userMap[refId];
-                          if (user && user.Firstname && user.Lastname) {
-                            return `${user.Firstname} ${user.Lastname}`;
-                          }
-                          return refId;
-                        })()}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                        {fmt(rec.request_date_created)}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                        {fmt(rec.date_updated)}
-                      </td>
-                      <td className="px-4 py-3 text-xs font-mono">
-                        {duration}
-                      </td>
-                      <td className="px-4 py-3 text-xs font-mono">
-                        {qtyDisplay.length > 0 ? (
-                          <div className="flex flex-col gap-1">
-                            {qtyDisplay.map((item, idx) => (
-                              <div key={idx} className="whitespace-nowrap">
-                                {idx + 1}. {item}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-xs font-mono">
-                        {sellingCostDisplay.length > 0 ? (
-                          <div className="flex flex-col gap-1">
-                            {sellingCostDisplay.map((item, idx) => (
-                              <div key={idx} className="whitespace-nowrap">
-                                {idx + 1}. {item}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-xs font-mono font-semibold whitespace-nowrap">
-                        {totalSrp === null ? "-" : `₱ ${srpFmt.format(totalSrp)}`}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* ── MOBILE SUMMARY CARDS ── */}
-        {showMobileSummary && (
-          <div className="md:hidden shrink-0 grid grid-cols-2 gap-2 px-3 py-3 bg-white/60 border-b">
-            <SummaryCard
-              icon={<FileText className="h-4 w-4" />}
-              label="Total"
-              value={stats.total}
-              valueClassName="text-lg"
-            />
-            <SummaryCard
-              icon={<Clock className="h-4 w-4" />}
-              label="Avg Time"
-              value={stats.avgDurationStr}
-              valueClassName="text-lg"
-            />
-            <div className="col-span-2">
+          {/* KPI DASHBOARD */}
+          <section className="px-3 md:px-6 pt-4 pb-3">
+            <div className="grid grid-cols-2 lg:grid-cols-12 gap-3">
               <SummaryCard
-                icon={<DollarSign className="h-4 w-4" />}
+                big
                 label="Total SRP"
-                value={`₱ ${srpFmt.format(stats.totalSrp)}`}
-                valueClassName="text-xl"
+                value={`₱${srpFmt.format(stats.totalSrp)}`}
+                hint={`${filteredRecords.length} of ${stats.total} records shown`}
+                icon={<DollarSign className="h-5 w-5 text-emerald-700" />}
+                accent="bg-emerald-100"
+                loading={loadingPage}
+                cardClass={cardClass}
+                className="col-span-2 lg:col-span-4"
               />
-            </div>
-          </div>
-        )}
+              <SummaryCard
+                label="Total Records"
+                value={stats.total.toLocaleString("en-PH")}
+                hint={`${stats.withDuration} timed records`}
+                icon={<FileText className="h-5 w-5 text-purple-700" />}
+                accent="bg-purple-100"
+                loading={loadingPage}
+                cardClass={cardClass}
+                className="lg:col-span-2"
+              />
+              <SummaryCard
+                label="Avg Creation Time"
+                value={stats.avgDurationStr}
+                hint="Average SPF creation duration"
+                icon={<Clock className="h-5 w-5 text-sky-700" />}
+                accent="bg-sky-100"
+                loading={loadingPage}
+                cardClass={cardClass}
+                className="lg:col-span-2"
+              />
 
-        {/* ── MOBILE CARD LIST ── */}
-        <div className="md:hidden flex-1 overflow-y-auto px-3 pt-3 pb-28 space-y-3 min-h-0">
-          {isRefreshing || loadingPage ? (
-            <div className="flex justify-center py-16">
-              <div className="h-7 w-7 rounded-full border-2 border-gray-200 border-t-gray-800 animate-spin" />
-            </div>
-          ) : filteredRecords.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="h-14 w-14 rounded-full bg-white/60 flex items-center justify-center mb-3">
-                <Search className="h-6 w-6 text-gray-300" />
-              </div>
-              <p className="text-sm font-medium text-gray-600">No records found</p>
-              <p className="text-xs text-gray-400 mt-1">Try adjusting your search</p>
-            </div>
-          ) : (
-            paginatedRecords.map((rec) => {
-              const duration = formatDuration(
-                rec.spf_creation_start_time,
-                rec.spf_creation_end_time,
-              );
-              const qtyDisplay = formatPairedByItemCode(
-                rec.product_offer_qty,
-                rec.item_code,
-                formatTextCell,
-              );
-              const sellingCostDisplay = formatPairedByItemCode(
-                rec.final_selling_cost,
-                rec.item_code,
-                formatPesoCell,
-              );
-
-              return (
-                <div
-                  key={rec.id}
-                  className="border rounded-2xl bg-white/80 backdrop-blur-sm shadow-sm p-4 space-y-2 border-gray-200"
-                >
-                  <div className="flex justify-between items-start">
-                    <p className="font-semibold text-sm uppercase">
-                      {rec.spf_number || "-"}
-                    </p>
-                    <span className="text-[10px] text-muted-foreground">
-                      {fmt(rec.date_updated)}
-                    </span>
-                  </div>
-                  <p className="text-sm font-bold text-red-600 uppercase">
-                    {rec.customer_name || "-"}
-                  </p>
-                  <div className="text-xs text-gray-600 space-y-1 uppercase">
-                    <p>
-                      <span className="text-gray-400">Duration:</span>{" "}
-                      <span className="font-mono text-red-600 font-bold">{duration}</span>
-                    </p>
-                    <p>
-                      <span className="text-gray-400">Date Created:</span>{" "}
-                      {fmt(rec.request_date_created)}
-                    </p>
-                    <p>
-                      <span className="text-gray-400">Offer Qty:</span>{" "}
-                      <div className="font-mono mt-1 space-y-1">
-                        {qtyDisplay.length > 0 ? (
-                          qtyDisplay.map((item, idx) => (
-                            <div key={idx}>
-                              {idx + 1}. {item}
-                            </div>
-                          ))
-                        ) : (
-                          "-"
-                        )}
-                      </div>
-                    </p>
-                    <p>
-                      <span className="text-gray-400">Selling Cost:</span>{" "}
-                      <div className="font-mono mt-1 space-y-1">
-                        {sellingCostDisplay.length > 0 ? (
-                          sellingCostDisplay.map((item, idx) => (
-                            <div key={idx}>
-                              {idx + 1}. {item}
-                            </div>
-                          ))
-                        ) : (
-                          "-"
-                        )}
-                      </div>
-                    </p>
-                    <p>
-                      <span className="text-gray-400">Author:</span>{" "}
-                      {(() => {
-                        const refId = rec.item_added_author || rec.tsm;
-                        if (!refId) return "-";
-                        const user = userMap[refId];
-                        if (user && user.Firstname && user.Lastname) {
-                          return `${user.Firstname} ${user.Lastname}`;
-                        }
-                        return refId;
-                      })()}
-                    </p>
-                  </div>
-                  {rec.revision_remarks && (
-                    <div className="mt-1 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
-                      <p className="text-[10px] font-semibold text-orange-700 uppercase mb-0.5">
-                        Revision Remarks
-                      </p>
-                      <p className="text-xs text-orange-800">{rec.revision_remarks}</p>
-                    </div>
-                  )}
+              {/* Top authors leaderboard */}
+              <div className={`col-span-2 lg:col-span-4 bg-white p-4 ${cardClass}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm text-gray-600 font-medium">Top authors by SRP</span>
+                  <span className="h-9 w-9 rounded-lg flex items-center justify-center bg-amber-100">
+                    <Trophy className="h-5 w-5 text-amber-700" />
+                  </span>
                 </div>
-              );
-            })
+                {loadingPage ? (
+                  <div className="space-y-2">
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className="h-5 rounded bg-gray-200 animate-pulse" />
+                    ))}
+                  </div>
+                ) : topAuthors.length === 0 ? (
+                  <div className="text-xs text-gray-400">No data yet.</div>
+                ) : (
+                  <ul className="space-y-2">
+                    {topAuthors.map((a, i) => (
+                      <li key={a.name}>
+                        <div className="flex items-baseline justify-between gap-2 text-xs">
+                          <span className="truncate font-semibold text-gray-800">
+                            {i === 0 ? "🏆 " : ""}
+                            {a.name}
+                          </span>
+                          <span className="shrink-0 tabular-nums text-gray-600">
+                            {pesoCompact(a.value)}
+                            <span className="text-gray-400"> · {a.count}</span>
+                          </span>
+                        </div>
+                        <div className="mt-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${i === 0 ? "bg-amber-500" : "bg-amber-300"}`}
+                            style={{ width: `${Math.max(4, (a.value / maxAuthorValue) * 100)}%` }}
+                          />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* LIST HEADER STRIP */}
+          <div className="px-3 md:px-6 py-2 text-sm text-gray-600 flex items-center justify-between">
+            <span>
+              Showing <b className="text-gray-900 tabular-nums">{visibleRecords.length}</b> of{" "}
+              <b className="text-gray-900 tabular-nums">{filteredRecords.length}</b> records
+            </span>
+          </div>
+
+          {/* ── DESKTOP TABLE ── */}
+          <div className="hidden md:block">
+            <table className="w-full text-sm border-collapse">
+              <thead className="bg-blue-50/95 backdrop-blur-sm sticky top-0 z-30">
+                <tr>
+                  {[
+                    "SPF Number",
+                    "Customer Name",
+                    "Author",
+                    "Date Created",
+                    "Date Updated",
+                    "Duration",
+                    "Product Offer Qty",
+                    "Final Selling Cost",
+                    "TOTAL SRP",
+                  ].map((h, i) => (
+                    <th
+                      key={h}
+                      className={`px-4 py-3 text-left font-bold border-b whitespace-nowrap ${
+                        i === 0 ? "sticky left-0 bg-blue-50/95 backdrop-blur-sm z-20" : ""
+                      }`}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {isRefreshing || loadingPage ? (
+                  <tr>
+                    <td colSpan={9} className="text-center py-10 text-muted-foreground">
+                      Loading...
+                    </td>
+                  </tr>
+                ) : fetchError && records.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="text-center py-10 text-red-500">
+                      {fetchError}
+                    </td>
+                  </tr>
+                ) : filteredRecords.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="text-center py-10 text-muted-foreground">
+                      No SPF creation records found.
+                    </td>
+                  </tr>
+                ) : (
+                  visibleRecords.map((rec) => {
+                    const duration = formatDuration(
+                      rec.spf_creation_start_time,
+                      rec.spf_creation_end_time,
+                    );
+                    const totalSrp = computeTotalSrp(rec);
+                    const qtyDisplay = formatPairedByItemCode(
+                      rec.product_offer_qty,
+                      rec.item_code,
+                      formatTextCell,
+                    );
+                    const sellingCostDisplay = formatPairedByItemCode(
+                      rec.final_selling_cost,
+                      rec.item_code,
+                      formatPesoCell,
+                    );
+
+                    return (
+                      <tr
+                        key={rec.id}
+                        className="border-b hover:bg-white/60 align-top"
+                      >
+                        <td className="px-4 py-3 font-medium uppercase sticky left-0 bg-white/60 backdrop-blur-sm z-20">
+                          {rec.spf_number || "-"}
+                        </td>
+                        <td className="px-4 py-3 uppercase">{rec.customer_name || "-"}</td>
+                        <td className="px-4 py-3 text-xs">{authorLabel(rec)}</td>
+                        <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
+                          {fmt(rec.request_date_created)}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
+                          {fmt(rec.date_updated)}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-mono">
+                          {duration}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-mono">
+                          {qtyDisplay.length > 0 ? (
+                            <div className="flex flex-col gap-1">
+                              {qtyDisplay.map((item, idx) => (
+                                <div key={idx} className="whitespace-nowrap">
+                                  {idx + 1}. {item}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-mono">
+                          {sellingCostDisplay.length > 0 ? (
+                            <div className="flex flex-col gap-1">
+                              {sellingCostDisplay.map((item, idx) => (
+                                <div key={idx} className="whitespace-nowrap">
+                                  {idx + 1}. {item}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-mono font-semibold whitespace-nowrap">
+                          {totalSrp === null ? "-" : `₱ ${srpFmt.format(totalSrp)}`}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ── MOBILE CARD LIST ── */}
+          <div className="md:hidden px-3 pb-6 space-y-3">
+            {isRefreshing || loadingPage ? (
+              <div className="flex justify-center py-16">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400"></div>
+              </div>
+            ) : fetchError && records.length === 0 ? (
+              <div className="text-center py-16 text-red-500">{fetchError}</div>
+            ) : filteredRecords.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                No SPF creation records found.
+              </div>
+            ) : (
+              visibleRecords.map((rec) => {
+                const duration = formatDuration(
+                  rec.spf_creation_start_time,
+                  rec.spf_creation_end_time,
+                );
+                const totalSrp = computeTotalSrp(rec);
+                const qtyDisplay = formatPairedByItemCode(
+                  rec.product_offer_qty,
+                  rec.item_code,
+                  formatTextCell,
+                );
+                const sellingCostDisplay = formatPairedByItemCode(
+                  rec.final_selling_cost,
+                  rec.item_code,
+                  formatPesoCell,
+                );
+
+                return (
+                  <div key={rec.id} className="bg-white rounded-lg border p-4 shadow-sm">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <div className="font-bold text-sm uppercase">{rec.spf_number || "-"}</div>
+                        <div className="text-xs text-gray-500 mt-1">{rec.customer_name || "-"}</div>
+                      </div>
+                      <span className="text-xs px-2 py-1 rounded uppercase font-semibold whitespace-nowrap bg-green-100 text-green-700">
+                        {rec.status || "-"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 text-xs">
+                      <div>
+                        <span className="text-gray-500">Duration:</span>
+                        <div className="font-mono font-bold text-red-600">{duration}</div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Date Created:</span>
+                        <div>{fmt(rec.request_date_created)}</div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Date Updated:</span>
+                        <div>{fmt(rec.date_updated)}</div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Product Offer Qty:</span>
+                        <div className="font-mono mt-1 space-y-1">
+                          {qtyDisplay.length > 0 ? (
+                            qtyDisplay.map((item, idx) => (
+                              <div key={idx}>
+                                {idx + 1}. {item}
+                              </div>
+                            ))
+                          ) : (
+                            "-"
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Final Selling Cost:</span>
+                        <div className="font-mono mt-1 space-y-1">
+                          {sellingCostDisplay.length > 0 ? (
+                            sellingCostDisplay.map((item, idx) => (
+                              <div key={idx}>
+                                {idx + 1}. {item}
+                              </div>
+                            ))
+                          ) : (
+                            "-"
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Total SRP:</span>
+                        <div className="font-bold">
+                          {totalSrp === null ? "-" : `₱ ${srpFmt.format(totalSrp)}`}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Author:</span>
+                        <div>{authorLabel(rec)}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* INFINITE SCROLL FOOTER */}
+          <div ref={sentinelRef} className="h-16 flex items-center justify-center text-xs text-gray-500">
+            {hasMore ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading more records...
+              </span>
+            ) : filteredRecords.length > 0 ? (
+              <span>You&apos;ve reached the end · {filteredRecords.length} records</span>
+            ) : null}
+          </div>
+
+          {/* BACK TO TOP */}
+          {showTop && (
+            <button
+              type="button"
+              onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+              className="fixed bottom-5 right-5 z-40 h-10 w-10 rounded-full bg-gray-900 text-white shadow-lg flex items-center justify-center hover:bg-gray-700"
+              aria-label="Back to top"
+            >
+              <ArrowUp className="h-5 w-5" />
+            </button>
           )}
         </div>
-
-        {/* ── MOBILE PAGINATION ── */}
-        {totalPages > 1 && (
-          <div
-            className="md:hidden flex justify-center items-center gap-3 py-3 border-t bg-white/70 backdrop-blur-sm shrink-0"
-            style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 80px)" }}
-          >
-            <button
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((p) => p - 1)}
-              className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              disabled={isRefreshing}
-              onClick={handleRefresh}
-              className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
-              />
-            </button>
-            <span className="text-sm font-medium text-gray-600">
-              {currentPage} / {totalPages}
-            </span>
-            <button
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((p) => p + 1)}
-              className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        )}
       </div>
     </AccessGuard>
   );

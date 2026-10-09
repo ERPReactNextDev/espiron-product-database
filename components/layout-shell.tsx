@@ -45,6 +45,7 @@ function TitleUpdater({ pathname }: { pathname: string | null }) {
       "/products":     "Products",
       "/suppliers":    "Suppliers",
       "/requests":     "Requests",
+      "/spf-quotation-tracking": "SPF Quotations",
       "/history":      "History",
       "/for-approval": "For Approval",
       "/roles":        "Roles",

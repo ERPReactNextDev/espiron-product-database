@@ -172,6 +172,15 @@ export default function RequestsPage() {
 const [isRefreshing, setIsRefreshing] = useState(false);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
+  // Check for search query from sessionStorage (e.g., from SPF Quotation Tracking page)
+  useEffect(() => {
+    const storedSearch = sessionStorage.getItem('spfSkuSearch');
+    if (storedSearch) {
+      setSearchTerm(storedSearch);
+      sessionStorage.removeItem('spfSkuSearch'); // Clear after use
+    }
+  }, []);
+
   /* ── Filter / sort ── */
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"date_updated" | "date_received" | "alphabetical">("date_updated");

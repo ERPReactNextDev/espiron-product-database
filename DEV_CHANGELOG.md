@@ -534,6 +534,28 @@ All data modifications are logged to:
 
 ## 8. Development Timeline
 
+### October 9, 2026 - SPF Quotation Tracking Enhancements
+- **Updated:** SPF Quotation Tracking page
+- **Added:** Clickable Product SKU entries for navigation
+  - SKUs displayed in blue with underline on hover
+  - Clicking a SKU (e.g., `SPF-DSI-26-0438-002`) redirects to Requests page
+  - Automatically searches for base SKU (first 4 hyphen-separated parts: `SPF-DSI-26-0438`)
+  - Excludes the 4th hyphen and subsequent parts from search query
+  - Uses sessionStorage to pass search query (URL remains clean: `/requests`)
+  - Search query is automatically typed into the search bar on page load
+- **Updated:** Requests page
+  - Added sessionStorage check on page load to auto-fill search bar
+  - Clears sessionStorage after applying search query
+- **Updated:** API exclusion list for SPF DSI quotations
+  - Added `JC-NCR-245823` to excluded ReferenceIDs
+  - Excluded ReferenceIDs: `AE-NCR-555756`, `JC-NCR-245823`
+- **Updated:** Sidebar navigation
+  - Renamed menu item from "SPF Quotations" to "SPF Quotation Tracking"
+  - Moved position below Analytics in navigation order
+- **Updated:** SPF_QUOTATION_TRACKING.md documentation
+  - Added clickable SKU navigation feature description
+  - Updated exclusion list documentation
+
 ### April 18, 2026 - Documentation Synchronization
 - **Updated:** All documentation files synchronized to latest date
 - **Files Updated:** DEV_DOCUMENTATION.md, DEV_CHANGELOG.md, README.md, USER_DOCUMENTATION.md, ROLE_CAPABILITIES.md
