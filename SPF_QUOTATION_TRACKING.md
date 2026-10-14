@@ -81,7 +81,38 @@ Some records contain a mix of SKUs (e.g. `PLL-12W-WW-028,SPF-DSI-26-0228-001-OPT
 }
 ```
 
-### 3. Page Component: `/app/spf-quotation-tracking/page.tsx`
+### 3. API Route: `/app/api/activity-history/so-status/route.ts`
+**Purpose**: Fetches activity reference numbers that have a specific SO status in their history.
+
+**Key Features**:
+- Filters history records by `so_status`
+- Returns unique activity reference numbers from matching records
+- Used by the SO status filter on the main page to filter quotations
+
+**Query Parameters**:
+- `so_status`: The SO status to filter by (e.g., "Convert to SI")
+
+**Response Format**:
+```json
+{
+  "activityRefs": ["OF-NCR-5891410783", "EC-BR-2026-0121", ...]
+}
+```
+
+### 4. API Route: `/app/api/spf-dsi-quotations/download/route.ts`
+**Purpose**: Downloads SPF-DSI quotations as a CSV file.
+
+**Key Features**:
+- Accepts the same filter parameters as the main API (search, date range)
+- Returns a CSV file with all matching quotation records
+- Includes all quotation fields for export
+
+**Query Parameters**:
+- `q`: Search query (optional)
+- `from`: Date created from (optional, format: YYYY-MM-DD)
+- `to`: Date created to (optional, format: YYYY-MM-DD)
+
+### 5. Page Component: `/app/spf-quotation-tracking/page.tsx`
 **Purpose**: Displays SPF-DSI quotations in a grouped table with desktop and mobile views.
 
 **Key Features**:
@@ -95,6 +126,8 @@ Some records contain a mix of SKUs (e.g. `PLL-12W-WW-028,SPF-DSI-26-0228-001-OPT
 - **Grouped Display**: Quotations are grouped by Activity Reference Number and Account Reference Number
 - **Quotation Dropdown**: When multiple quotations share the same activity/account refs, a dropdown allows selection between quotation numbers
 - **View History Button**: A "View History" button below each Activity Ref # opens a dialog showing all history records for that activity, including quotations, sales orders, deliveries, and other activity types
+- **SO Status Filter**: A dropdown filter to show all quotations or only those with SO status "Convert to SI". When "Convert to SI" is selected, the page fetches activity reference numbers that have this status in their history and filters the displayed quotations accordingly.
+- **Download Button**: A download button that exports the currently filtered quotations to a CSV file, applying the same search and date filters that are active on the page.
 - Displays key information:
   - Activity Reference Number (grouping key)
   - Account Reference Number (grouping key)
@@ -163,7 +196,11 @@ When clicking "View History" on an activity reference number, a dialog opens sho
 - Company name (displayed in the dialog header)
 
 **Filter Feature**:
-The dialog includes a checkbox filter "Show only 'Convert to SI' records" that filters the displayed history to show only records where `so_status` equals "Convert to SI". This is useful for tracking which activities have sales orders that need to be converted to sales invoices.
+The page includes an SO Status filter dropdown with two options:
+- "All SO Status" (default): Shows all SPF-DSI quotations
+- "Convert to SI": Filters to show only quotations from activities that have at least one history record with `so_status` equal to "Convert to SI"
+
+This filter is useful for tracking which activities have sales orders that need to be converted to sales invoices. When "Convert to SI" is selected, the system fetches all activity reference numbers that have this status in their history and filters the quotation list accordingly.
 
 ## Database Schema
 
@@ -231,9 +268,8 @@ console.log(data.total);      // Total number of records
 ## Future Enhancements
 
 Potential improvements for future iterations:
-- Add search/filter functionality
 - Add sorting by column
-- Add export to Excel feature
+- Add export to Excel feature (CSV export is now available)
 - Add detailed view modal for each quotation
 - Add real-time updates via Supabase subscriptions
 - Add bulk actions (e.g., bulk status update)
