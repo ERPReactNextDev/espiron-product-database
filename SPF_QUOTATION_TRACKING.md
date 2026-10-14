@@ -1,9 +1,11 @@
 # SPF Quotation Tracking Feature
 
 ## Overview
-This feature displays quotation records from the `history` table that include SPF-DSI products (where `product_sku` contains "SPF-DSI-") and have `type_activity` set to "Quotation Preparation". The data is displayed in a paginated table on the SPF Quotation Tracking page.
+This feature displays quotation records from the `history` table that include SPF-DSI products (where `product_sku` contains "SPF-DSI-") and have `type_activity` set to "Quotation Preparation". The data is displayed in a grouped table on the SPF Quotation Tracking page, where records are grouped by Activity Reference Number and Account Reference Number.
 
 Some records contain a mix of SKUs (e.g. `PLL-12W-WW-028,SPF-DSI-26-0228-001-OPT-1,`). These records are still included, but the UI only shows the SPF-DSI SKUs and hides all other codes.
+
+**Grouping Logic**: Quotations are grouped by the combination of `activity_reference_number` and `account_reference_number`. If multiple quotations share the same activity and account reference numbers, they are displayed in a single row with a dropdown to select between the different quotation numbers.
 
 ## Files Created/Modified
 
@@ -48,23 +50,60 @@ Some records contain a mix of SKUs (e.g. `PLL-12W-WW-028,SPF-DSI-26-0228-001-OPT
 }
 ```
 
-### 2. Page Component: `/app/spf-quotation-tracking/page.tsx`
-**Purpose**: Displays SPF-DSI quotations in a paginated table with desktop and mobile views.
+### 2. API Route: `/app/api/activity-history/route.ts`
+**Purpose**: Fetches all history records for a specific activity reference number.
 
 **Key Features**:
-- Desktop table view
+- Filters records by `activity_reference_number`
+- Returns all history records ordered by `date_updated` (descending)
+- Used by the "View History" dialog to show complete activity timeline
+
+**Query Parameters**:
+- `activityRef`: The activity reference number to fetch history for (required)
+
+**Response Format**:
+```json
+{
+  "history": [
+    {
+      "id": "112608",
+      "activity_reference_number": "OF-NCR-5891410783",
+      "type_activity": "Delivered / Closed Transaction",
+      "quotation_number": null,
+      "status": "Delivered",
+      "so_status": "Convert to SI",
+      "date_updated": "2026-09-08",
+      "company_name": "OUR LADY OF FATIMA",
+      ...
+    }
+  ],
+  "total": 5
+}
+```
+
+### 3. Page Component: `/app/spf-quotation-tracking/page.tsx`
+**Purpose**: Displays SPF-DSI quotations in a grouped table with desktop and mobile views.
+
+**Key Features**:
+- Desktop table view with grouped rows
 - Mobile card view for responsive design
-- Pagination controls (Previous/Next buttons)
+- Infinite scroll pagination
 - Refresh button to reload data
 - Loading and error states
 - SPF-DSI-only SKU display (non SPF-DSI codes are hidden)
 - Excludes quotations from users in the IT department
+- **Grouped Display**: Quotations are grouped by Activity Reference Number and Account Reference Number
+- **Quotation Dropdown**: When multiple quotations share the same activity/account refs, a dropdown allows selection between quotation numbers
+- **View History Button**: A "View History" button below each Activity Ref # opens a dialog showing all history records for that activity, including quotations, sales orders, deliveries, and other activity types
 - Displays key information:
-  - Quotation Number
+  - Activity Reference Number (grouping key)
+  - Account Reference Number (grouping key)
   - Sales Agent (resolved from `referenceid` using `users` table)
+  - Quotation Number (dropdown when multiple, single value when one)
   - Product SKU (SPF-DSI only with quantity and unit price in parentheses)
   - Quotation Amount (SPF) (total quotation amount)
   - Status
+  - SO Status
   - Date Created
   - Date Updated
 
@@ -95,21 +134,36 @@ A helper function calculates the total value for SPF-DSI items by multiplying qu
 || `SPF-DSI-26-0454-001-A,ITL18DL01,TBL18DL01` | `1,5,10` | `1500,2000,2500` | `₱1,500.00` (1×1500 only SPF-DSI item) |
 
 **Pagination**:
-- Default page size: 20 records per page
-- Shows current page and total pages
-- Previous/Next navigation buttons
-- Mobile pagination bar fixed at bottom
+- Default page size: 30 records per page
+- Infinite scroll with "load more" functionality
+- KPI dashboard calculated from latest 1000 records
+- Shows total count of quotation groups and individual quotations
 
 **Data Fields Displayed**:
-- `quotation_number`: Unique quotation identifier
+- `activity_reference_number`: Activity reference number (grouping key, with View History button)
+- `account_reference_number`: Account reference number (grouping key)
 - `sales_agent`: Sales agent name (resolved from `referenceid` by joining with `users` table)
+- `quotation_number`: Unique quotation identifier (dropdown when multiple per group)
 - `product_sku`: SPF-DSI product SKU (filtered for display with quantity and unit price)
 - `product_quantity`: Comma-separated quantities for each product
 - `product_amount`: Comma-separated unit prices for each product
-- `total`: Calculated total for SPF-DSI items (quantity × unit price, summed)
+- `quotation_amount`: Total quotation amount
 - `status`: Current quotation status
+- `so_status`: Sales order status
 - `date_created`: Creation date (Asia/Manila timezone)
 - `date_updated`: Last update date (Asia/Manila timezone)
+
+**View History Dialog**:
+When clicking "View History" on an activity reference number, a dialog opens showing all history records for that activity, including:
+- Activity type (e.g., "Quotation Preparation", "Sales Order Preparation", "Delivered / Closed Transaction")
+- Status
+- Quotation number (if applicable)
+- SO status (displayed in bold, uppercase, green)
+- Date updated
+- Company name (displayed in the dialog header)
+
+**Filter Feature**:
+The dialog includes a checkbox filter "Show only 'Convert to SI' records" that filters the displayed history to show only records where `so_status` equals "Convert to SI". This is useful for tracking which activities have sales orders that need to be converted to sales invoices.
 
 ## Database Schema
 
@@ -162,7 +216,6 @@ console.log(data.total);      // Total number of records
 - Records with mixed SKUs are kept in the results; only the SPF-DSI SKUs are shown in the UI
 - SPF-DSI SKUs are displayed with their corresponding quantities and unit prices in parentheses (e.g., "SPF-DSI-26-0468-001 (Qty: 5) (P 24,000.00)")
 - Quantities and unit prices are extracted from the `product_quantity` and `product_amount` fields and matched by index to the SKU position in `product_sku`
-- The Total column calculates the sum of (quantity × unit price) for all SPF-DSI items in a quotation
 - Sales agent names are resolved by joining with the `users` table using the `referenceid` field
 - **IT department exclusion**: Quotations from users where `Department = 'IT'` are excluded from the results
 - **Special case exclusions**: Specific ReferenceIDs may be excluded from the results (e.g., AE-NCR-555756, JC-NCR-245823)
@@ -172,6 +225,8 @@ console.log(data.total);      // Total number of records
 - Monetary values are formatted as Philippine Peso (₱) with 2 decimal places
 - The feature uses the existing Supabase client configuration from `@/utils/supabase`
 - **Clickable SKU navigation**: Clicking on a Product SKU (e.g., `SPF-DSI-26-0438-002`) redirects to the Requests page and automatically searches for the base SKU (first 4 parts: `SPF-DSI-26-0438`)
+- **Grouping behavior**: Quotations are grouped on the client side by `activity_reference_number` and `account_reference_number`. When multiple quotations share the same combination, they appear in a single row with a dropdown to select the quotation number. The first quotation's details (SKU, amount, status, dates) are displayed by default.
+- **View History feature**: Clicking "View History" on an activity reference number fetches all history records for that activity from the `history` table and displays them in a dialog. This provides a complete timeline of the activity, including all quotations, sales orders, deliveries, and other interactions.
 
 ## Future Enhancements
 

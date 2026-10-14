@@ -56,7 +56,10 @@ export async function GET(req: NextRequest) {
     if (search) {
       const conditions = [
         `quotation_number.ilike.%${search}%`,
+        `activity_reference_number.ilike.%${search}%`,
+        `account_reference_number.ilike.%${search}%`,
         `product_sku.ilike.%${search}%`,
+        `so_status.ilike.%${search}%`,
       ];
 
       // Sales agent name lives in the users table, so resolve matching
