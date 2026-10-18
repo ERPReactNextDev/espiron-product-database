@@ -199,8 +199,8 @@ const SkuList = ({ lines }: { lines: SkuLine[] }) => {
   if (lines.length === 0) return <span className="text-gray-400">-</span>;
 
   return (
-    <div className="md:min-w-[340px]">
-      <ul className="divide-y divide-gray-200">
+  <div className={open ? "md:min-w-[260px]" : "md:min-w-[200px]"}>
+    <ul className="divide-y divide-gray-200">
         {lines.map((line) => (
           <li
             key={line.sku}
@@ -221,11 +221,6 @@ const SkuList = ({ lines }: { lines: SkuLine[] }) => {
                     Qty {line.qty}
                   </span>
                 )}
-                {line.price && (
-                  <span className="text-xs font-medium text-gray-700 tabular-nums whitespace-nowrap">
-                    {line.price}
-                  </span>
-                )}
               </span>
             )}
           </li>
@@ -238,7 +233,7 @@ const SkuList = ({ lines }: { lines: SkuLine[] }) => {
         className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 hover:text-gray-800"
       >
         <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
-        {open ? "Hide qty & price" : "Show qty & price"}
+        {open ? "Hide qty" : "Show qty"}
       </button>
     </div>
   );
@@ -908,9 +903,9 @@ export default function SPFQuotationTracking() {
             <table className="w-full text-sm border-collapse">
               <thead className="bg-blue-50/95 backdrop-blur-sm sticky top-0 z-30">
                 <tr>
-                  {["Activity Ref #", "Account Ref #", "Sales Agent", "Quotation #", "Product SKU", "Quotation Amount (SPF)", "Status", "SO Status", "Date Created", "Date Updated"].map(
+                  {["Activity Ref #", "Account Ref #", "Sales Agent", "Quotation #", "Product SKU", "Status", "Date Created", "Date Updated"].map(
                     (h) => (
-                      <th key={h} className="px-4 py-3 text-left font-bold border-b whitespace-nowrap">
+                      <th key={h} className={`px-4 py-3 text-left font-bold border-b whitespace-nowrap ${(h === "Status" || h === "SO Status") ? "px-2" : ""}`}>
                         {h}
                       </th>
                     )
@@ -920,19 +915,19 @@ export default function SPFQuotationTracking() {
               <tbody>
                 {showLoading ? (
                   <tr>
-                    <td colSpan={10} className="text-center py-10 text-muted-foreground">
+                    <td colSpan={8} className="text-center py-10 text-muted-foreground">
                       Loading...
                     </td>
                   </tr>
                 ) : error && displayGroups.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="text-center py-10 text-red-500">
+                    <td colSpan={8} className="text-center py-10 text-red-500">
                       {error}
                     </td>
                   </tr>
                 ) : displayGroups.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="text-center py-10 text-muted-foreground">
+                    <td colSpan={8} className="text-center py-10 text-muted-foreground">
                       {emptyMessage}
                     </td>
                   </tr>
@@ -965,16 +960,11 @@ export default function SPFQuotationTracking() {
                             lines={getSpfDsiSkuLines(firstQuotation.product_sku, firstQuotation.product_amount, firstQuotation.product_quantity)}
                           />
                         </td>
-                        <td className="px-4 py-3 font-medium">{formatPeso(firstQuotation.quotation_amount) || "-"}</td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs px-2 py-1 rounded uppercase font-semibold whitespace-nowrap bg-purple-100 text-purple-700">
+                        <td className="px-2 py-3">
+                          <span className="text-xs px-1.5 py-1 rounded uppercase font-semibold whitespace-nowrap bg-purple-100 text-purple-700">
                             {firstQuotation.status || "-"}
                           </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs px-2 py-1 rounded uppercase font-semibold whitespace-nowrap bg-blue-100 text-blue-700">
-                            {firstQuotation.so_status || "-"}
-                          </span>
+
                         </td>
                         <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
                           {formatDate(firstQuotation.date_created)}
@@ -1024,9 +1014,6 @@ export default function SPFQuotationTracking() {
                         <span className="text-xs px-2 py-1 rounded uppercase font-semibold whitespace-nowrap bg-purple-100 text-purple-700">
                           {firstQuotation.status || "-"}
                         </span>
-                        <span className="text-xs px-2 py-1 rounded uppercase font-semibold whitespace-nowrap bg-blue-100 text-blue-700">
-                          {firstQuotation.so_status || "-"}
-                        </span>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 gap-2 text-xs">
@@ -1043,10 +1030,6 @@ export default function SPFQuotationTracking() {
                             lines={getSpfDsiSkuLines(firstQuotation.product_sku, firstQuotation.product_amount, firstQuotation.product_quantity)}
                           />
                         </div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Quotation Amount (SPF):</span>
-                        <div className="font-bold">{formatPeso(firstQuotation.quotation_amount) || "-"}</div>
                       </div>
                       <div className="text-gray-400 text-xs">
                         Created {formatDate(firstQuotation.date_created)}
