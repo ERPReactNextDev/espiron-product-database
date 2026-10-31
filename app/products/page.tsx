@@ -180,6 +180,7 @@ setLoading(false);
       p.productName?.toLowerCase().includes(lower) ||
       p.supplier?.supplierBrand?.toLowerCase().includes(lower) ||
       p.commercialDetails?.supplierModelCode?.toLowerCase().includes(lower) ||
+      p.mainImage?.url?.toLowerCase().includes(lower) ||
       p.categoryTypes?.[0]?.categoryTypeName?.toLowerCase().includes(lower) ||
       p.productTypes?.[0]?.productTypeName?.toLowerCase().includes(lower)
     );

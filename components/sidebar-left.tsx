@@ -36,7 +36,6 @@ import {
   BarChart3,
   Mail,
   FileText,
-  ShieldCheck,
 } from "lucide-react";
 
 import { useUser } from "@/contexts/UserContext";
@@ -75,12 +74,11 @@ const NAV_ITEMS: Array<{
   { href: "/notes", icon: StickyNote, label: "Notes", accessKey: "page:notes" },
  { href: "/for-approval", icon: ClipboardCheck, label: "Approval", badgeKey: "forApproval", onlyForEngineeringManagerOrIT: true },
   { href: "/roles", icon: User, label: "Roles", accessKey: "page:roles", onlyForEngineeringManagerOrIT: true },
-  { href: "/admin/permissions", icon: ShieldCheck, label: "Admin Permissions", onlyForEngineeringManagerOrIT: true },
   { href: "/api-management", icon: Key, label: "API Keys", onlyForIT: true },
   { href: "/settings", icon: Settings, label: "Settings" },
 ];
 
-const BOTTOM_NAV_HREFS = new Set(["/for-approval", "/roles", "/admin/permissions", "/api-management", "/settings"]);
+const BOTTOM_NAV_HREFS = new Set(["/for-approval", "/roles", "/api-management", "/settings"]);
 
 export function SidebarLeft({ 
   isNavVisible: externalIsNavVisible = true, 
