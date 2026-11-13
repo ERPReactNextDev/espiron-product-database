@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { collection, query, orderBy, onSnapshot, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { showBrowserNotification, vibrateDevice, playNotificationSound } from "@/lib/browser-notifications";
+import { useNotificationSettings } from "@/hooks/use-notification-settings";
 import { useUser } from "@/contexts/UserContext";
-import type { NotificationPayload } from "@/types/notifications";
+import type { NotificationPayload, NotificationType } from "@/types/notifications";
 
 interface GlobalNotification extends NotificationPayload {
   id: string;
@@ -41,8 +43,14 @@ function persistSeenNotificationIds(ids: Set<string>): void {
 
 export function useGlobalNotifications() {
   const [notifications, setNotifications] = useState<GlobalNotification[]>([]);
+  const { settings } = useNotificationSettings();
   const { userId, loading } = useUser();
+  const settingsRef = useRef(settings);
   const seenNotificationIdsRef = useRef<Set<string> | null>(null);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   useEffect(() => {
     if (loading || !userId) return;
@@ -100,6 +108,30 @@ export function useGlobalNotifications() {
             ...addedNotifications.filter((notification) => !existingIds.has(notification.id)),
             ...previous,
           ].slice(0, 100);
+        });
+
+        const currentSettings = settingsRef.current;
+        addedNotifications.forEach((notification) => {
+          if (!notification.isActive || !notification.broadcastToAll || !currentSettings.enabled) return;
+
+          const isEnabled =
+            notification.type.startsWith("product_")
+              ? currentSettings.productNotifications
+              : notification.type.startsWith("supplier_")
+                ? currentSettings.supplierNotifications
+                : notification.type.startsWith("spf_")
+                  ? currentSettings.spfNotifications
+                  : true;
+
+          if (!isEnabled) return;
+
+          showBrowserNotification({
+            ...notification,
+            type: notification.type as NotificationType,
+          });
+
+          if (currentSettings.vibrationEnabled) vibrateDevice();
+          if (currentSettings.soundEnabled) playNotificationSound();
         });
       },
       (error) => {

@@ -1,130 +1,107 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { getToken, onMessage } from "firebase/messaging";
-import { messaging } from "@/lib/firebase";
+import { db, messaging } from "@/lib/firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useUser } from "@/contexts/UserContext";
-import { vibrateDevice } from "@/lib/browser-notifications";
-import type { NotificationSettings } from "@/types/notifications";
-
-const DEFAULT_SETTINGS: NotificationSettings = {
-  enabled: true,
-  productNotifications: true,
-  supplierNotifications: true,
-  spfNotifications: true,
-  soundEnabled: true,
-  vibrationEnabled: true,
-  autoClose: true,
-  autoCloseDuration: 5000,
-};
 
 export function FCMTokenManager() {
+  const [token, setToken] = useState<string | null>(null);
   const { userId, loading } = useUser();
-  const [deviceSettings, setDeviceSettings] = useState(DEFAULT_SETTINGS);
-  const [deviceSettingsLoaded, setDeviceSettingsLoaded] = useState(false);
 
-  const refreshDeviceSettings = useCallback(() => {
-    try {
-      const saved = localStorage.getItem("notificationSettings");
-      setDeviceSettings(saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS);
-    } catch (error) {
-      console.error("Failed to load notification settings for push:", error);
-    } finally {
-      setDeviceSettingsLoaded(true);
+  useEffect(() => {
+    // Only register FCM token if user is logged in and loading is complete
+    if (loading) {
+      console.log("⏳ Loading user context, waiting...");
+      return;
     }
-  }, []);
 
-  useEffect(() => {
-    refreshDeviceSettings();
-    window.addEventListener("notification-settings-updated", refreshDeviceSettings);
-    window.addEventListener("storage", refreshDeviceSettings);
-
-    return () => {
-      window.removeEventListener("notification-settings-updated", refreshDeviceSettings);
-      window.removeEventListener("storage", refreshDeviceSettings);
-    };
-  }, [refreshDeviceSettings]);
-
-  useEffect(() => {
-    if (loading || !deviceSettingsLoaded || !userId) return;
+    if (!userId) {
+      console.log("🔒 User not logged in, skipping FCM token registration");
+      return;
+    }
 
     const registerFCMToken = async () => {
       try {
-        if (!messaging || !("serviceWorker" in navigator) || !("Notification" in window)) return;
+        if (!messaging) return;
+        if (!("serviceWorker" in navigator)) return;
 
-        let permission = Notification.permission;
-        if (permission === "default" && deviceSettings.enabled) {
-          permission = await Notification.requestPermission();
+        // Request notification permission first
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          console.log("❌ Notification permission denied");
+          return;
         }
-        if (permission !== "granted") return;
 
+        // Get FCM token
         const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_PUBLIC_KEY;
+        
         if (!vapidKey) {
-          throw new Error("VAPID key is missing");
+          console.error("❌ VAPID key is missing");
+          return;
         }
 
         const registration = await navigator.serviceWorker.ready;
-        const token = await getToken(messaging, {
-          vapidKey,
+        const currentToken = await getToken(messaging, {
+          vapidKey: vapidKey as string,
           serviceWorkerRegistration: registration,
         });
-        if (!token) {
-          throw new Error("Firebase did not return an FCM registration token");
-        }
 
-        const response = await fetch("/api/notifications/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            token,
-            deviceInfo: {
-              userAgent: navigator.userAgent,
-              platform: navigator.platform,
-            },
-            notificationSettings: deviceSettings,
-          }),
-        });
+        if (currentToken) {
+          console.log("🔥 FCM Token registered:", currentToken);
+          setToken(currentToken);
 
-        if (!response.ok) {
-          throw new Error(`Token registration failed (${response.status}): ${await response.text()}`);
+          // Store token in Firestore
+          await addDoc(collection(db, "fcm_tokens"), {
+            token: currentToken,
+            userId: userId, // Use actual user ID instead of "global"
+            createdAt: serverTimestamp(),
+            isActive: true
+          });
+
+          console.log("✅ FCM Token stored in Firestore");
+        } else {
+          console.log("❌ No FCM token received");
         }
       } catch (error) {
-        console.error("FCM registration error:", error);
+        console.error("❌ FCM registration error:", error);
       }
     };
 
-    void registerFCMToken();
-  }, [deviceSettings, deviceSettingsLoaded, loading, userId]);
+    registerFCMToken();
 
-  useEffect(() => {
-    if (!messaging || !userId) return;
+    // Listen for foreground messages
+    if (!messaging) return;
 
     const unsubscribe = onMessage(messaging, (payload) => {
-      const type = payload.data?.type || "";
-      const categoryEnabled = type.startsWith("product_")
-        ? deviceSettings.productNotifications
-        : type.startsWith("supplier_")
-          ? deviceSettings.supplierNotifications
-          : type.startsWith("spf_")
-            ? deviceSettings.spfNotifications
-            : true;
+      console.log("📨 Foreground FCM message:", payload);
+      
+      // Show notification for foreground messages only if user is logged in
+      if (payload.notification?.title && userId) {
+        const notificationTag =
+          typeof payload.data?.tag === "string"
+            ? payload.data.tag
+            : `espiron-${payload.data?.type || payload.notification.title}`;
 
-      if (!deviceSettings.enabled || !categoryEnabled || !payload.notification?.title) return;
-
-      new Notification(payload.notification.title, {
-        body: payload.notification.body || "",
-        icon: payload.notification.icon || "/favicon.ico",
-        badge: "/favicon.ico",
-        tag: payload.data?.tag || type || payload.notification.title,
-        requireInteraction: payload.data?.requireInteraction === "true",
-        data: payload.data || {},
-      });
-
-      if (deviceSettings.vibrationEnabled) vibrateDevice();
+        new Notification(payload.notification.title, {
+          body: payload.notification.body || "",
+          icon: payload.notification.icon || "/favicon.ico",
+          badge: "/favicon.ico",
+          tag: notificationTag,
+          requireInteraction: false,
+          data: payload.data || {},
+          silent: false
+        });
+      }
     });
 
     return () => unsubscribe();
-  }, [deviceSettings, userId]);
+  }, [userId, loading]);
 
-  return null;
+  return (
+    <div className="hidden">
+      {token && <div>FCM Token: {token.substring(0, 20)}...</div>}
+    </div>
+  );
 }
