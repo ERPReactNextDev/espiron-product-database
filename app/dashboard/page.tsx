@@ -116,7 +116,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── MOBILE HEADER ── */}
-      <div className={`md:hidden shrink-0 bg-white px-4 pt-5 pb-3 ${
+      <div className={`md:hidden shrink-0 bg-white px-4 pt-14 pb-3 ${
         isComic ? "border-b-4 border-gray-800" : isEngineer ? "border-b-4 border-gray-800" : "border-b border-gray-200"
       }`}>
         <div className="flex items-center justify-between">

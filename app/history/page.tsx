@@ -1277,7 +1277,7 @@ export default function HistoryPage() {
 
       {/* ── MOBILE HEADER ── */}
 
-      <div className="md:hidden shrink-0 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 pt-5 pb-3">
+      <div className="md:hidden shrink-0 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 pt-14 pb-3">
 
         <div className="flex items-center justify-between mb-1">
 

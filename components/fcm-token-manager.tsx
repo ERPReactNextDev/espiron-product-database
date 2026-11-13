@@ -74,19 +74,21 @@ export function FCMTokenManager() {
     // Listen for foreground messages
     if (!messaging) return;
 
-    const unsubscribe = onMessage(messaging, (payload: any) => {
+    const unsubscribe = onMessage(messaging, (payload) => {
       console.log("📨 Foreground FCM message:", payload);
       
       // Show notification for foreground messages only if user is logged in
       if (payload.notification?.title && userId) {
-        // Use a unique tag for foreground notifications to avoid conflicts
-        const uniqueTag = `foreground-${payload.data?.tag || Date.now()}`;
-        
+        const notificationTag =
+          typeof payload.data?.tag === "string"
+            ? payload.data.tag
+            : `espiron-${payload.data?.type || payload.notification.title}`;
+
         new Notification(payload.notification.title, {
           body: payload.notification.body || "",
           icon: payload.notification.icon || "/favicon.ico",
           badge: "/favicon.ico",
-          tag: uniqueTag,
+          tag: notificationTag,
           requireInteraction: false,
           data: payload.data || {},
           silent: false

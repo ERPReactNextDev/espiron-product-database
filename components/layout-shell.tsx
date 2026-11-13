@@ -85,21 +85,6 @@ export default function LayoutShell({
   const { wallpaper, opacity } = useWallpaper();
   const pathname = usePathname();
   const { state, isMobile } = useSidebar();
-  const [isNavVisible, setIsNavVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
-
-// Handle scroll behavior for mobile navigation (LinkedIn-style hide/show)
-  // NOTE: Disabled - sidebar now stays always visible per user request
-  // NOTE: pages scroll inside their own nested `overflow-y-auto` div, not
-  // `window`. Native `scroll` events don't bubble, but capture-phase
-  // listeners on `window` still catch them on the way down, so we attach
-  // with `capture: true` and read scrollTop off e.target.
-  useEffect(() => {
-    if (!isMobile) return;
-
-    // Always keep navigation visible - no scroll-based hiding
-    setIsNavVisible(true);
-  }, [isMobile]);
 
   const isLogin = pathname === "/login";
 
@@ -145,16 +130,9 @@ export default function LayoutShell({
         onOpenChange={setShowNotificationDialog}
       />
       <div className="relative flex min-h-svh w-full">
-        {/* SidebarLeft handles both desktop (left sidebar) and mobile (bottom nav) */}
-        {userId && !isLogin && <SidebarLeft isNavVisible={isNavVisible} setIsNavVisible={setIsNavVisible} />}
+        {userId && !isLogin && <SidebarLeft />}
 
-        <main className={`relative flex-1 overflow-y-auto transition-all duration-300 ${
-        isMobile 
-          ? isNavVisible 
-            ? 'pb-[calc(62px+env(safe-area-inset-bottom))]' 
-            : 'pb-[env(safe-area-inset-bottom)]'
-          : 'md:pb-0'
-      }`}>
+        <main className="relative flex-1 overflow-y-auto transition-all duration-300">
           {/* Wallpaper layer — sits behind content, opacity-controlled */}
           {wallpaper && (
             <div

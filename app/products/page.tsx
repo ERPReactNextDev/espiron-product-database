@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useUser } from "@/contexts/UserContext";
-import { useNotificationTriggers } from "@/hooks/use-notification-triggers";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useWallpaper } from "@/contexts/WallpaperContext";
 import { AccessGuard } from "@/components/AccessGuard";
@@ -50,11 +49,7 @@ export default function ProductsPage() {
   const { theme } = useTheme();
   const { wallpaper } = useWallpaper();
   const isEngineer = theme === "engineer";
-  const { onProductAdded, onProductUpdated } = useNotificationTriggers();
-
   const [products, setProducts] = useState<any[]>([]);
-  const productsRef = useRef<any[]>([]);
-const initialLoadDoneRef = useRef(false);
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -129,45 +124,8 @@ const sortedList = list.sort((a: any, b: any) => {
   return dateB - dateA;
 });
 
-if (initialLoadDoneRef.current) {
-  const previousProducts = productsRef.current;
-  const previousIds = new Set(previousProducts.map(p => p.id));
-
-  const addedProducts = sortedList.filter(p => !previousIds.has(p.id));
-  const updatedProducts = sortedList.filter(p => {
-    if (!previousIds.has(p.id)) return false;
-    const previous = previousProducts.find(prev => prev.id === p.id);
-    if (!previous) return false;
-    return JSON.stringify(previous) !== JSON.stringify(p);
-  });
-
-  if (addedProducts.length > 0 && userId) {
-    addedProducts.forEach(product => {
-      onProductAdded({
-        userId,
-        productName: product.productName,
-        productId: product.id,
-        url: "/products",
-      });
-    });
-  }
-
-  if (updatedProducts.length > 0 && userId) {
-    updatedProducts.forEach(product => {
-      onProductUpdated({
-        userId,
-        productName: product.productName,
-        productId: product.id,
-        url: "/products",
-      });
-    });
-  }
-}
-
 setProducts(sortedList);
 setFilteredProducts(sortedList);
-productsRef.current = sortedList;
-initialLoadDoneRef.current = true;
 setLoading(false);
     });
     return () => unsub();
@@ -354,7 +312,7 @@ setLoading(false);
       </div>
 
       {/* ── MOBILE HEADER ── */}
-      <div className="md:hidden shrink-0 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 pt-5 pb-3">
+      <div className="md:hidden shrink-0 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 pt-14 pb-3">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-lg font-bold text-gray-900">Products</h1>
           <div className="flex items-center gap-2">

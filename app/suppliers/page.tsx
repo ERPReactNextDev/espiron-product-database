@@ -329,7 +329,7 @@ export default function Suppliers() {
       </div>
 
       {/* ── MOBILE HEADER — bg-white → bg-white/80 + backdrop-blur-md ── */}
-      <div className="md:hidden shrink-0 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 pt-5 pb-3">
+      <div className="md:hidden shrink-0 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 pt-14 pb-3">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-lg font-bold text-gray-900">Suppliers</h1>
 <div className="flex items-center gap-2">

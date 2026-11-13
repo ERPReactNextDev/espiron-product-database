@@ -1,5 +1,4 @@
 import { NotificationPayload, NotificationType, NotificationTriggerData } from "@/types/notifications";
-import { showBrowserNotification, vibrateDevice, playNotificationSound } from "./browser-notifications";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -10,7 +9,7 @@ export function createProductAddedNotification(data: NotificationTriggerData): N
     body: `${data.productName} has been added to the database`,
     icon: "/images/disruptive-logo.png",
     badge: "/favicon.ico",
-    tag: `product-${data.productId}`,
+    tag: "espiron-product-added",
     requireInteraction: false,
     data: {
       productId: data.productId,
@@ -34,7 +33,7 @@ export function createProductUpdatedNotification(data: NotificationTriggerData):
     body: `${data.productName} has been updated`,
     icon: "/images/disruptive-logo.png",
     badge: "/favicon.ico",
-    tag: `product-${data.productId}`,
+    tag: "espiron-product-updated",
     requireInteraction: false,
     data: {
       productId: data.productId,
@@ -58,7 +57,7 @@ export function createSupplierAddedNotification(data: NotificationTriggerData): 
     body: `${data.supplierName} has been registered`,
     icon: "/images/disruptive-logo.png",
     badge: "/favicon.ico",
-    tag: `supplier-${data.supplierId}`,
+    tag: "espiron-supplier-added",
     requireInteraction: false,
     data: {
       supplierId: data.supplierId,
@@ -82,7 +81,7 @@ export function createSupplierUpdatedNotification(data: NotificationTriggerData)
     body: `${data.supplierName} details have been updated`,
     icon: "/images/disruptive-logo.png",
     badge: "/favicon.ico",
-    tag: `supplier-${data.supplierId}`,
+    tag: "espiron-supplier-updated",
     requireInteraction: false,
     data: {
       supplierId: data.supplierId,
@@ -106,7 +105,7 @@ export function createSPFCreatedNotification(data: NotificationTriggerData): Not
     body: `SPF ${data.spfNumber} has been submitted`,
     icon: "/images/disruptive-logo.png",
     badge: "/favicon.ico",
-    tag: `spf-${data.spfId}`,
+    tag: "espiron-spf-created",
     requireInteraction: false,
     data: {
       spfId: data.spfId,
@@ -130,7 +129,7 @@ export function createSPFUpdatedNotification(data: NotificationTriggerData): Not
     body: `SPF ${data.spfNumber} has been modified`,
     icon: "/images/disruptive-logo.png",
     badge: "/favicon.ico",
-    tag: `spf-${data.spfId}`,
+    tag: "espiron-spf-updated",
     requireInteraction: false,
     data: {
       spfId: data.spfId,
@@ -154,7 +153,7 @@ export function createSPFApprovedNotification(data: NotificationTriggerData): No
     body: `SPF ${data.spfNumber} has been approved`,
     icon: "/images/disruptive-logo.png",
     badge: "/favicon.ico",
-    tag: `spf-${data.spfId}`,
+    tag: "espiron-spf-approved",
     requireInteraction: true,
     data: {
       spfId: data.spfId,
@@ -178,7 +177,7 @@ export function createSPFRejectedNotification(data: NotificationTriggerData): No
     body: `SPF ${data.spfNumber} has been rejected${data.reason ? `: ${data.reason}` : ""}`,
     icon: "/images/disruptive-logo.png",
     badge: "/favicon.ico",
-    tag: `spf-${data.spfId}`,
+    tag: "espiron-spf-rejected",
     requireInteraction: true,
     data: {
       spfId: data.spfId,
@@ -230,11 +229,7 @@ async function storeNotificationInFirebase(
 
 export async function triggerNotification(
   type: NotificationType,
-  data: NotificationTriggerData,
-  settings: {
-    soundEnabled: boolean;
-    vibrationEnabled: boolean;
-  } = { soundEnabled: true, vibrationEnabled: true }
+  data: NotificationTriggerData
 ): Promise<void> {
   let payload: NotificationPayload;
 
@@ -269,15 +264,4 @@ export async function triggerNotification(
 
   // Store in Firebase for global broadcasting
   await storeNotificationInFirebase(type, payload, data);
-
-  // Show local notification
-  showBrowserNotification(payload);
-
-  if (settings.vibrationEnabled) {
-    vibrateDevice();
-  }
-
-  if (settings.soundEnabled) {
-    playNotificationSound();
-  }
 }

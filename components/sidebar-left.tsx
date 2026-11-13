@@ -28,8 +28,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   User,
-  ChevronLeft,
-  ChevronRight,
+  PanelLeft,
   Key,
   Settings,
   StickyNote,
@@ -44,6 +43,14 @@ import { useRoleAccess, type AccessKey } from "@/contexts/RoleAccessContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { NavUser } from "@/components/nav-user";
 import { db } from "@/lib/firebase";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 
 type UserDetails = {
   Firstname: string;
@@ -53,6 +60,8 @@ type UserDetails = {
   profilePicture: string;
   Department: string;
 };
+
+type ThemeName = "comic" | "engineer" | "formal";
 
 const NAV_ITEMS: Array<{
   href: string;
@@ -72,7 +81,7 @@ const NAV_ITEMS: Array<{
   { href: "/requests", icon: ClipboardList, label: "Requests", badgeKey: "requests", accessKey: "page:requests" },
   { href: "/history", icon: History, label: "History", accessKey: "page:history" },
   { href: "/notes", icon: StickyNote, label: "Notes", accessKey: "page:notes" },
- { href: "/for-approval", icon: ClipboardCheck, label: "Approval", badgeKey: "forApproval", onlyForEngineeringManagerOrIT: true },
+  { href: "/for-approval", icon: ClipboardCheck, label: "Approval", badgeKey: "forApproval", onlyForEngineeringManagerOrIT: true },
   { href: "/roles", icon: User, label: "Roles", accessKey: "page:roles", onlyForEngineeringManagerOrIT: true },
   { href: "/api-management", icon: Key, label: "API Keys", onlyForIT: true },
   { href: "/settings", icon: Settings, label: "Settings" },
@@ -80,13 +89,63 @@ const NAV_ITEMS: Array<{
 
 const BOTTOM_NAV_HREFS = new Set(["/for-approval", "/roles", "/api-management", "/settings"]);
 
-export function SidebarLeft({ 
-  isNavVisible: externalIsNavVisible = true, 
-  setIsNavVisible: externalSetIsNavVisible 
-}: { 
-  isNavVisible?: boolean; 
-  setIsNavVisible?: React.Dispatch<React.SetStateAction<boolean>>; 
-} = {}) {
+/* ─────────────────────────────────────────────
+   Reusable badge (desktop, expanded + collapsed)
+   - collapsed: tucked INSIDE the icon corner so it can never be clipped
+   - expanded : pill on the right side of the row
+───────────────────────────────────────────── */
+function NavBadge({
+  count,
+  loading = false,
+  collapsed,
+  themeName,
+}: {
+  count: number;
+  loading?: boolean;
+  collapsed: boolean;
+  themeName: ThemeName;
+}) {
+  if (count <= 0 && !loading) return null;
+
+  const colors =
+    themeName === "comic"
+      ? "bg-yellow-400 text-gray-900 border-2 border-gray-800 shadow-[2px_2px_0px_#2d3436]"
+      : themeName === "engineer"
+        ? collapsed
+          ? "bg-red-600 text-white shadow-sm"
+          : "bg-orange-500 text-white border-2 border-gray-800 shadow-[2px_2px_0px_#2c3e50]"
+        : "bg-red-600 text-white shadow-sm";
+
+  const label = count > 9 ? "9+" : count;
+
+  const spinner = (
+    <span
+      className={`${
+        collapsed ? "size-2.5" : "size-3.5"
+      } animate-spin rounded-full border-2 border-white/30 border-t-white`}
+    />
+  );
+
+  if (collapsed) {
+    return (
+      <span
+        className={`pointer-events-none absolute right-0 top-0 z-20 flex h-4 w-max min-w-4 items-center justify-center whitespace-nowrap rounded-full px-1 text-[9px] font-bold leading-none ${colors}`}
+      >
+        {loading ? spinner : label}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={`ml-auto flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-xs font-bold ${colors}`}
+    >
+      {loading ? spinner : label}
+    </span>
+  );
+}
+
+export function SidebarLeft() {
   const { state, isMobile } = useSidebar();
   const { userId } = useUser();
   const { activeNotificationCount, unreadChatCount, isLoading: isNotifLoading } = useNotifications();
@@ -97,17 +156,7 @@ export function SidebarLeft({
   const [user, setUser] = React.useState<UserDetails | null>(null);
   const [userAccess, setUserAccess] = React.useState<Record<string, boolean> | null>(null);
   const [forApprovalCount, setForApprovalCount] = React.useState(0);
-  const [navOffset, setNavOffset] = React.useState(0);
-  const [isNavVisible, setIsNavVisible] = React.useState(externalIsNavVisible);
-  const VISIBLE_COUNT = 4;
-
-  // Sync external nav visibility state — scroll detection lives in LayoutShell
-  // (it needs to watch every page's inner scroll container, not just window)
-  React.useEffect(() => {
-    if (externalSetIsNavVisible) {
-      setIsNavVisible(externalIsNavVisible);
-    }
-  }, [externalIsNavVisible, externalSetIsNavVisible]);
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!userId) return;
@@ -217,148 +266,150 @@ export function SidebarLeft({
     [filteredNavItems]
   );
 
-  /* ─────────────────────────────────────────────
-     MOBILE — bottom nav bar
-  ───────────────────────────────────────────── */
+  const getBadgeCount = (badgeKey?: "requests" | "forApproval") =>
+    badgeKey === "requests"
+      ? activeNotificationCount + unreadChatCount
+      : badgeKey === "forApproval"
+        ? forApprovalCount
+        : 0;
+
   const isComic = theme === "comic";
   const isEngineer = theme === "engineer";
+  const themeName: ThemeName = isComic ? "comic" : isEngineer ? "engineer" : "formal";
+  const collapsed = state === "collapsed";
 
+  /* ─────────────────────────────────────────────
+     MOBILE — left navigation drawer
+  ───────────────────────────────────────────── */
   if (isMobile) {
-    const visibleItems = filteredNavItems.slice(navOffset, navOffset + VISIBLE_COUNT);
-    const canPrev = navOffset > 0;
-    const canNext = navOffset + VISIBLE_COUNT < filteredNavItems.length;
-
     return (
-      <div
-        className={`fixed left-0 right-0 z-50 bg-white transition-transform duration-300 ease-in-out ${
-          isNavVisible ? "translate-y-0" : "translate-y-full"
-        } ${
-          isComic
-            ? "border-t-4 border-gray-800 shadow-[0_-4px_0px_#2d3436]"
-            : isEngineer
-            ? "border-t-4 border-gray-800 shadow-[0_-4px_0px_#2c3e50]"
-            : "border-t border-gray-200 shadow-lg"
-        }`}
-        style={{ bottom: 0, paddingBottom: "env(safe-area-inset-bottom)" }}
-      >
-        {/* Theme decoration stripe */}
-        {isComic ? (
-          <div className="h-1 bg-linear-to-r from-red-400 via-yellow-400 to-blue-400 w-full"></div>
-        ) : isEngineer ? (
-          <div className="h-1 bg-linear-to-r from-orange-500 via-yellow-400 to-orange-500 w-full"></div>
-        ) : (
-          <div className="h-1 bg-linear-to-r from-red-600 to-red-800 w-full"></div>
-        )}
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label="Open navigation menu"
+          aria-expanded={mobileMenuOpen}
+          onClick={() => setMobileMenuOpen(true)}
+          className={`fixed left-3 top-3 z-40 size-10 rounded-xl border bg-white shadow-md md:hidden ${
+            isComic
+              ? "border-2 border-gray-800 text-gray-900"
+              : isEngineer
+                ? "border-2 border-gray-800 text-gray-900"
+                : "border-gray-200 text-gray-800"
+          }`}
+        >
+          <PanelLeft className="size-5" />
+        </Button>
+        <SheetContent
+          side="left"
+          className={`flex h-[100dvh] w-[min(18rem,85vw)] flex-col gap-0 border-r p-0 ${
+            isComic
+              ? "border-gray-800 bg-white text-gray-900"
+              : isEngineer
+                ? "border-gray-800 bg-white text-gray-900"
+                : "border-gray-200 bg-white text-gray-900"
+          }`}
+        >
+          <SheetHeader className={`shrink-0 border-b px-5 pb-4 pt-[calc(1.25rem+env(safe-area-inset-top))] ${
+            isComic
+              ? "border-b-4 border-gray-800 bg-linear-to-r from-yellow-300 to-orange-300"
+              : isEngineer
+                ? "border-b-4 border-gray-800 bg-linear-to-r from-orange-500 to-yellow-400"
+                : "border-gray-100"
+          }`}>
+            <div className="flex items-center gap-3">
+              <span className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
+                isComic
+                  ? "comic-card-primary"
+                  : isEngineer
+                    ? "engineer-card-primary"
+                    : "bg-red-700 text-white"
+              }`}>
+                <Package className="size-5" />
+              </span>
+              <div className="min-w-0 text-left">
+                <SheetTitle className={`truncate text-base ${
+                  isComic ? "font-comic-title" : isEngineer ? "font-engineer-title" : "font-semibold"
+                }`}>
+                  ESPIRON
+                </SheetTitle>
+                <SheetDescription className="truncate text-xs">
+                  Product Database
+                </SheetDescription>
+              </div>
+            </div>
+          </SheetHeader>
 
-        <div className="flex items-center h-15.5 px-1">
+          <nav aria-label="Mobile navigation" className="flex-1 overflow-y-auto px-3 py-4">
+            <p className={`mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500 ${
+              isComic ? "font-comic" : isEngineer ? "font-engineer" : "font-formal"
+            }`}>
+              Menu
+            </p>
+            <SidebarMenu className="gap-1">
+              {filteredNavItems.map(({ href, icon: Icon, label, badgeKey }) => {
+                const active = pathname === href;
+                const badge = getBadgeCount(badgeKey);
 
-          {/* Left arrow */}
-          <button
-            onClick={() => setNavOffset((o) => Math.max(0, o - 1))}
-            disabled={!canPrev}
-            className={`flex items-center justify-center w-8 h-full text-gray-800 disabled:opacity-30 shrink-0 ${
-              isComic ? "font-comic font-bold text-xl" : isEngineer ? "font-engineer font-bold text-xl" : "font-formal font-medium"
-            }`}
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </button>
-
-          {/* Visible nav items */}
-          {visibleItems.map(({ href, icon: Icon, label, badgeKey }) => {
-            const active = pathname === href;
-            const badge =
-              badgeKey === "requests"
-                ? activeNotificationCount + unreadChatCount
-                : badgeKey === "forApproval"
-                  ? forApprovalCount
-                  : 0;
-
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={`flex flex-col items-center justify-center gap-1 flex-1 h-full relative ${
-                  isComic ? `font-comic ${active ? 'comic-animate-bounce' : ''}` : isEngineer ? `font-engineer ${active ? 'engineer-animate-wiggle' : ''}` : "font-formal"
-                }`}
-              >
-                {active && (
-                  <span className={`absolute top-1 left-1/2 -translate-x-1/2 h-1 w-8 rounded-full bg-linear-to-r ${
-                    isComic
-                      ? "from-red-400 to-orange-400 border-2 border-gray-800"
-                      : isEngineer
-                      ? "from-orange-500 to-yellow-400 border-2 border-gray-800"
-                      : "from-red-600 to-red-800"
-                  }`} />
-                )}
-                <span className="relative">
-                  <Icon
-                    className={`h-6 w-6 transition-all ${
-                      active
-                        ? isComic
-                          ? "text-red-500 comic-text-shadow"
+                return (
+                  <SidebarMenuItem key={href}>
+                    <SidebarMenuButton
+                      asChild
+                      data-active={active}
+                      className={`h-11 rounded-lg px-3 ${
+                        isComic
+                          ? "font-comic text-gray-700 data-[active=true]:border-2 data-[active=true]:border-gray-800 data-[active=true]:bg-yellow-100 data-[active=true]:text-red-600"
                           : isEngineer
-                          ? "text-orange-600 engineer-text-shadow"
-                          : "text-red-600"
-                        : "text-gray-600"
-                    }`}
-                    strokeWidth={active ? 2.5 : 2}
-                  />
-                  {(badge > 0 || (badgeKey === "requests" && isNotifLoading)) && (
-                    <span className={`absolute -top-2 -right-2 min-w-5 h-5 px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
-                      isComic
-                        ? "bg-yellow-400 text-gray-900 font-comic border-2 border-gray-800 shadow-[2px_2px_0px_#2d3436]"
-                        : isEngineer
-                        ? "bg-orange-500 text-white font-engineer border-2 border-gray-800 shadow-[2px_2px_0px_#2c3e50]"
-                        : "bg-red-600 text-white font-formal"
-                    }`}>
-                      {badgeKey === "requests" && isNotifLoading ? (
-                        <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        badge > 9 ? "9+" : badge
-                      )}
-                    </span>
-                  )}
-                </span>
-                <span className={`text-[11px] font-bold transition-colors ${
-                  active
-                    ? isComic ? "text-red-500" : isEngineer ? "text-orange-600" : "text-red-600"
-                    : "text-gray-600"
-                } ${isComic ? "font-comic" : isEngineer ? "font-engineer" : "font-formal"}`}>
-                  {label}
-                </span>
-              </Link>
-            );
-          })}
+                            ? "font-engineer text-gray-700 data-[active=true]:border-2 data-[active=true]:border-gray-800 data-[active=true]:bg-orange-100 data-[active=true]:text-orange-700"
+                            : "font-formal text-gray-700 data-[active=true]:bg-red-50 data-[active=true]:text-red-700"
+                      }`}
+                    >
+                      <Link href={href} onClick={() => setMobileMenuOpen(false)} className="flex w-full items-center gap-3">
+                        <Icon className="size-5 shrink-0" />
+                        <span className="min-w-0 flex-1 truncate">{label}</span>
+                        {(badge > 0 || (badgeKey === "requests" && isNotifLoading)) && (
+                          <span className={`min-w-5 rounded-full px-1.5 py-0.5 text-center text-[10px] font-bold ${
+                            isComic
+                              ? "border-2 border-gray-800 bg-yellow-400 text-gray-900"
+                              : isEngineer
+                                ? "border-2 border-gray-800 bg-orange-500 text-white"
+                                : "bg-red-600 text-white"
+                          }`}>
+                            {badgeKey === "requests" && isNotifLoading ? "…" : badge > 99 ? "99+" : badge}
+                          </span>
+                        )}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </nav>
 
-          {/* Right arrow */}
-          <button
-            onClick={() => setNavOffset((o) => Math.min(filteredNavItems.length - VISIBLE_COUNT, o + 1))}
-            disabled={!canNext}
-            className={`flex items-center justify-center w-8 h-full text-gray-800 disabled:opacity-30 shrink-0 ${
-              isComic ? "font-comic font-bold text-xl" : isEngineer ? "font-engineer font-bold text-xl" : "font-formal font-medium"
-            }`}
-          >
-            <ChevronRight className="h-6 w-6" />
-          </button>
-
-          {/* Avatar */}
           {user && userId && (
-            <div className="flex items-center justify-center w-12 h-full shrink-0">
+            <div className="flex shrink-0 items-center gap-3 border-t border-gray-200 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
               <NavUser
                 user={{
-                  name:     `${user.Firstname} ${user.Lastname}`.trim() || "User",
+                  name: `${user.Firstname} ${user.Lastname}`.trim() || "User",
                   position: user.Role,
-                  email:    user.Email,
-                  avatar:   user.profilePicture || "/avatars/shadcn.jpg",
+                  email: user.Email,
+                  avatar: user.profilePicture || "/avatars/shadcn.jpg",
                 }}
                 userId={userId}
                 avatarOnly
                 notificationCount={activeNotificationCount + unreadChatCount}
               />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-gray-900">
+                  {`${user.Firstname} ${user.Lastname}`.trim() || "User"}
+                </p>
+                <p className="truncate text-xs text-gray-500">{user.Role || user.Email}</p>
+              </div>
             </div>
           )}
-        </div>
-      </div>
+        </SheetContent>
+      </Sheet>
     );
   }
 
@@ -379,161 +430,139 @@ export function SidebarLeft({
         }
       `}
     >
-{/* HEADER */}
-<SidebarHeader className={`h-18 px-3 flex items-center m-2 rounded-2xl ${
-  isComic
-    ? "bg-linear-to-r from-yellow-300 to-orange-300 comic-border-thick"
-    : isEngineer
-    ? "bg-linear-to-r from-orange-500 to-yellow-400 engineer-steel-beam"
-    : "bg-linear-to-r from-red-600 to-red-800 border border-red-700"
-}`}>
-  <Link
-    href="/dashboard"
-    className={`flex items-center gap-2.5 min-w-0 cursor-pointer ${isComic ? "comic-hover-scale" : isEngineer ? "hover:scale-105 transition-transform" : "hover:scale-105 transition-transform"}`}
-  >
-    {/* Logo mark — always visible, even when collapsed */}
-    <div className={`shrink-0 ${isComic ? "comic-animate-bounce" : ""}`}>
-      <svg
-        width="36"
-        height="36"
-        viewBox="0 0 32 32"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-hidden="true"
-        className="drop-shadow-lg"
-      >
-        {/* Outer hexagon */}
-        <path
-          d="M16 2L28.1244 9V23L16 30L3.87564 23V9L16 2Z"
-          fill="url(#espironGrad)"
-          stroke={isComic ? "#2d3436" : isEngineer ? "#2c3e50" : "#ffffff"}
-          strokeWidth="1"
-        />
-        {/* Inner "E" mark built from bars */}
-        <rect x="10" y="10" width="10" height="2" rx="1" fill="white" opacity="0.95" />
-        <rect x="10" y="15" width="7.5" height="2" rx="1" fill="white" opacity="0.85" />
-        <rect x="10" y="20" width="10" height="2" rx="1" fill="white" opacity="0.95" />
-        <rect x="10" y="10" width="2" height="12" rx="1" fill="white" opacity="0.95" />
-        <defs>
-          <linearGradient id="espironGrad" x1="3.87564" y1="2" x2="28.1244" y2="30" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor={isComic ? "#ff4757" : isEngineer ? "#ff6b35" : "#dc2626"} />
-            <stop offset="100%" stopColor={isComic ? "#ffa502" : isEngineer ? "#ffd93d" : "#b91c1c"} />
-          </linearGradient>
-        </defs>
-      </svg>
-    </div>
-
-    {/* Wordmark — only when expanded */}
-    {state === "expanded" && (
-      <div className="flex flex-col leading-none min-w-0">
-        <span
-          className={`text-lg truncate ${
-            isComic
-              ? "font-comic-title text-gray-900 comic-text-outline"
-              : isEngineer
-              ? "font-engineer-title text-white engineer-text-shadow"
-              : "font-formal-title text-white"
-          }`}
+      {/* HEADER */}
+      <SidebarHeader className={`group-data-[collapsible=icon]:m-0.5 group-data-[collapsible=icon]:h-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-xl group-data-[collapsible=icon]:border-0! group-data-[collapsible=icon]:bg-transparent! group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:shadow-none! h-18 px-3 flex items-center m-2 rounded-2xl ${
+        isComic
+          ? "bg-linear-to-r from-yellow-300 to-orange-300 comic-border-thick"
+          : isEngineer
+          ? "bg-linear-to-r from-orange-500 to-yellow-400 engineer-steel-beam"
+          : "bg-linear-to-r from-red-600 to-red-800 border border-red-700"
+      }`}>
+        <Link
+          href="/dashboard"
+          className="group-data-[collapsible=icon]:justify-center flex items-center gap-2.5 min-w-0 cursor-pointer transition-opacity hover:opacity-90"
         >
-          ESPIRON
-        </span>
-        <span
-          className={`text-xs truncate ${
-            isComic
-              ? "font-comic font-bold text-red-500"
-              : isEngineer
-              ? "font-engineer font-bold text-yellow-300"
-              : "font-formal text-red-100"
-          }`}
-        >
-          Product Database {isComic ? "🚀" : isEngineer ? "👷" : ""}
-        </span>
-      </div>
-    )}
-  </Link>
-</SidebarHeader>
+          {/* Logo mark — always visible, even when collapsed */}
+          <div className="shrink-0">
+            <svg
+              width={collapsed ? "28" : "32"}
+              height={collapsed ? "28" : "32"}
+              viewBox="0 0 32 32"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+              className="block h-8 w-8 max-w-full drop-shadow-md group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7 group-data-[collapsible=icon]:drop-shadow-none"
+            >
+              {/* Outer hexagon */}
+              <path
+                d="M16 2L28.1244 9V23L16 30L3.87564 23V9L16 2Z"
+                fill="url(#espironGrad)"
+                stroke={isComic ? "#2d3436" : isEngineer ? "#2c3e50" : "#ffffff"}
+                strokeWidth="1"
+              />
+              {/* Inner "E" mark built from bars */}
+              <rect x="10" y="10" width="10" height="2" rx="1" fill="white" opacity="0.95" />
+              <rect x="10" y="15" width="7.5" height="2" rx="1" fill="white" opacity="0.85" />
+              <rect x="10" y="20" width="10" height="2" rx="1" fill="white" opacity="0.95" />
+              <rect x="10" y="10" width="2" height="12" rx="1" fill="white" opacity="0.95" />
+              <defs>
+                <linearGradient id="espironGrad" x1="3.87564" y1="2" x2="28.1244" y2="30" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor={isComic ? "#ff4757" : isEngineer ? "#ff6b35" : "#dc2626"} />
+                  <stop offset="100%" stopColor={isComic ? "#ffa502" : isEngineer ? "#ffd93d" : "#b91c1c"} />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
 
-      {/* CONTENT */}
-      <SidebarContent className="px-2 flex flex-col">
-        <SidebarMenu>
+          {/* Wordmark — only when expanded */}
+          {state === "expanded" && (
+            <div className="flex flex-col leading-none min-w-0">
+              <span
+                className={`text-lg truncate ${
+                  isComic
+                    ? "font-comic-title text-gray-900 comic-text-outline"
+                    : isEngineer
+                    ? "font-engineer-title text-white engineer-text-shadow"
+                    : "font-formal-title text-white"
+                }`}
+              >
+                ESPIRON
+              </span>
+              <span
+                className={`text-xs truncate ${
+                  isComic
+                    ? "font-comic font-bold text-red-500"
+                    : isEngineer
+                    ? "font-engineer font-bold text-yellow-300"
+                    : "font-formal text-red-100"
+                }`}
+              >
+                Product Database {isComic ? "🚀" : isEngineer ? "👷" : ""}
+              </span>
+            </div>
+          )}
+        </Link>
+      </SidebarHeader>
+
+      {/* CONTENT
+          FIX: overflow-visible! so collapsed badges are never clipped */}
+      <SidebarContent className="px-2 flex flex-col group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:overflow-visible!">
+        <SidebarMenu className="group-data-[collapsible=icon]:items-center">
           {mainDesktopNavItems.map(({ href, icon: Icon, label, badgeKey }) => {
-            const badge =
-              badgeKey === "requests"
-                ? activeNotificationCount + unreadChatCount
-                : badgeKey === "forApproval"
-                  ? forApprovalCount
-                  : 0;
+            const badge = getBadgeCount(badgeKey);
+            const showLoading = badgeKey === "requests" && isNotifLoading;
 
             return (
-              <SidebarMenuItem key={href}>
+              <SidebarMenuItem key={href} className="group-data-[collapsible=icon]:overflow-visible">
                 <SidebarMenuButton
                   asChild
                   data-active={pathname === href}
+                  tooltip={label}
                   className={`
-                    ${isComic ? "font-comic" : isEngineer ? "font-engineer" : "font-formal"} font-bold text-sm
-                    transition-all duration-200
-                    rounded-xl
+                  ${isComic ? "font-comic" : isEngineer ? "font-engineer" : "font-formal"} font-bold text-sm
+                  transition-all duration-200
+                  rounded-xl
+                  group-data-[collapsible=icon]:overflow-visible!
+                  group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:rounded-[12px]! group-data-[collapsible=icon]:shadow-none! group-data-[collapsible=icon]:translate-x-0 group-data-[collapsible=icon]:translate-y-0
                     ${isComic ? "border-2 border-transparent" : isEngineer ? "border-2 border-transparent" : "border border-transparent"}
                     ${isComic
                       ? "hover:border-gray-800 hover:shadow-[4px_4px_0px_#2d3436] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:bg-yellow-100"
                       : isEngineer
-                      ? "hover:border-gray-800 hover:shadow-[4px_4px_0px_#2c3e50] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:bg-orange-100"
+                      ? collapsed
+                        ? "hover:border-gray-400 hover:bg-gray-100"
+                        : "hover:border-gray-800 hover:shadow-[4px_4px_0px_#2c3e50] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:bg-orange-100"
                       : "hover:border-red-600 hover:shadow-md hover:bg-red-600 hover:text-white"
                     }
                     ${isComic
                       ? "data-[active=true]:bg-linear-to-r data-[active=true]:from-red-400 data-[active=true]:to-orange-400 data-[active=true]:text-white data-[active=true]:border-2 data-[active=true]:border-gray-800 data-[active=true]:shadow-[4px_4px_0px_#2d3436]"
                       : isEngineer
-                      ? "data-[active=true]:bg-linear-to-r data-[active=true]:from-orange-500 data-[active=true]:to-yellow-400 data-[active=true]:text-white data-[active=true]:border-2 data-[active=true]:border-gray-800 data-[active=true]:shadow-[4px_4px_0px_#2c3e50]"
+                      ? collapsed
+                        ? "data-[active=true]:bg-gray-200 data-[active=true]:text-gray-900 data-[active=true]:border-2 data-[active=true]:border-gray-400 data-[active=true]:shadow-none"
+                        : "data-[active=true]:bg-linear-to-r data-[active=true]:from-orange-500 data-[active=true]:to-yellow-400 data-[active=true]:text-white data-[active=true]:border-2 data-[active=true]:border-gray-800 data-[active=true]:shadow-[4px_4px_0px_#2c3e50]"
                       : "data-[active=true]:bg-linear-to-r data-[active=true]:from-red-600 data-[active=true]:to-red-700 data-[active=true]:text-white data-[active=true]:border data-[active=true]:border-red-700 data-[active=true]:shadow-md"
                     }
                     ${isComic
                       ? "bg-white text-gray-700 data-[active=false]:hover:text-red-500"
                       : isEngineer
-                      ? "bg-white text-gray-700 data-[active=false]:hover:text-orange-600"
-                      : "bg-white text-gray-700"
+                        ? collapsed
+                          ? "bg-white text-gray-700 data-[active=false]:hover:text-gray-700"
+                          : "bg-white text-gray-700 data-[active=false]:hover:text-orange-600"
+                        : "bg-white text-gray-700"
                     }
                   `}
                 >
-                  <Link href={href} className="relative flex items-center gap-3 w-full py-3">
-                    {/* Icon + badge overlay when collapsed */}
+                  <Link href={href} className="group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:py-2 relative flex w-full items-center gap-3 py-3">
                     <span className="relative shrink-0">
                       <Icon className="h-5 w-5" />
-                      {(badge > 0 || (badgeKey === "requests" && isNotifLoading)) && state === "collapsed" && (
-                        <span className={`absolute -top-2 -right-2 min-w-4.5 h-4.5 px-1 rounded-full text-[9px] font-bold flex items-center justify-center ${
-                          isComic
-                            ? "bg-yellow-400 text-gray-900 border-2 border-gray-800 shadow-[2px_2px_0px_#2d3436]"
-                            : isEngineer
-                            ? "bg-orange-500 text-white border-2 border-gray-800 shadow-[2px_2px_0px_#2c3e50]"
-                            : "bg-red-600 text-white shadow-sm"
-                        }`}>
-                          {badgeKey === "requests" && isNotifLoading ? (
-                            <span className="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          ) : (
-                            badge > 9 ? "9+" : badge
-                          )}
-                        </span>
-                      )}
                     </span>
+                    {collapsed && (
+                      <NavBadge count={badge} loading={showLoading} collapsed themeName={themeName} />
+                    )}
 
-                    {/* Label + badge when expanded */}
-                    {state === "expanded" && (
+                    {!collapsed && (
                       <>
                         <span className="flex-1">{label}</span>
-                        {(badge > 0 || (badgeKey === "requests" && isNotifLoading)) && (
-                          <span className={`ml-auto min-w-6 h-6 px-1.5 rounded-full text-xs font-bold flex items-center justify-center ${
-                            isComic
-                              ? "bg-yellow-400 text-gray-900 border-2 border-gray-800 shadow-[2px_2px_0px_#2d3436]"
-                              : isEngineer
-                              ? "bg-orange-500 text-white border-2 border-gray-800 shadow-[2px_2px_0px_#2c3e50]"
-                              : "bg-red-600 text-white shadow-sm"
-                          }`}>
-                            {badgeKey === "requests" && isNotifLoading ? (
-                              <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            ) : (
-                              badge > 9 ? "9+" : badge
-                            )}
-                          </span>
-                        )}
+                        <NavBadge count={badge} loading={showLoading} collapsed={false} themeName={themeName} />
                       </>
                     )}
                   </Link>
@@ -542,30 +571,31 @@ export function SidebarLeft({
             );
           })}
         </SidebarMenu>
+
         {bottomDesktopNavItems.length > 0 && (
-          <SidebarMenu className="mt-auto pt-2">
+          <SidebarMenu className="mt-auto pt-2 group-data-[collapsible=icon]:items-center">
             {bottomDesktopNavItems.map(({ href, icon: Icon, label, badgeKey }) => {
-              const badge =
-                badgeKey === "requests"
-                  ? activeNotificationCount + unreadChatCount
-                  : badgeKey === "forApproval"
-                    ? forApprovalCount
-                    : 0;
+              const badge = getBadgeCount(badgeKey);
 
               return (
-                <SidebarMenuItem key={href}>
+                <SidebarMenuItem key={href} className="group-data-[collapsible=icon]:overflow-visible">
                   <SidebarMenuButton
                     asChild
                     data-active={pathname === href}
+                    tooltip={label}
                     className={`
                       ${isComic ? "font-comic text-gray-700" : isEngineer ? "font-engineer text-white" : "font-formal text-gray-700"}
                       transition-all
-                      ${isComic ? "hover:bg-red-50 hover:text-red-700" : isEngineer ? "hover:bg-orange-500 hover:text-white" : "hover:bg-red-600 hover:text-white"}
+                      group-data-[collapsible=icon]:overflow-visible!
+                      group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:rounded-[12px]! group-data-[collapsible=icon]:shadow-none! group-data-[collapsible=icon]:translate-x-0 group-data-[collapsible=icon]:translate-y-0
+                      ${isComic ? "hover:bg-red-50 hover:text-red-700" : isEngineer ? collapsed ? "hover:bg-gray-600 hover:text-white" : "hover:bg-orange-500 hover:text-white" : "hover:bg-red-600 hover:text-white"}
                       hover:scale-[1.01]
                       ${isComic
                         ? "data-[active=true]:bg-linear-to-r data-[active=true]:from-red-400 data-[active=true]:to-orange-400"
                         : isEngineer
-                        ? "data-[active=true]:bg-linear-to-r data-[active=true]:from-orange-500 data-[active=true]:to-yellow-400"
+                        ? collapsed
+                          ? "data-[active=true]:bg-gray-600"
+                          : "data-[active=true]:bg-linear-to-r data-[active=true]:from-orange-500 data-[active=true]:to-yellow-400"
                         : "data-[active=true]:bg-linear-to-r data-[active=true]:from-red-600 data-[active=true]:to-red-700"
                       }
                       data-[active=true]:text-white
@@ -573,34 +603,26 @@ export function SidebarLeft({
                       ${isComic
                         ? "data-[active=true]:hover:from-red-500 data-[active=true]:hover:to-orange-500"
                         : isEngineer
-                        ? "data-[active=true]:hover:from-orange-600 data-[active=true]:hover:to-yellow-500"
+                        ? collapsed
+                          ? "data-[active=true]:hover:bg-gray-700"
+                          : "data-[active=true]:hover:from-orange-600 data-[active=true]:hover:to-yellow-500"
                         : "data-[active=true]:hover:from-red-700 data-[active=true]:hover:to-red-800"
                       }
                       data-[active=true]:hover:text-white
                     `}
                   >
-                    <Link href={href} className="relative flex items-center gap-2 w-full">
+                    <Link href={href} className="group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-0 relative flex w-full items-center gap-2">
                       <span className="relative shrink-0">
                         <Icon className="h-4 w-4" />
-                        {badge > 0 && state === "collapsed" && (
-                          <span className={`absolute -top-1.5 -right-1.5 min-w-3.5 h-3.5 px-0.5 rounded-full text-[9px] font-bold flex items-center justify-center ring-2 ring-white ${
-                            isComic ? "bg-red-500 text-white" : isEngineer ? "bg-orange-500 text-white" : "bg-red-600 text-white"
-                          }`}>
-                            {badge > 9 ? "9+" : badge}
-                          </span>
-                        )}
                       </span>
+                      {collapsed && (
+                        <NavBadge count={badge} collapsed themeName={themeName} />
+                      )}
 
-                      {state === "expanded" && (
+                      {!collapsed && (
                         <>
                           <span className="flex-1">{label}</span>
-                          {badge > 0 && (
-                            <span className={`ml-auto min-w-5 h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center shadow-sm ${
-                              isComic ? "bg-red-500 text-white" : "bg-red-600 text-white"
-                            }`}>
-                              {badge > 9 ? "9+" : badge}
-                            </span>
-                          )}
+                          <NavBadge count={badge} collapsed={false} themeName={themeName} />
                         </>
                       )}
                     </Link>
@@ -614,17 +636,21 @@ export function SidebarLeft({
 
       <SidebarSeparator className={`h-1 my-2 ${isComic ? "bg-gray-800" : isEngineer ? "bg-gray-800" : "bg-gray-200"}`} />
 
-      {/* FOOTER */}
-      <SidebarFooter className="p-3">
+      {/* FOOTER
+          Collapsed: avatar only — no card background, no badge */}
+      <SidebarFooter className="p-3 group-data-[collapsible=icon]:p-1">
         {user && userId && (
           <div
             className={`
               cursor-pointer
               p-3
+              group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:overflow-hidden group-data-[collapsible=icon]:rounded-xl group-data-[collapsible=icon]:border-0! group-data-[collapsible=icon]:bg-none! group-data-[collapsible=icon]:bg-transparent! group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:shadow-none! group-data-[collapsible=icon]:hover:shadow-none! group-data-[collapsible=icon]:[&_button]:bg-transparent! group-data-[collapsible=icon]:[&_button]:border-0! group-data-[collapsible=icon]:[&_button]:shadow-none!
               ${isComic
                 ? "comic-card bg-linear-to-r from-blue-100 to-purple-100 comic-hover-lift"
-                : isEngineer
+                : isEngineer && !collapsed
                 ? "engineer-card bg-linear-to-r from-orange-100 to-yellow-100"
+                : isEngineer
+                ? "bg-transparent"
                 : "formal-card bg-linear-to-r from-red-50 to-red-100 hover:shadow-md transition-shadow"
               }
             `}
@@ -637,7 +663,7 @@ export function SidebarLeft({
                 avatar:   user.profilePicture || "/avatars/shadcn.jpg",
               }}
               userId={userId}
-              notificationCount={activeNotificationCount + unreadChatCount}
+              notificationCount={collapsed ? 0 : activeNotificationCount + unreadChatCount}
             />
           </div>
         )}
