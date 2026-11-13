@@ -34,11 +34,13 @@ export function useNotificationSettings() {
     const newSettings = { ...settings, ...updates };
     setSettings(newSettings);
     localStorage.setItem("notificationSettings", JSON.stringify(newSettings));
+    window.dispatchEvent(new Event("notification-settings-updated"));
   }, [settings]);
 
   const resetSettings = useCallback(() => {
     setSettings(DEFAULT_SETTINGS);
     localStorage.setItem("notificationSettings", JSON.stringify(DEFAULT_SETTINGS));
+    window.dispatchEvent(new Event("notification-settings-updated"));
   }, []);
 
   const toggleEnabled = useCallback(() => {

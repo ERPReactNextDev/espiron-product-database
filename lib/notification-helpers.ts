@@ -206,25 +206,21 @@ async function storeNotificationInFirebase(
   payload: NotificationPayload,
   data: NotificationTriggerData
 ): Promise<void> {
-  try {
-    await addDoc(collection(db, "global_notifications"), {
-      type,
-      title: payload.title,
-      body: payload.body,
-      icon: payload.icon,
-      badge: payload.badge,
-      tag: payload.tag,
-      requireInteraction: payload.requireInteraction,
-      data: payload.data,
-      actions: payload.actions,
-      triggerData: data,
-      createdAt: serverTimestamp(),
-      isActive: true,
-      broadcastToAll: true,
-    });
-  } catch (error) {
-    console.error("Failed to store notification in Firebase:", error);
-  }
+  await addDoc(collection(db, "global_notifications"), {
+    type,
+    title: payload.title,
+    body: payload.body,
+    icon: payload.icon,
+    badge: payload.badge,
+    tag: payload.tag,
+    requireInteraction: payload.requireInteraction,
+    data: payload.data,
+    actions: payload.actions,
+    triggerData: data,
+    createdAt: serverTimestamp(),
+    isActive: true,
+    broadcastToAll: true,
+  });
 }
 
 export async function triggerNotification(
@@ -262,6 +258,31 @@ export async function triggerNotification(
       throw new Error(`Unknown notification type: ${type}`);
   }
 
-  // Store in Firebase for global broadcasting
-  await storeNotificationInFirebase(type, payload, data);
+  try {
+    await storeNotificationInFirebase(type, payload, data);
+  } catch (error) {
+    console.error("Failed to store notification in Firebase:", error);
+  }
+
+  try {
+    const response = await fetch("/api/notifications/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      console.error("Failed to send push notification:", response.status, await response.text());
+      return;
+    }
+
+    const result = await response.json();
+    if (result.failureCount > 0) {
+      console.error("Some push notifications failed:", result);
+    } else if (result.totalSent === 0) {
+      console.warn("Push notification was not delivered: no other devices are registered.");
+    }
+  } catch (error) {
+    console.error("Failed to send push notification:", error);
+  }
 }

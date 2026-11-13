@@ -4,7 +4,7 @@ try {
   console.error("Failed to load Firebase Messaging SW code:", error);
 }
 
-const CACHE_NAME = "disruptive-product-db-v1";
+const CACHE_NAME = "disruptive-product-db-v2";
 const urlsToCache = [
   "/",
   "/favicon.ico",

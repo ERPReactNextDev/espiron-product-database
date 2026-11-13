@@ -132,6 +132,11 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_bucket
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+NEXT_PUBLIC_FIREBASE_PUBLIC_KEY=your_web_push_vapid_key
+
+# Firebase Admin (server-side push delivery)
+FIREBASE_CLIENT_EMAIL=your_service_account_email
+FIREBASE_PRIVATE_KEY="your_service_account_private_key"
 
 # Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
@@ -149,6 +154,10 @@ MONGODB_URI=your_mongodb_uri
 # Session Security
 SESSION_SECRET=your_session_secret
 ```
+
+The Firebase Admin service account must be authorized to send FCM messages for
+the same Firebase project configured above. Set these server-side variables in
+the production host and redeploy; never expose the private key to the browser.
 
 ---
 

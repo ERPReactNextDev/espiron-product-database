@@ -23,7 +23,7 @@ export function ServiceWorkerRegistration() {
         .catch(() => {});
 
       navigator.serviceWorker
-        .register("/sw.js")
+        .register("/sw.js", { updateViaCache: "none" })
         .then((registration) => {
           console.log("Service Worker registered successfully:", registration);
         })
