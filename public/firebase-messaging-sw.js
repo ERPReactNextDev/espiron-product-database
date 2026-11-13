@@ -50,6 +50,35 @@ function parseBoolean(raw) {
   return false;
 }
 
+self.addEventListener("push", (event) => {
+  console.log("📨 Push event received:", event);
+  
+  const payload = event.data?.json();
+  console.log("📦 Push payload:", payload);
+  
+  if (!payload) {
+    console.log("❌ No payload in push event");
+    return;
+  }
+
+  const options = {
+    body: payload.notification?.body || "",
+    icon: payload.notification?.icon || "/favicon.ico",
+    badge: payload.notification?.badge || "/favicon.ico",
+    tag: payload.data?.tag || "default",
+    requireInteraction: parseBoolean(payload.data?.requireInteraction),
+    data: payload.data || {},
+    actions: parseActions(payload.data?.actions),
+    silent: false,
+  };
+
+  console.log("🔔 Showing notification:", payload.notification?.title || "Notification");
+  
+  event.waitUntil(
+    self.registration.showNotification(payload.notification?.title || "Notification", options)
+  );
+});
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
@@ -85,6 +114,6 @@ if (messaging) {
       silent: false,
     };
 
-    return self.registration.showNotification(notificationTitle, notificationOptions);
+    self.registration.showNotification(notificationTitle, notificationOptions);
   });
 }
