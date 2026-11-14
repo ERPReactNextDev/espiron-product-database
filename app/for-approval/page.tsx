@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import CollapsibleSearch from "@/components/collapsible-search";
 import { db } from "@/lib/firebase";
 import { useUser } from "@/contexts/UserContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -306,12 +307,10 @@ export default function ForApprovalPage() {
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold shrink-0">For Approval</h1>
           <div className="flex flex-wrap gap-2 items-center">
-            <Input
-              type="text"
-              placeholder="Search by requester, type, message…"
+            <CollapsibleSearch
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-9 w-72 bg-white/70"
+              onChange={setSearch}
+              placeholder="Search by requester, type, message…"
             />
             <Button variant="outline" className="gap-1" disabled>
               <Filter className="h-4 w-4" /> Filter

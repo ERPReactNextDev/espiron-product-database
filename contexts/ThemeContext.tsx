@@ -3,50 +3,85 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 const STORAGE_KEY = "app_theme";
-export type Theme = "comic" | "formal" | "engineer";
+export type Theme = "comic" | "formal" | "engineer" | "christmas";
+
+export function isChristmasSeason(date: Date) {
+  const month = date.getMonth();
+  return month >= 8 || (month === 0 && date.getDate() <= 6);
+}
 
 type ThemeContextType = {
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  isChristmasAvailable: boolean;
 };
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: "formal",
   setTheme: () => {},
+  isChristmasAvailable: false,
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("formal");
+  const [isChristmasAvailable, setIsChristmasAvailable] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    try {
-      const savedTheme = localStorage.getItem(STORAGE_KEY) as Theme | null;
-      if (savedTheme && (savedTheme === "comic" || savedTheme === "formal" || savedTheme === "engineer")) {
-        setThemeState(savedTheme);
+    const syncThemeWithSeason = () => {
+      const christmasAvailable = isChristmasSeason(new Date());
+      setIsChristmasAvailable(christmasAvailable);
+
+      try {
+        const savedTheme = localStorage.getItem(STORAGE_KEY) as Theme | null;
+        const isValidTheme =
+          savedTheme === "comic" ||
+          savedTheme === "formal" ||
+          savedTheme === "engineer" ||
+          savedTheme === "christmas";
+
+        if (!christmasAvailable && savedTheme === "christmas") {
+          localStorage.removeItem(STORAGE_KEY);
+          setThemeState("formal");
+        } else if (isValidTheme) {
+          setThemeState(savedTheme);
+        } else {
+          setThemeState(christmasAvailable ? "christmas" : "formal");
+        }
+      } catch {
+        setThemeState(christmasAvailable ? "christmas" : "formal");
       }
-    } catch {}
+
+      setMounted(true);
+    };
+
+    syncThemeWithSeason();
+    const intervalId = window.setInterval(syncThemeWithSeason, 60_000);
+    return () => window.clearInterval(intervalId);
   }, []);
 
   const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
+    const availableTheme =
+      newTheme === "christmas" && !isChristmasSeason(new Date())
+        ? "formal"
+        : newTheme;
+    setThemeState(availableTheme);
     try {
-      localStorage.setItem(STORAGE_KEY, newTheme);
+      localStorage.setItem(STORAGE_KEY, availableTheme);
     } catch {}
   };
 
   // Prevent hydration mismatch by rendering children only after mount
   if (!mounted) {
     return (
-      <ThemeContext.Provider value={{ theme: "formal", setTheme }}>
+      <ThemeContext.Provider value={{ theme: "formal", setTheme, isChristmasAvailable }}>
         {children}
       </ThemeContext.Provider>
     );
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, isChristmasAvailable }}>
       {children}
     </ThemeContext.Provider>
   );

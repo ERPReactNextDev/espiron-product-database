@@ -275,6 +275,7 @@ export function SidebarLeft() {
 
   const isComic = theme === "comic";
   const isEngineer = theme === "engineer";
+  const isChristmas = theme === "christmas";
   const themeName: ThemeName = isComic ? "comic" : isEngineer ? "engineer" : "formal";
   const collapsed = state === "collapsed";
 
@@ -308,7 +309,9 @@ export function SidebarLeft() {
               ? "border-gray-800 bg-white text-gray-900"
               : isEngineer
                 ? "border-gray-800 bg-white text-gray-900"
-                : "border-gray-200 bg-white text-gray-900"
+                : isChristmas
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-950"
+                  : "border-gray-200 bg-white text-gray-900"
           }`}
         >
           <SheetHeader className={`shrink-0 border-b px-5 pb-4 pt-[calc(1.25rem+env(safe-area-inset-top))] ${
@@ -316,7 +319,9 @@ export function SidebarLeft() {
               ? "border-b-4 border-gray-800 bg-linear-to-r from-yellow-300 to-orange-300"
               : isEngineer
                 ? "border-b-4 border-gray-800 bg-linear-to-r from-orange-500 to-yellow-400"
-                : "border-gray-100"
+                : isChristmas
+                  ? "border-emerald-200 bg-linear-to-r from-emerald-50 to-red-50"
+                  : "border-gray-100"
           }`}>
             <div className="flex items-center gap-3">
               <span className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
@@ -324,7 +329,9 @@ export function SidebarLeft() {
                   ? "comic-card-primary"
                   : isEngineer
                     ? "engineer-card-primary"
-                    : "bg-red-700 text-white"
+                    : isChristmas
+                      ? "bg-emerald-700 text-white"
+                      : "bg-red-700 text-white"
               }`}>
                 <Package className="size-5" />
               </span>
@@ -362,7 +369,9 @@ export function SidebarLeft() {
                           ? "font-comic text-gray-700 data-[active=true]:border-2 data-[active=true]:border-gray-800 data-[active=true]:bg-yellow-100 data-[active=true]:text-red-600"
                           : isEngineer
                             ? "font-engineer text-gray-700 data-[active=true]:border-2 data-[active=true]:border-gray-800 data-[active=true]:bg-orange-100 data-[active=true]:text-orange-700"
-                            : "font-formal text-gray-700 data-[active=true]:bg-red-50 data-[active=true]:text-red-700"
+                            : isChristmas
+                              ? "font-formal text-emerald-950 data-[active=true]:bg-emerald-100 data-[active=true]:text-emerald-900"
+                              : "font-formal text-gray-700 data-[active=true]:bg-red-50 data-[active=true]:text-red-700"
                       }`}
                     >
                       <Link href={href} onClick={() => setMobileMenuOpen(false)} className="flex w-full items-center gap-3">
@@ -426,6 +435,8 @@ export function SidebarLeft() {
           ? "bg-white/90 backdrop-blur-md border-border/50"
           : isEngineer
           ? "bg-white/90 backdrop-blur-md border-border/50"
+          : isChristmas
+          ? "bg-emerald-50 border-emerald-200"
           : "bg-white border-gray-200"
         }
       `}
@@ -436,6 +447,8 @@ export function SidebarLeft() {
           ? "bg-linear-to-r from-yellow-300 to-orange-300 comic-border-thick"
           : isEngineer
           ? "bg-linear-to-r from-orange-500 to-yellow-400 engineer-steel-beam"
+          : isChristmas
+          ? "bg-linear-to-r from-emerald-800 via-emerald-700 to-red-700 border border-emerald-900"
           : "bg-linear-to-r from-red-600 to-red-800 border border-red-700"
       }`}>
         <Link
@@ -467,7 +480,7 @@ export function SidebarLeft() {
               <rect x="10" y="10" width="2" height="12" rx="1" fill="white" opacity="0.95" />
               <defs>
                 <linearGradient id="espironGrad" x1="3.87564" y1="2" x2="28.1244" y2="30" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor={isComic ? "#ff4757" : isEngineer ? "#ff6b35" : "#dc2626"} />
+                  <stop offset="0%" stopColor={isComic ? "#ff4757" : isEngineer ? "#ff6b35" : isChristmas ? "#166534" : "#dc2626"} />
                   <stop offset="100%" stopColor={isComic ? "#ffa502" : isEngineer ? "#ffd93d" : "#b91c1c"} />
                 </linearGradient>
               </defs>
@@ -480,9 +493,11 @@ export function SidebarLeft() {
               <span
                 className={`text-lg truncate ${
                   isComic
-                    ? "font-comic-title text-gray-900 comic-text-outline"
+                    ? "font-comic-title text-gray-900"
                     : isEngineer
                     ? "font-engineer-title text-white engineer-text-shadow"
+                    : isChristmas
+                    ? "font-formal-title text-white"
                     : "font-formal-title text-white"
                 }`}
               >
@@ -494,10 +509,12 @@ export function SidebarLeft() {
                     ? "font-comic font-bold text-red-500"
                     : isEngineer
                     ? "font-engineer font-bold text-yellow-300"
+                    : isChristmas
+                    ? "font-formal font-bold text-amber-100"
                     : "font-formal text-red-100"
                 }`}
               >
-                Product Database {isComic ? "🚀" : isEngineer ? "👷" : ""}
+                Product Database {isComic ? "🚀" : isEngineer ? "👷" : isChristmas ? "🎄" : ""}
               </span>
             </div>
           )}
@@ -531,6 +548,8 @@ export function SidebarLeft() {
                       ? collapsed
                         ? "hover:border-gray-400 hover:bg-gray-100"
                         : "hover:border-gray-800 hover:shadow-[4px_4px_0px_#2c3e50] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:bg-orange-100"
+                      : isChristmas
+                      ? "hover:border-emerald-800 hover:shadow-md hover:bg-emerald-100 hover:text-emerald-950"
                       : "hover:border-red-600 hover:shadow-md hover:bg-red-600 hover:text-white"
                     }
                     ${isComic
@@ -539,6 +558,8 @@ export function SidebarLeft() {
                       ? collapsed
                         ? "data-[active=true]:bg-gray-200 data-[active=true]:text-gray-900 data-[active=true]:border-2 data-[active=true]:border-gray-400 data-[active=true]:shadow-none"
                         : "data-[active=true]:bg-linear-to-r data-[active=true]:from-orange-500 data-[active=true]:to-yellow-400 data-[active=true]:text-white data-[active=true]:border-2 data-[active=true]:border-gray-800 data-[active=true]:shadow-[4px_4px_0px_#2c3e50]"
+                      : isChristmas
+                      ? "data-[active=true]:bg-linear-to-r data-[active=true]:from-emerald-700 data-[active=true]:to-red-700 data-[active=true]:text-white data-[active=true]:border data-[active=true]:border-emerald-900 data-[active=true]:shadow-md"
                       : "data-[active=true]:bg-linear-to-r data-[active=true]:from-red-600 data-[active=true]:to-red-700 data-[active=true]:text-white data-[active=true]:border data-[active=true]:border-red-700 data-[active=true]:shadow-md"
                     }
                     ${isComic
@@ -547,6 +568,8 @@ export function SidebarLeft() {
                         ? collapsed
                           ? "bg-white text-gray-700 data-[active=false]:hover:text-gray-700"
                           : "bg-white text-gray-700 data-[active=false]:hover:text-orange-600"
+                        : isChristmas
+                        ? "bg-white text-emerald-950 data-[active=false]:hover:text-emerald-950"
                         : "bg-white text-gray-700"
                     }
                   `}
@@ -588,7 +611,7 @@ export function SidebarLeft() {
                       transition-all
                       group-data-[collapsible=icon]:overflow-visible!
                       group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:rounded-[12px]! group-data-[collapsible=icon]:shadow-none! group-data-[collapsible=icon]:translate-x-0 group-data-[collapsible=icon]:translate-y-0
-                      ${isComic ? "hover:bg-red-50 hover:text-red-700" : isEngineer ? collapsed ? "hover:bg-gray-600 hover:text-white" : "hover:bg-orange-500 hover:text-white" : "hover:bg-red-600 hover:text-white"}
+                      ${isComic ? "hover:bg-red-50 hover:text-red-700" : isEngineer ? collapsed ? "hover:bg-gray-600 hover:text-white" : "hover:bg-orange-500 hover:text-white" : isChristmas ? "hover:bg-emerald-100 hover:text-emerald-950" : "hover:bg-red-600 hover:text-white"}
                       hover:scale-[1.01]
                       ${isComic
                         ? "data-[active=true]:bg-linear-to-r data-[active=true]:from-red-400 data-[active=true]:to-orange-400"
@@ -596,6 +619,8 @@ export function SidebarLeft() {
                         ? collapsed
                           ? "data-[active=true]:bg-gray-600"
                           : "data-[active=true]:bg-linear-to-r data-[active=true]:from-orange-500 data-[active=true]:to-yellow-400"
+                        : isChristmas
+                        ? "data-[active=true]:bg-linear-to-r data-[active=true]:from-emerald-700 data-[active=true]:to-red-700"
                         : "data-[active=true]:bg-linear-to-r data-[active=true]:from-red-600 data-[active=true]:to-red-700"
                       }
                       data-[active=true]:text-white
@@ -606,6 +631,8 @@ export function SidebarLeft() {
                         ? collapsed
                           ? "data-[active=true]:hover:bg-gray-700"
                           : "data-[active=true]:hover:from-orange-600 data-[active=true]:hover:to-yellow-500"
+                        : isChristmas
+                        ? "data-[active=true]:hover:from-emerald-800 data-[active=true]:hover:to-red-800"
                         : "data-[active=true]:hover:from-red-700 data-[active=true]:hover:to-red-800"
                       }
                       data-[active=true]:hover:text-white

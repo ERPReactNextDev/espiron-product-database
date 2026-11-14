@@ -1,580 +1,901 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { useUser } from "@/contexts/UserContext";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useWallpaper } from "@/contexts/WallpaperContext";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { AccessGuard } from "@/components/AccessGuard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AccessGuard } from "@/components/AccessGuard";
-import { supabase } from "@/utils/supabase";
+import CollapsibleSearch from "@/components/collapsible-search";
 import {
-  Search,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   RefreshCw,
-  Clock,
-  FileText,
-  DollarSign,
-  Download,
+  Search,
   X,
-  Loader2,
+  FileText,
+  Banknote,
+  Calculator,
+  Layers,
   ArrowUp,
-  Trophy,
+  Loader2,
+  ChevronDown,
+  Download,
+  History,
+  FilterX,
 } from "lucide-react";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
 
-/* ─────────────────────────────────────────────────────────────── */
-/* TYPES                                                           */
-/* ─────────────────────────────────────────────────────────────── */
-type SPFCreation = {
-  id: number;
-  referenceid?: string;
-  tsm?: string;
-  spf_number?: string;
-  status?: string;
-  product_offer_image?: string;
-  product_offer_qty?: string;
-  product_offer_technical_specification?: string;
-  product_offer_unit_cost?: string;
-  product_offer_packaging_details?: string;
-  product_offer_factory_address?: string;
-  product_offer_port_of_discharge?: string;
-  product_offer_subtotal?: string;
-  date_created?: string;
-  date_updated?: string;
-  company_name?: string;
-  supplier_brand?: string;
-  contact_name?: string;
-  contact_number?: string;
-  final_selling_cost?: string;
-  proj_lead_time?: string;
-  manager?: string;
-  item_code?: string;
-  final_unit_cost?: string;
-  final_subtotal?: string;
-  item_added_date?: string;
-  item_added_author?: string;
-  product_offer_pcs_per_carton?: string;
-  spf_creation_start_time?: string;
-  spf_creation_end_time?: string;
-  price_validity?: string;
-  tds?: string;
-  dimensional_drawing?: string;
-  illuminance_drawing?: string;
-  original_technical_specification?: string;
-  product_reference_id?: string;
-  revision_remarks?: string;
-  revision_type?: string;
-  spf_remarks_pd?: string;
-  supplier_branch?: string;
-  spf_remarks_procurement?: string;
-  tds_pdf_urls?: string;
-  commercial_type?: string;
-  warranty?: string;
-  customer_name?: string;
-  request_date_created?: string;
+/* ───────────── types ───────────── */
+
+type HistoryRecord = {
+  id: string;
+  quotation_number: string;
+  activity_reference_number: string;
+  account_reference_number: string;
+  product_sku: string;
+  quotation_amount: string;
+  status: string;
+  so_status: string;
+  date_created: string;
+  date_updated: string;
+  sales_agent: string;
+  product_quantity: string;
+  product_amount: string;
+  [key: string]: any;
 };
 
-const ROW_SEP = "|ROW|";
-const PAGE_SIZE = 30; // rows revealed per scroll chunk
+type QuotationGroup = {
+  activityRef: string;
+  accountRef: string;
+  salesAgent: string;
+  quotations: HistoryRecord[];
+};
 
-/* ─────────────────────────────────────────────────────────────── */
-/* STATUS BADGE                                                     */
-/* ─────────────────────────────────────────────────────────────── */
-function StatusBadge({ status }: { status: string | undefined }) {
-  if (!status) return null;
-  const lower = status.toLowerCase();
+type ActivityHistoryRecord = {
+  id: string;
+  activity_reference_number: string;
+  referenceid: string;
+  type_activity: string;
+  quotation_number: string | null;
+  quotation_amount: string | null;
+  so_number: string | null;
+  so_amount: string | null;
+  actual_sales: string | null;
+  status: string;
+  so_status: string | null;
+  date_created: string;
+  date_updated: string;
+  remarks: string | null;
+  company_name: string | null;
+  contact_person: string | null;
+  contact_number: string | null;
+  [key: string]: any;
+};
 
-  let colorClass = "bg-gray-100 text-gray-700";
-  if (lower.includes("approved by procurement"))
-    colorClass = "bg-green-100 text-green-700";
-  else if (lower.includes("pending"))
-    colorClass = "bg-yellow-100 text-yellow-700";
-  else if (lower.includes("revision"))
-    colorClass = "bg-orange-100 text-orange-700";
-  else if (lower.includes("sales"))
-    colorClass = "bg-purple-100 text-purple-700";
+type SkuLine = { sku: string; qty: string | null; price: string | null };
+
+// What the API narrows by. Dates are "YYYY-MM-DD" or "".
+type Filters = { q: string; from: string; to: string };
+
+// Chart cross-filters (click a bar / slice to filter everything else)
+type Dim = "months" | "agents" | "statuses" | "buckets";
+type Sel = Record<Dim, string[]>;
+type Metric = "value" | "count";
+type BarRow = { key: string; label: string; value: number; count: number };
+
+const EMPTY_SEL: Sel = { months: [], agents: [], statuses: [], buckets: [] };
+
+const DATA_LIMIT = 1000; // rows the dashboard works with
+const ROWS_STEP = 30; // rows revealed per scroll in the details list
+const SKU_PREVIEW = 3; // SKU chips shown before "+N more"
+
+// Power BI-ish palette
+const PALETTE = ["#01b8aa", "#374649", "#fd625e", "#f2c80f", "#5f6b6d", "#8ad4eb", "#fe9666", "#a66999"];
+
+const BUCKETS = [
+  { label: "Under ₱50K", max: 50_000 },
+  { label: "₱50K – ₱100K", max: 100_000 },
+  { label: "₱100K – ₱250K", max: 250_000 },
+  { label: "₱250K – ₱500K", max: 500_000 },
+  { label: "₱500K and up", max: Infinity },
+];
+
+/* ───────────── helpers ───────────── */
+
+const formatPeso = (value: string | number | undefined | null) => {
+  const n = typeof value === "number" ? value : parseFloat(value || "");
+  if (isNaN(n)) return null;
+  return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+const formatPesoCompact = (n: number) =>
+  `₱${new Intl.NumberFormat("en-PH", { notation: "compact", maximumFractionDigits: 2 }).format(n)}`;
+
+const fmtMetric = (metric: Metric, n: number) =>
+  metric === "value" ? formatPesoCompact(n) : n.toLocaleString("en-PH");
+
+const formatFilterDate = (iso: string) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+};
+
+const describeDateRange = (from: string, to: string) => {
+  if (from && to) return from === to ? formatFilterDate(from) : `${formatFilterDate(from)} – ${formatFilterDate(to)}`;
+  if (from) return `from ${formatFilterDate(from)}`;
+  if (to) return `up to ${formatFilterDate(to)}`;
+  return "";
+};
+
+const buildParams = (f: Filters, limit: number, offset: number) => {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (f.q) params.set("q", f.q);
+  if (f.from) params.set("from", f.from);
+  if (f.to) params.set("to", f.to);
+  return params;
+};
+
+const getSpfDsiSkuLines = (
+  sku: string | null | undefined,
+  amount: string | null | undefined,
+  quantity: string | null | undefined
+): SkuLine[] => {
+  if (!sku) return [];
+
+  const skuList = sku.split(",").map((s) => s.trim());
+  const amountList = (amount || "").split(",").map((a) => a.trim());
+  const qtyList = (quantity || "").split(",").map((q) => q.trim());
+
+  const seen = new Set<string>();
+  const lines: SkuLine[] = [];
+
+  skuList.forEach((entry, i) => {
+    const match = entry.match(/SPF-DSI-[^\s,&()]+/i);
+    if (!match) return;
+    const code = match[0];
+    if (seen.has(code)) return;
+    seen.add(code);
+    lines.push({ sku: code, qty: qtyList[i] || null, price: formatPeso(amountList[i]) });
+  });
+
+  return lines;
+};
+
+const countSpfDsiSkus = (r: HistoryRecord) =>
+  getSpfDsiSkuLines(r.product_sku, r.product_amount, r.product_quantity).length;
+
+const groupQuotations = (records: HistoryRecord[]): QuotationGroup[] => {
+  const groupMap = new Map<string, QuotationGroup>();
+  records.forEach((record) => {
+    const key = `${record.activity_reference_number}|||${record.account_reference_number}`;
+    const existing = groupMap.get(key);
+    if (existing) {
+      existing.quotations.push(record);
+    } else {
+      groupMap.set(key, {
+        activityRef: record.activity_reference_number,
+        accountRef: record.account_reference_number,
+        salesAgent: record.sales_agent,
+        quotations: [record],
+      });
+    }
+  });
+  return Array.from(groupMap.values());
+};
+
+/* ── dimensions used by the charts ── */
+
+const amountOf = (r: HistoryRecord) => {
+  const n = parseFloat(r.quotation_amount || "");
+  return isNaN(n) ? 0 : n;
+};
+
+const monthFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit" });
+const monthOf = (r: HistoryRecord) => {
+  const d = new Date(r.date_created);
+  return isNaN(d.getTime()) ? "unknown" : monthFmt.format(d); // "2026-11"
+};
+const monthLabel = (key: string) => {
+  if (key === "unknown") return "No date";
+  const [y, m] = key.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+};
+const agentOf = (r: HistoryRecord) => (r.sales_agent || "Unassigned").trim().toUpperCase();
+const statusOf = (r: HistoryRecord) => (r.status || "Unknown").trim().toUpperCase();
+const bucketOf = (r: HistoryRecord) => {
+  const amt = amountOf(r);
+  return String(BUCKETS.findIndex((b) => amt < b.max));
+};
+
+// Power BI style: a chart ignores its own selection so you can still compare siblings
+const passes = (r: HistoryRecord, sel: Sel, skip?: Dim) => {
+  if (skip !== "months" && sel.months.length && !sel.months.includes(monthOf(r))) return false;
+  if (skip !== "agents" && sel.agents.length && !sel.agents.includes(agentOf(r))) return false;
+  if (skip !== "statuses" && sel.statuses.length && !sel.statuses.includes(statusOf(r))) return false;
+  if (skip !== "buckets" && sel.buckets.length && !sel.buckets.includes(bucketOf(r))) return false;
+  return true;
+};
+
+const aggregate = (recs: HistoryRecord[], keyFn: (r: HistoryRecord) => string) => {
+  const m = new Map<string, { value: number; count: number }>();
+  recs.forEach((r) => {
+    const k = keyFn(r);
+    const c = m.get(k) || { value: 0, count: 0 };
+    c.value += amountOf(r);
+    c.count += 1;
+    m.set(k, c);
+  });
+  return m;
+};
+
+/* ───────────── small components ───────────── */
+
+const SkuList = ({ lines }: { lines: SkuLine[] }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [showQty, setShowQty] = useState(false);
+
+  const getSkuBase = (sku: string) => sku.split("-").slice(0, 4).join("-");
+
+  const handleSkuClick = (sku: string) => {
+    sessionStorage.setItem("spfSkuSearch", getSkuBase(sku));
+    window.location.href = `/requests`;
+  };
+
+  if (lines.length === 0) return <span className="text-gray-400">-</span>;
+
+  const visible = expanded ? lines : lines.slice(0, SKU_PREVIEW);
+  const hiddenCount = lines.length - SKU_PREVIEW;
 
   return (
-    <span
-      className={`text-xs px-2 py-1 rounded uppercase font-semibold whitespace-nowrap ${colorClass}`}
-    >
-      {status}
-    </span>
+    <div className="md:min-w-[220px] md:max-w-[360px]">
+      <div className="mb-1.5 flex items-center gap-1.5">
+        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-600">
+          {lines.length} {lines.length === 1 ? "SKU" : "SKUs"}
+        </span>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {visible.map((line) => (
+          <button
+            key={line.sku}
+            type="button"
+            onClick={() => handleSkuClick(line.sku)}
+            title={`Search for ${getSkuBase(line.sku)} in Requests`}
+            className="inline-flex items-center gap-1.5 rounded-md border border-blue-100 bg-blue-50 px-2 py-1 font-mono text-[11px] font-semibold text-blue-700 transition-colors hover:border-blue-300 hover:bg-blue-100 cursor-pointer whitespace-nowrap"
+          >
+            {line.sku}
+            {showQty && line.qty && (
+              <span className="rounded bg-white px-1 text-[10px] font-medium text-gray-600">×{line.qty}</span>
+            )}
+          </button>
+        ))}
+
+        {!expanded && hiddenCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="inline-flex items-center gap-1 rounded-md border border-dashed border-gray-300 px-2 py-1 text-[11px] font-medium text-gray-600 hover:border-gray-400 hover:bg-gray-50"
+          >
+            +{hiddenCount} more
+            <ChevronDown className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+
+      <div className="mt-2 flex items-center gap-3 text-[11px] font-medium text-gray-500">
+        {expanded && hiddenCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="inline-flex items-center gap-1 hover:text-gray-800"
+          >
+            <ChevronDown className="h-3 w-3 rotate-180" />
+            Show less
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setShowQty((q) => !q)}
+          aria-pressed={showQty}
+          className="hover:text-gray-800"
+        >
+          {showQty ? "Hide qty" : "Show qty"}
+        </button>
+      </div>
+    </div>
   );
-}
+};
 
-/* ─────────────────────────────────────────────────────────────── */
-/* DURATION HELPER                                                 */
-/* ─────────────────────────────────────────────────────────────── */
-function formatDuration(start?: string, end?: string): string {
-  if (!start) return "-";
-  const s = new Date(start).getTime();
-  if (isNaN(s)) return "-";
-  const eRaw = end ? new Date(end).getTime() : Date.now();
-  const e = isNaN(eRaw) ? Date.now() : eRaw;
-  const diff = Math.max(0, e - s);
-  const mins = Math.floor(diff / 60000);
-  const secs = Math.floor((diff % 60000) / 1000);
-  if (mins === 0) return `${secs}s`;
-  return `${mins}m ${secs}s`;
-}
+const QuotationDropdown = ({ quotations }: { quotations: HistoryRecord[] }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedQuotation, setSelectedQuotation] = useState<HistoryRecord | null>(quotations[0] || null);
 
-function parseLooseNumber(value: string | undefined): number | null {
-  const raw = (value ?? "").trim();
-  if (!raw || raw === "-") return null;
-  const normalized = raw.replace(/[^\d.-]/g, "");
-  if (!normalized) return null;
-  const n = Number(normalized);
-  return Number.isFinite(n) ? n : null;
-}
-
-function splitByRowGroupItem(value: string | undefined): string[][][] {
-  if (!value) return [];
-  return value.split(ROW_SEP).map((rowStr) =>
-    rowStr.split("|").map((groupStr) => groupStr.split(",").map((v) => v.trim())),
-  );
-}
-
-function computeTotalSrp(rec: SPFCreation): number | null {
-  const sellingRows = splitByRowGroupItem(rec.final_selling_cost);
-  const qtyRows = splitByRowGroupItem(rec.product_offer_qty);
-
-  const rowCount = Math.max(sellingRows.length, qtyRows.length);
-  let total = 0;
-  let hasAny = false;
-
-  for (let i = 0; i < rowCount; i++) {
-    const srpGroups = sellingRows[i] ?? [];
-    const qtyGroups = qtyRows[i] ?? [];
-    const groupCount = Math.max(srpGroups.length, qtyGroups.length);
-
-    for (let g = 0; g < groupCount; g++) {
-      const srpCells = srpGroups[g] ?? [];
-      const qtyCells = qtyGroups[g] ?? [];
-
-      const cellCount = Math.max(srpCells.length, qtyCells.length);
-      for (let j = 0; j < cellCount; j++) {
-        const srp = parseLooseNumber(srpCells[j]);
-        const qty = parseLooseNumber(qtyCells[j]);
-        if (srp === null || qty === null) continue;
-        total += srp * qty;
-        hasAny = true;
-      }
-    }
+  if (quotations.length === 0) return <span className="text-gray-400">-</span>;
+  if (quotations.length === 1) {
+    return <span className="font-medium uppercase">{quotations[0].quotation_number || "-"}</span>;
   }
 
-  return hasAny ? Math.round(total * 100) / 100 : null;
-}
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-1 font-medium uppercase text-blue-600 hover:text-blue-800"
+      >
+        {selectedQuotation?.quotation_number || "-"}
+        <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+      {isOpen && (
+        <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto min-w-[180px]">
+          {quotations.map((q) => (
+            <button
+              key={q.id}
+              type="button"
+              onClick={() => {
+                setSelectedQuotation(q);
+                setIsOpen(false);
+              }}
+              className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100 uppercase"
+            >
+              {q.quotation_number || "-"}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
-function formatMultiRowText(raw: string | undefined): string {
-  const rows = splitByRowGroupItem(raw);
-  if (rows.length === 0) return "-";
-  const outRows = rows
-    .map((groups) =>
-      groups
-        .map((cells) => cells.filter((c) => c !== "").join(", "))
-        .filter((g) => g !== "")
-        .join(" | "),
-    )
-    .filter((r) => r !== "");
-  return outRows.length ? outRows.join(" | ") : "-";
-}
+/* ── dashboard pieces ── */
 
-function formatPairedByItemCode(
-  valueRaw: string | undefined,
-  itemCodeRaw: string | undefined,
-  formatCell: (raw: string) => string,
-): string[] {
-  const valueRows = splitByRowGroupItem(valueRaw);
-  if (valueRows.length === 0) return [];
-  const codeRows = splitByRowGroupItem(itemCodeRaw);
-  // if (codeRows.length === 0) return formatMultiRowText(valueRaw); // This was string return
-
-  const rowCount = Math.max(valueRows.length, codeRows.length);
-  const allItems: string[] = [];
-
-  for (let r = 0; r < rowCount; r++) {
-    const vGroups = valueRows[r] ?? [];
-    const cGroups = codeRows[r] ?? [];
-    const groupCount = Math.max(vGroups.length, cGroups.length);
-
-    for (let g = 0; g < groupCount; g++) {
-      const vCellsRaw = (vGroups[g] ?? []).map((v) => v.trim());
-      const cCellsRaw = (cGroups[g] ?? []).map((v) => v.trim());
-
-      const cellCount = Math.max(vCellsRaw.length, cCellsRaw.length);
-      if (cellCount === 0) continue;
-
-      const vCells =
-        vCellsRaw.length === 1 && cellCount > 1
-          ? Array.from({ length: cellCount }, () => vCellsRaw[0])
-          : vCellsRaw;
-      const cCells =
-        cCellsRaw.length === 1 && cellCount > 1
-          ? Array.from({ length: cellCount }, () => cCellsRaw[0])
-          : cCellsRaw;
-
-      for (let i = 0; i < cellCount; i++) {
-        const formattedValue = formatCell((vCells[i] ?? "").trim());
-        const code = (cCells[i] ?? "").trim();
-        allItems.push(code && code !== "-" ? `${formattedValue} (${code})` : formattedValue);
-      }
-    }
-  }
-
-  return allItems;
-}
-
-/* ─────────────────────────────────────────────────────────────── */
-/* SUMMARY CARD (matches KpiCard styling)                          */
-/* ─────────────────────────────────────────────────────────────── */
-type SummaryCardProps = {
+// KPI tile with a colored left edge, like the Power BI cards
+const KpiTile = ({
+  label,
+  value,
+  hint,
+  icon,
+  color,
+  loading,
+  cardClass,
+}: {
   label: string;
   value: string;
   hint?: string;
   icon: React.ReactNode;
-  accent: string;
+  color: string;
   loading?: boolean;
   cardClass: string;
-  className?: string;
-  big?: boolean;
-};
-
-const SummaryCard = ({ label, value, hint, icon, accent, loading, cardClass, className = "", big }: SummaryCardProps) => (
-  <div className={`bg-white p-4 flex flex-col justify-between gap-3 ${cardClass} ${className}`}>
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-sm text-gray-600 font-medium">{label}</span>
-      <span className={`h-9 w-9 rounded-lg flex items-center justify-center ${accent}`}>{icon}</span>
+}) => (
+  <div className={`relative overflow-hidden bg-white p-4 ${cardClass}`}>
+    <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: color }} />
+    <div className="flex items-start justify-between gap-2 pl-1.5">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</span>
+      <span className="text-gray-400">{icon}</span>
     </div>
-    <div>
+    <div className="mt-3 pl-1.5">
       {loading ? (
-        <div className="h-8 w-32 rounded bg-gray-200 animate-pulse" />
+        <div className="h-9 w-28 rounded bg-gray-200 animate-pulse" />
       ) : (
-        <div
-          className={`font-bold text-gray-900 tabular-nums leading-none truncate ${
-            big ? "text-3xl md:text-4xl" : "text-2xl"
-          }`}
-          title={value}
-        >
+        <div className="truncate text-3xl font-bold leading-none tabular-nums text-gray-900" title={value}>
           {value}
         </div>
       )}
-      {hint && <div className="mt-1.5 text-xs text-gray-500 truncate">{hint}</div>}
+      <div className="mt-1.5 truncate text-xs text-gray-500">{hint || "\u00A0"}</div>
     </div>
   </div>
 );
 
-/* ─────────────────────────────────────────────────────────────── */
-/* MAIN PAGE                                                       */
-/* ─────────────────────────────────────────────────────────────── */
-export default function AnalyticsPage() {
-  const { userId } = useUser();
+const Panel = ({
+  title,
+  subtitle,
+  cardClass,
+  className = "",
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  cardClass: string;
+  className?: string;
+  children: React.ReactNode;
+}) => (
+  <div className={`bg-white p-4 ${cardClass} ${className}`}>
+    <div className="mb-3">
+      <div className="text-sm font-semibold text-gray-800">{title}</div>
+      {subtitle && <div className="text-[11px] uppercase tracking-wide text-gray-400">{subtitle}</div>}
+    </div>
+    {children}
+  </div>
+);
+
+const MetricToggle = ({ metric, onChange }: { metric: Metric; onChange: (m: Metric) => void }) => (
+  <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-xs font-semibold" role="group" aria-label="Chart metric">
+    {(["value", "count"] as Metric[]).map((m) => (
+      <button
+        key={m}
+        type="button"
+        aria-pressed={metric === m}
+        onClick={() => onChange(m)}
+        className={`rounded-md px-3 py-1 capitalize transition-colors ${
+          metric === m ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
+        }`}
+      >
+        {m === "value" ? "₱ Value" : "Count"}
+      </button>
+    ))}
+  </div>
+);
+
+const NoData = () => <div className="py-10 text-center text-xs text-gray-400">No data for this selection.</div>;
+
+// Vertical columns (quotations over time)
+const ColumnChart = ({
+  rows,
+  metric,
+  selected,
+  onToggle,
+}: {
+  rows: BarRow[];
+  metric: Metric;
+  selected: string[];
+  onToggle: (key: string) => void;
+}) => {
+  if (rows.length === 0) return <NoData />;
+  const max = Math.max(1, ...rows.map((r) => r[metric]));
+
+  return (
+    <div className="flex h-52 items-stretch gap-2 overflow-x-auto pb-1">
+      {rows.map((r) => {
+        const v = r[metric];
+        const active = selected.length === 0 || selected.includes(r.key);
+        const isSelected = selected.includes(r.key);
+        return (
+          <button
+            key={r.key}
+            type="button"
+            onClick={() => onToggle(r.key)}
+            aria-pressed={isSelected}
+            title={`${r.label}: ${formatPeso(r.value)} · ${r.count} quotations`}
+            className={`group flex min-w-[46px] flex-1 flex-col items-center gap-1 transition-opacity ${
+              active ? "" : "opacity-35"
+            }`}
+          >
+            <span className="text-[10px] font-medium tabular-nums text-gray-600">{fmtMetric(metric, v)}</span>
+            <div className="flex w-full flex-1 items-end">
+              <div
+                className="w-full rounded-t-md transition-all duration-300 group-hover:brightness-110"
+                style={{
+                  height: `${Math.max(3, (v / max) * 100)}%`,
+                  background: isSelected ? "#374649" : "#01b8aa",
+                }}
+              />
+            </div>
+            <span className="text-[10px] text-gray-500">{r.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+// Horizontal bars (agents, value ranges)
+const HBars = ({
+  rows,
+  metric,
+  selected,
+  onToggle,
+  color,
+}: {
+  rows: BarRow[];
+  metric: Metric;
+  selected: string[];
+  onToggle: (key: string) => void;
+  color: string;
+}) => {
+  if (rows.length === 0) return <NoData />;
+  const max = Math.max(1, ...rows.map((r) => r[metric]));
+
+  return (
+    <ul className="max-h-60 space-y-2.5 overflow-y-auto pr-1">
+      {rows.map((r) => {
+        const v = r[metric];
+        const active = selected.length === 0 || selected.includes(r.key);
+        const isSelected = selected.includes(r.key);
+        return (
+          <li key={r.key}>
+            <button
+              type="button"
+              onClick={() => onToggle(r.key)}
+              aria-pressed={isSelected}
+              className={`block w-full text-left transition-opacity ${active ? "" : "opacity-35"}`}
+            >
+              <div className="flex items-baseline justify-between gap-2 text-xs">
+                <span className="truncate font-semibold text-gray-800">{r.label}</span>
+                <span className="shrink-0 tabular-nums text-gray-600">
+                  {fmtMetric(metric, v)}
+                  <span className="text-gray-400">
+                    {" "}
+                    · {metric === "value" ? `${r.count}` : formatPesoCompact(r.value)}
+                  </span>
+                </span>
+              </div>
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-gray-100">
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{
+                    width: `${Math.max(3, (v / max) * 100)}%`,
+                    background: isSelected ? "#374649" : color,
+                  }}
+                />
+              </div>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+};
+
+// Donut (status split)
+const Donut = ({
+  rows,
+  metric,
+  selected,
+  onToggle,
+}: {
+  rows: BarRow[];
+  metric: Metric;
+  selected: string[];
+  onToggle: (key: string) => void;
+}) => {
+  const total = rows.reduce((s, r) => s + r[metric], 0);
+  if (rows.length === 0 || total === 0) return <NoData />;
+
+  let acc = 0;
+  const segments = rows.map((r, i) => {
+    const pct = (r[metric] / total) * 100;
+    const seg = { ...r, pct, offset: 25 - acc, color: PALETTE[i % PALETTE.length] };
+    acc += pct;
+    return seg;
+  });
+
+  return (
+    <div className="flex flex-col items-center gap-4 sm:flex-row">
+      <svg viewBox="0 0 42 42" className="h-44 w-44 shrink-0" role="img" aria-label="Status split">
+        <circle cx="21" cy="21" r="15.9155" fill="none" stroke="#f3f4f6" strokeWidth="6" />
+        {segments.map((s) => {
+          const isSelected = selected.includes(s.key);
+          const active = selected.length === 0 || isSelected;
+          return (
+            <circle
+              key={s.key}
+              cx="21"
+              cy="21"
+              r="15.9155"
+              fill="none"
+              stroke={s.color}
+              strokeWidth={isSelected ? 8 : 6}
+              strokeDasharray={`${s.pct} ${100 - s.pct}`}
+              strokeDashoffset={s.offset}
+              opacity={active ? 1 : 0.3}
+              className="cursor-pointer transition-all duration-300"
+              onClick={() => onToggle(s.key)}
+            >
+              <title>{`${s.label}: ${fmtMetric(metric, s[metric])} (${s.pct.toFixed(0)}%)`}</title>
+            </circle>
+          );
+        })}
+        <text x="21" y="20.5" textAnchor="middle" className="fill-gray-900" style={{ fontSize: 5.2, fontWeight: 700 }}>
+          {fmtMetric(metric, total)}
+        </text>
+        <text x="21" y="26" textAnchor="middle" className="fill-gray-400" style={{ fontSize: 2.6 }}>
+          TOTAL
+        </text>
+      </svg>
+
+      <ul className="w-full max-h-44 space-y-1 overflow-y-auto pr-1">
+        {segments.map((s) => {
+          const isSelected = selected.includes(s.key);
+          const active = selected.length === 0 || isSelected;
+          return (
+            <li key={s.key}>
+              <button
+                type="button"
+                onClick={() => onToggle(s.key)}
+                aria-pressed={isSelected}
+                className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-gray-50 transition-opacity ${
+                  active ? "" : "opacity-40"
+                }`}
+              >
+                <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: s.color }} />
+                <span className="flex-1 truncate font-semibold text-gray-800">{s.label}</span>
+                <span className="tabular-nums text-gray-500">{s.pct.toFixed(0)}%</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+};
+
+/* ───────────── page ───────────── */
+
+export default function SPFQuotationTracking() {
   const { theme } = useTheme();
   const { wallpaper } = useWallpaper();
   const isComic = theme === "comic";
   const isEngineer = theme === "engineer";
   const isBold = isComic || isEngineer;
 
-  /* ── State ── */
-  const [records, setRecords] = useState<SPFCreation[]>([]);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [loadingPage, setLoadingPage] = useState(false);
+  // data (one request, the whole dashboard + list work off it)
+  const [records, setRecords] = useState<HistoryRecord[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // scrolling
+  // server-side filters
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  // SO status filter (hardcoded to "All" and "Convert to SI")
+  const [soStatusFilter, setSoStatusFilter] = useState("");
+  const [soActivityRefs, setSoActivityRefs] = useState<Set<string> | null>(null);
+  const [soLoading, setSoLoading] = useState(false);
+  const [soError, setSoError] = useState<string | null>(null);
+
+  // interactive chart selections
+  const [sel, setSel] = useState<Sel>(EMPTY_SEL);
+  const [metric, setMetric] = useState<Metric>("value");
+
+  const filters = useMemo<Filters>(
+    () => ({ q: search, from: dateFrom, to: dateTo }),
+    [search, dateFrom, dateTo]
+  );
+  const hasDateFilter = Boolean(dateFrom || dateTo);
+  const hasAnyFilter = Boolean(search || hasDateFilter || soStatusFilter);
+  const dateRangeLabel = describeDateRange(dateFrom, dateTo);
+
+  // list reveal + scrolling
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const requestIdRef = useRef(0);
+  const [visibleCount, setVisibleCount] = useState(ROWS_STEP);
   const [showTop, setShowTop] = useState(false);
 
-  const [userMap, setUserMap] = useState<Record<string, { Firstname: string; Lastname: string }>>({});
+  // history dialog
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [selectedActivityRef, setSelectedActivityRef] = useState<string | null>(null);
+  const [activityHistory, setActivityHistory] = useState<ActivityHistoryRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
-  /* ── Search / infinite scroll ── */
-  const [searchTerm, setSearchTerm] = useState("");
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-
-  /* ── Filter / sort ── */
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<"date_updated" | "date_created" | "alphabetical">("date_updated");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-
-  /* ─────────────────────── */
-  /* Fetch user names from MongoDB */
-  /* ─────────────────────── */
-  const fetchUserNames = useCallback(async (referenceIds: string[]) => {
-    if (referenceIds.length === 0) return;
-
+  const fetchData = useCallback(async (f: Filters) => {
+    const requestId = ++requestIdRef.current;
     try {
-      const uniqueIds = Array.from(new Set(referenceIds.filter(Boolean)));
-      const userPromises = uniqueIds.map(async (refId) => {
-        try {
-          const response = await fetch(`/api/users?referenceID=${refId}`);
-          if (response.ok) {
-            const userData = await response.json();
-            return { refId, userData };
-          }
-          return null;
-        } catch {
-          return null;
-        }
-      });
-
-      const results = await Promise.all(userPromises);
-      const newUserMap: Record<string, { Firstname: string; Lastname: string }> = {};
-
-      results.forEach((result) => {
-        if (result && result.userData) {
-          newUserMap[result.refId] = {
-            Firstname: result.userData.Firstname || "",
-            Lastname: result.userData.Lastname || "",
-          };
-        }
-      });
-
-      setUserMap(newUserMap);
-    } catch (err) {
-      console.error("Error fetching user names:", err);
+      setError(null);
+      setLoading(true);
+      const res = await fetch(`/api/spf-dsi-quotations?${buildParams(f, DATA_LIMIT, 0).toString()}`);
+      if (!res.ok) throw new Error("Failed to fetch quotations");
+      const data = await res.json();
+      if (requestId !== requestIdRef.current) return; // stale
+      const recs: HistoryRecord[] = data.quotations || [];
+      setRecords(recs);
+      setTotalCount(data.total || recs.length);
+    } catch (err: any) {
+      if (requestId !== requestIdRef.current) return;
+      setRecords([]);
+      setTotalCount(0);
+      setError(err.message || "Failed to fetch quotations");
+    } finally {
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }, []);
 
-  /* ─────────────────────── */
-  /* Fetch records           */
-  /* ─────────────────────── */
-  const fetchRecords = useCallback(async () => {
-    try {
-      setFetchError(null);
-      setLoadingPage(true);
-
-      const { data, error } = await supabase
-        .from("spf_creation")
-        .select("*")
-        .eq("status", "Approved By Procurement")
-        .order("date_updated", { ascending: false });
-
-      if (error) throw error;
-
-      let mergedData = data || [];
-      if (mergedData.length > 0) {
-        const spfNumbers = mergedData.map((r) => r.spf_number).filter(Boolean);
-        const { data: requestData, error: requestError } = await supabase
-          .from("spf_request")
-          .select("spf_number, customer_name, date_created")
-          .in("spf_number", spfNumbers);
-
-        if (!requestError && requestData) {
-          const requestMap = new Map(
-            requestData.map((r) => [r.spf_number, { customer_name: r.customer_name, date_created: r.date_created }])
-          );
-          mergedData = mergedData.map((r) => {
-            const req = requestMap.get(r.spf_number);
-            return {
-              ...r,
-              customer_name: req?.customer_name || "-",
-              request_date_created: req?.date_created || r.date_created,
-            };
-          });
-        }
-      }
-
-      setRecords(mergedData);
-
-      // Fetch user names for all unique ReferenceIDs
-      if (mergedData.length > 0) {
-        const referenceIds = mergedData
-          .map((r) => r.item_added_author || r.tsm)
-          .filter(Boolean);
-        await fetchUserNames(referenceIds);
-      }
-    } catch (err: any) {
-      setFetchError(err.message || "Failed to fetch SPF creation records");
-    } finally {
-      setLoadingPage(false);
-    }
-  }, [fetchUserNames]);
-
+  // debounce typing
   useEffect(() => {
-    fetchRecords();
+    const t = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
-    const channel = supabase
-      .channel("spf-creation-analytics")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "spf_creation" },
-        () => {
-          fetchRecords();
-        },
-      )
-      .subscribe();
+  // SO status -> activity refs that have it
+  useEffect(() => {
+    if (!soStatusFilter) {
+      setSoActivityRefs(null);
+      setSoError(null);
+      setSoLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSoLoading(true);
+    setSoError(null);
+
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/activity-history/so-status?so_status=${encodeURIComponent(soStatusFilter)}`
+        );
+        if (!res.ok) throw new Error("Failed to apply SO status filter");
+        const data = await res.json();
+        if (!cancelled) setSoActivityRefs(new Set<string>(data.activityRefs || []));
+      } catch (err: any) {
+        if (!cancelled) {
+          setSoActivityRefs(new Set());
+          setSoError(err.message || "Failed to apply SO status filter");
+        }
+      } finally {
+        if (!cancelled) setSoLoading(false);
+      }
+    })();
 
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
     };
-  }, [fetchRecords]);
+  }, [soStatusFilter]);
 
-  /* ─────────────────────── */
-  /* Summary stats           */
-  /* ─────────────────────── */
-  const stats = useMemo(() => {
-    const total = records.length;
-
-    const statusCounts: Record<string, number> = {};
-    records.forEach((r) => {
-      const s = (r.status || "unknown").toLowerCase();
-      statusCounts[s] = (statusCounts[s] || 0) + 1;
-    });
-
-    const withDuration = records.filter(
-      (r) => r.spf_creation_start_time && r.spf_creation_end_time,
-    );
-    let avgDurationMs = 0;
-    if (withDuration.length) {
-      const totalMs = withDuration.reduce((acc, r) => {
-        const s = new Date(r.spf_creation_start_time!).getTime();
-        const e = new Date(r.spf_creation_end_time!).getTime();
-        return acc + Math.max(0, e - s);
-      }, 0);
-      avgDurationMs = totalMs / withDuration.length;
-    }
-    const avgMins = Math.floor(avgDurationMs / 60000);
-    const avgSecs = Math.floor((avgDurationMs % 60000) / 1000);
-    const avgDurationStr =
-      withDuration.length === 0
-        ? "-"
-        : avgMins === 0
-        ? `${avgSecs}s`
-        : `${avgMins}m ${avgSecs}s`;
-
-    // Calculate total SRP across all records
-    const totalSrp = records.reduce((acc, r) => {
-      const srp = computeTotalSrp(r);
-      return acc + (srp ?? 0);
-    }, 0);
-
-    return { total, statusCounts, avgDurationStr, withDuration: withDuration.length, totalSrp };
-  }, [records]);
-
-  /* ─────────────────────── */
-  /* Filtered + visible      */
-  /* ─────────────────────── */
-  const filteredRecords = useMemo(() => {
-    const term = searchTerm.toLowerCase().trim();
-
-    let filtered = records.filter(
-      (r) =>
-        !term ||
-        (r.spf_number || "").toLowerCase().includes(term) ||
-        (r.customer_name || "").toLowerCase().includes(term) ||
-        (r.supplier_brand || "").toLowerCase().includes(term) ||
-        (r.item_code || "").toLowerCase().includes(term),
-    );
-
-    if (statusFilter) {
-      filtered = filtered.filter(
-        (r) =>
-          (r.status || "").toLowerCase() === statusFilter.toLowerCase(),
-      );
-    }
-
-    filtered = [...filtered].sort((a, b) => {
-      let comparison = 0;
-      if (sortBy === "alphabetical") {
-        comparison = (a.spf_number || "").localeCompare(b.spf_number || "");
-      } else if (sortBy === "date_created") {
-        const dA = a.request_date_created ? new Date(a.request_date_created).getTime() : 0;
-        const dB = b.request_date_created ? new Date(b.request_date_created).getTime() : 0;
-        comparison = dA - dB;
-      } else {
-        const dA = a.date_updated
-          ? new Date(a.date_updated).getTime()
-          : a.date_created
-          ? new Date(a.date_created).getTime()
-          : 0;
-        const dB = b.date_updated
-          ? new Date(b.date_updated).getTime()
-          : b.date_created
-          ? new Date(b.date_created).getTime()
-          : 0;
-        comparison = dA - dB;
-      }
-      return sortOrder === "asc" ? comparison : -comparison;
-    });
-
-    return filtered;
-  }, [records, searchTerm, statusFilter, sortBy, sortOrder]);
-
-  const hasMore = visibleCount < filteredRecords.length;
-
-  const visibleRecords = useMemo(
-    () => filteredRecords.slice(0, visibleCount),
-    [filteredRecords, visibleCount],
-  );
-
-  // filters / sort changed -> start from the top again
+  // server filter change -> refetch
   useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
     scrollRef.current?.scrollTo({ top: 0 });
-  }, [searchTerm, statusFilter, sortBy, sortOrder]);
+    fetchData(filters);
+  }, [filters, fetchData]);
 
-  // infinite scroll: reveal the next chunk when the footer nears the viewport
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchData(filters);
+    setIsRefreshing(false);
+  };
+
+  const handleDownload = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (filters.q) params.set("q", filters.q);
+      if (filters.from) params.set("from", filters.from);
+      if (filters.to) params.set("to", filters.to);
+
+      const res = await fetch(`/api/spf-dsi-quotations/download?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to download data");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `spf-quotations-${new Date().toISOString().split("T")[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      console.error("Download error:", err);
+      alert("Failed to download data. Please try again.");
+    }
+  };
+
+  const clearDates = () => {
+    setDateFrom("");
+    setDateTo("");
+  };
+
+  const handleViewHistory = async (activityRef: string) => {
+    setSelectedActivityRef(activityRef);
+    setHistoryDialogOpen(true);
+    setHistoryLoading(true);
+    setHistoryError(null);
+    setActivityHistory([]);
+
+    try {
+      const res = await fetch(`/api/activity-history?activityRef=${encodeURIComponent(activityRef)}`);
+      if (!res.ok) throw new Error("Failed to fetch history");
+      const data = await res.json();
+      setActivityHistory(data.history || []);
+    } catch (err: any) {
+      setHistoryError(err.message || "Failed to fetch history");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  /* ── chart selection ── */
+  const toggleSel = (dim: Dim, key: string) =>
+    setSel((s) => ({
+      ...s,
+      [dim]: s[dim].includes(key) ? s[dim].filter((k) => k !== key) : [...s[dim], key],
+    }));
+  const clearSel = () => setSel(EMPTY_SEL);
+  const hasSel = Object.values(sel).some((a) => a.length > 0);
+
+  /* ── data pipeline: API rows -> SO status -> chart selections ── */
+  const soPending = Boolean(soStatusFilter) && (soLoading || soActivityRefs === null);
+
+  const base = useMemo(() => {
+    if (!soStatusFilter || !soActivityRefs) return records;
+    return records.filter((r) => soActivityRefs.has(r.activity_reference_number));
+  }, [records, soStatusFilter, soActivityRefs]);
+
+  const filtered = useMemo(() => base.filter((r) => passes(r, sel)), [base, sel]);
+
+  /* ── KPIs (follow every filter and selection) ── */
+  const kpis = useMemo(() => {
+    const totalValue = filtered.reduce((s, r) => s + amountOf(r), 0);
+    const count = filtered.length;
+    return {
+      totalValue,
+      count,
+      avg: count ? totalValue / count : 0,
+      skuCount: filtered.reduce((s, r) => s + countSpfDsiSkus(r), 0),
+    };
+  }, [filtered]);
+
+  /* ── chart data (each chart ignores its own selection) ── */
+  const monthRows = useMemo<BarRow[]>(() => {
+    const agg = aggregate(base.filter((r) => passes(r, sel, "months")), monthOf);
+    return [...agg.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12)
+      .map(([key, v]) => ({ key, label: monthLabel(key), ...v }));
+  }, [base, sel]);
+
+  const agentRows = useMemo<BarRow[]>(() => {
+    const agg = aggregate(base.filter((r) => passes(r, sel, "agents")), agentOf);
+    return [...agg.entries()]
+      .map(([key, v]) => ({ key, label: key, ...v }))
+      .sort((a, b) => b[metric] - a[metric])
+      .slice(0, 10);
+  }, [base, sel, metric]);
+
+  const statusRows = useMemo<BarRow[]>(() => {
+    const agg = aggregate(base.filter((r) => passes(r, sel, "statuses")), statusOf);
+    return [...agg.entries()]
+      .map(([key, v]) => ({ key, label: key, ...v }))
+      .sort((a, b) => b[metric] - a[metric]);
+  }, [base, sel, metric]);
+
+  const bucketRows = useMemo<BarRow[]>(() => {
+    const agg = aggregate(base.filter((r) => passes(r, sel, "buckets")), bucketOf);
+    return BUCKETS.map((b, i) => ({
+      key: String(i),
+      label: b.label,
+      ...(agg.get(String(i)) || { value: 0, count: 0 }),
+    }));
+  }, [base, sel]);
+
+  /* ── details list ── */
+  const displayGroups = useMemo(() => groupQuotations(filtered), [filtered]);
+  const visibleGroups = displayGroups.slice(0, visibleCount);
+  const moreToShow = visibleCount < displayGroups.length;
+
+  // new data or selection -> start the list over
+  useEffect(() => {
+    setVisibleCount(ROWS_STEP);
+  }, [filtered]);
+
+  // reveal more rows as the sentinel nears the viewport
   useEffect(() => {
     const el = sentinelRef.current;
     const root = scrollRef.current;
     if (!el || !root) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore) setVisibleCount((c) => c + PAGE_SIZE);
+        if (entries[0].isIntersecting && moreToShow) setVisibleCount((c) => c + ROWS_STEP);
       },
-      { root, rootMargin: "400px 0px" },
+      { root, rootMargin: "400px 0px" }
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasMore, visibleCount]);
+  }, [moreToShow, visibleCount]);
 
-  // Top authors by SRP (follows the active filters)
-  const pesoCompact = (n: number) =>
-    `₱${new Intl.NumberFormat("en-PH", { notation: "compact", maximumFractionDigits: 2 }).format(n)}`;
+  /* ── theme-aware styles ── */
+  const cardClass = isBold
+    ? "rounded-lg border-2 border-gray-800 shadow-[4px_4px_0_0_#1f2937]"
+    : "rounded-xl border border-gray-200 shadow-sm";
 
-  const topAuthors = useMemo(() => {
-    const byAuthor = new Map<string, { value: number; count: number }>();
-    filteredRecords.forEach((r) => {
-      const refId = r.item_added_author || r.tsm || "";
-      const u = userMap[refId];
-      const name = (
-        u && u.Firstname && u.Lastname ? `${u.Firstname} ${u.Lastname}` : refId || "Unassigned"
-      )
-        .trim()
-        .toUpperCase();
-      const cur = byAuthor.get(name) || { value: 0, count: 0 };
-      cur.value += computeTotalSrp(r) ?? 0;
-      cur.count += 1;
-      byAuthor.set(name, cur);
-    });
-    return [...byAuthor.entries()]
-      .map(([name, v]) => ({ name, ...v }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  }, [filteredRecords, userMap]);
-  const maxAuthorValue = topAuthors[0]?.value || 1;
-
-  /* ─────────────────────── */
-  /* Unique statuses         */
-  /* ─────────────────────── */
-  const uniqueStatuses = useMemo(() => {
-    const set = new Set<string>();
-    records.forEach((r) => {
-      if (r.status) set.add(r.status);
-    });
-    return Array.from(set).sort();
-  }, [records]);
-
-  /* ─────────────────────── */
-  /* Helpers                 */
-  /* ─────────────────────── */
-  const fmt = (iso?: string) => {
-    if (!iso) return "-";
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return "-";
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "-";
     return new Intl.DateTimeFormat("en-US", {
       timeZone: "Asia/Manila",
       year: "numeric",
@@ -582,286 +903,185 @@ export default function AnalyticsPage() {
       day: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
-    }).format(d);
+      second: "2-digit",
+    }).format(new Date(dateString));
   };
 
-  const clearFilters = () => {
-    setSearchTerm("");
-    setStatusFilter(null);
-    setSortBy("date_updated");
-    setSortOrder("desc");
-  };
+  const anyFilter = hasAnyFilter || hasSel;
+  const emptyMessage = anyFilter
+    ? `No quotations match${search ? ` "${search}"` : " these filters"}${
+        hasDateFilter ? ` for ${dateRangeLabel}` : ""
+      }${soStatusFilter ? ` with SO status "${soStatusFilter}"` : ""}.`
+    : "No SPF-DSI quotations found.";
 
-  const srpFmt = useMemo(
-    () =>
-      new Intl.NumberFormat("en-PH", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }),
-    [],
+  const showLoading = loading || soPending;
+  const kpiPartial = records.length >= DATA_LIMIT && totalCount > DATA_LIMIT;
+
+  const kpiHint = (() => {
+    if (!anyFilter) return "All SPF-DSI quotations";
+    const parts: string[] = [];
+    if (search) parts.push(`"${search}"`);
+    if (hasDateFilter) parts.push(dateRangeLabel);
+    if (soStatusFilter) parts.push(soStatusFilter);
+    if (hasSel) parts.push("chart filters on");
+    return parts.join(" · ");
+  })();
+
+  // chips that show what the charts are currently filtering by
+  const chips: { dim: Dim; key: string; label: string }[] = [
+    ...sel.months.map((k) => ({ dim: "months" as Dim, key: k, label: monthLabel(k) })),
+    ...sel.agents.map((k) => ({ dim: "agents" as Dim, key: k, label: k })),
+    ...sel.statuses.map((k) => ({ dim: "statuses" as Dim, key: k, label: k })),
+    ...sel.buckets.map((k) => ({ dim: "buckets" as Dim, key: k, label: BUCKETS[Number(k)]?.label || k })),
+  ];
+
+  /* ── filter controls ── */
+  const searchBar = (
+    <>
+      <CollapsibleSearch
+        className="hidden md:flex"
+        value={searchInput}
+        onChange={setSearchInput}
+        placeholder="Search activity ref #, account ref #, SKU, SO status, or agent..."
+      />
+      <div className="relative w-full md:hidden">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Input
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Search activity ref #, account ref #, SKU, SO status, or agent..."
+          className="pl-8 pr-8 h-9"
+        />
+        {searchInput && (
+          <button
+            type="button"
+            onClick={() => setSearchInput("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            aria-label="Clear search"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    </>
   );
 
-  const formatTextCell = (raw: string): string => {
-    const t = raw.trim();
-    return t ? t : "-";
-  };
-
-  const formatNumberCell = (raw: string): string => {
-    const n = parseLooseNumber(raw);
-    return n === null ? "-" : srpFmt.format(n);
-  };
-
-  const formatPesoCell = (raw: string): string => {
-    const n = parseLooseNumber(raw);
-    return n === null ? "-" : `₱ ${srpFmt.format(n)}`;
-  };
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await fetchRecords();
-    setIsRefreshing(false);
-  };
-
-  const authorLabel = (rec: SPFCreation) => {
-    const refId = rec.item_added_author || rec.tsm;
-    if (!refId) return "-";
-    const user = userMap[refId];
-    if (user && user.Firstname && user.Lastname) {
-      return `${user.Firstname} ${user.Lastname}`;
-    }
-    return refId;
-  };
-
-  /* ── theme-aware styles ── */
-  const cardClass = isBold
-    ? "rounded-lg border-2 border-gray-800 shadow-[4px_4px_0_0_#1f2937]"
-    : "rounded-xl border border-gray-200 shadow-sm";
-
-  const handleDownloadExcel = () => {
-    const exportData = filteredRecords.map((rec) => {
-      const totalSrp = computeTotalSrp(rec);
-      const qtyDisplay = formatPairedByItemCode(
-        rec.product_offer_qty,
-        rec.item_code,
-        formatTextCell,
-      );
-      const sellingCostDisplay = formatPairedByItemCode(
-        rec.final_selling_cost,
-        rec.item_code,
-        formatPesoCell,
-      );
-      const duration = formatDuration(
-        rec.spf_creation_start_time,
-        rec.spf_creation_end_time,
-      );
-
-      return {
-        "SPF Number": rec.spf_number || "-",
-        "Customer Name": rec.customer_name || "-",
-        "Author": authorLabel(rec),
-        "Date Created": fmt(rec.request_date_created),
-        "Date Updated": fmt(rec.date_updated),
-        "Duration": duration,
-        "Product Offer Qty": qtyDisplay.join("; "),
-        "Final Selling Cost": sellingCostDisplay.join("; "),
-        "Total SRP": totalSrp === null ? "-" : `₱ ${srpFmt.format(totalSrp)}`,
-      };
-    });
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "SPF Analytics");
-    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
-    saveAs(blob, "SPF_Creation_Analytics.xlsx");
-  };
-
-  /* ─────────────────────── */
-  /* Auth guard              */
-  /* ─────────────────────── */
-  useEffect(() => {
-    if (userId === null) return;
-    if (!userId) window.location.href = "/login";
-  }, [userId]);
-
-  /* ════════════════════════════════════════════════════════════ */
-  /* RENDER                                                       */
-  /* ════════════════════════════════════════════════════════════ */
-  const hasAnyFilter = Boolean(searchTerm || statusFilter);
-
-  const searchBar = (
-    <div className="relative w-full md:w-80">
-      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-      <Input
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="Search SPF, customer, or brand..."
-        className="pl-8 pr-8 h-9"
-      />
-      {searchTerm && (
-        <button
-          type="button"
-          onClick={() => setSearchTerm("")}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-          aria-label="Clear search"
+  const soStatusFilterEl = (
+    <div className="flex items-center gap-2 w-full md:w-auto">
+      <label htmlFor="spf-so-status" className="sr-only">
+        Filter by SO status
+      </label>
+      <select
+        id="spf-so-status"
+        value={soStatusFilter}
+        onChange={(e) => setSoStatusFilter(e.target.value)}
+        className="h-9 w-full md:w-48 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        <option value="">All SO Status</option>
+        <option value="Convert to SI">Convert to SI</option>
+      </select>
+      {soStatusFilter && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setSoStatusFilter("")}
+          className="h-9 shrink-0 px-2.5"
+          aria-label="Clear SO status filter"
+          title="Clear SO status"
         >
           <X className="h-4 w-4" />
-        </button>
+        </Button>
+      )}
+    </div>
+  );
+
+  const dateFilter = (
+    <div className="flex items-center gap-2 w-full md:w-auto">
+      <div className="flex items-center gap-1.5 flex-1 md:flex-none">
+        <label htmlFor="spf-date-from" className="sr-only">
+          Date created from
+        </label>
+        <Input
+          id="spf-date-from"
+          type="date"
+          value={dateFrom}
+          max={dateTo || undefined}
+          onChange={(e) => setDateFrom(e.target.value)}
+          className="h-9 w-full md:w-[9.5rem] text-sm"
+        />
+        <span className="text-xs text-gray-500">to</span>
+        <label htmlFor="spf-date-to" className="sr-only">
+          Date created to
+        </label>
+        <Input
+          id="spf-date-to"
+          type="date"
+          value={dateTo}
+          min={dateFrom || undefined}
+          onChange={(e) => setDateTo(e.target.value)}
+          className="h-9 w-full md:w-[9.5rem] text-sm"
+        />
+      </div>
+      {hasDateFilter && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={clearDates}
+          className="h-9 shrink-0 px-2.5"
+          aria-label="Clear date filter"
+          title="Clear dates"
+        >
+          <X className="h-4 w-4" />
+        </Button>
       )}
     </div>
   );
 
   return (
-    <AccessGuard accessKey="page:analytics">
+    <AccessGuard accessKey="page:requests">
       <div className="h-dvh flex flex-col overflow-hidden">
-
         {/* ── DESKTOP HEADER ── */}
         <div className="hidden md:flex flex-col gap-3 px-6 pt-6 pb-3 shrink-0 bg-white/80 backdrop-blur-md border-b">
           <SidebarTrigger />
           <div className="flex items-center justify-between gap-3">
-            <h1 className="text-2xl font-semibold shrink-0">SPF Creation Analytics</h1>
+            <h1 className="text-2xl font-semibold shrink-0">SPF Quotation Tracking</h1>
             <div className="flex items-center gap-2 flex-wrap justify-end">
               {searchBar}
+              {soStatusFilterEl}
+              {dateFilter}
+              <Button size="sm" variant="outline" onClick={handleDownload}>
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Download
+              </Button>
               <Button size="sm" variant="outline" disabled={isRefreshing} onClick={handleRefresh}>
                 <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRefreshing ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
-              <Button size="sm" variant="outline" onClick={handleDownloadExcel}>
-                <Download className="h-3.5 w-3.5 mr-1.5" />
-                Download Excel
-              </Button>
             </div>
-          </div>
-
-          {/* Status filter row */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-gray-500 font-medium">Status:</span>
-            <Button
-              size="sm"
-              variant={statusFilter === null ? "default" : "outline"}
-              onClick={() => setStatusFilter(null)}
-              className="text-xs h-8"
-            >
-              All
-            </Button>
-            {uniqueStatuses.map((s) => (
-              <Button
-                key={s}
-                size="sm"
-                variant={statusFilter === s ? "default" : "outline"}
-                onClick={() => setStatusFilter(s)}
-                className="text-xs h-8"
-              >
-                {s}
-              </Button>
-            ))}
-            {hasAnyFilter && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={clearFilters}
-                className="text-xs h-8 px-2.5"
-              >
-                <X className="h-4 w-4 mr-1" />
-                Clear Filters
-              </Button>
-            )}
-            <div className="w-px h-6 bg-gray-300 mx-2" />
-            <span className="text-xs text-gray-500 font-medium">Sort by:</span>
-            <select
-              value={sortBy}
-              onChange={(e) =>
-                setSortBy(
-                  e.target.value as "date_updated" | "date_created" | "alphabetical",
-                )
-              }
-              className="h-8 px-2 rounded-md border text-sm bg-white/70"
-            >
-              <option value="date_updated">Date Updated</option>
-              <option value="date_created">Date Created</option>
-              <option value="alphabetical">Alphabetical</option>
-            </select>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-              className="text-xs h-8 px-2"
-            >
-              {sortOrder === "asc" ? "↑ Asc" : "↓ Desc"}
-            </Button>
           </div>
         </div>
 
         {/* ── MOBILE HEADER ── */}
         <div className="md:hidden shrink-0 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 pt-14 pb-3">
           <div className="flex items-center justify-between">
-            <h1 className="text-lg font-bold text-gray-900">SPF Analytics</h1>
-            <Button size="sm" variant="outline" disabled={isRefreshing} onClick={handleRefresh}>
-              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-            </Button>
+            <h1 className="text-lg font-bold text-gray-900">SPF Quotation Tracking</h1>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={handleDownload}>
+                <Download className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="sm" variant="outline" disabled={isRefreshing} onClick={handleRefresh}>
+                <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
           </div>
           <div className="mt-3 space-y-2">
             {searchBar}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-gray-500 font-medium shrink-0">Status:</span>
-              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
-                <Button
-                  size="sm"
-                  variant={statusFilter === null ? "default" : "outline"}
-                  onClick={() => setStatusFilter(null)}
-                  className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
-                >
-                  All
-                </Button>
-                {uniqueStatuses.map((s) => (
-                  <Button
-                    key={s}
-                    size="sm"
-                    variant={statusFilter === s ? "default" : "outline"}
-                    onClick={() => setStatusFilter(s)}
-                    className="text-xs h-8 px-3 shrink-0 whitespace-nowrap"
-                  >
-                    {s}
-                  </Button>
-                ))}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 font-medium">Sort:</span>
-              <select
-                value={sortBy}
-                onChange={(e) =>
-                  setSortBy(e.target.value as "date_updated" | "date_created" | "alphabetical")
-                }
-                className="h-7 px-2 rounded-md border text-xs bg-white/70"
-              >
-                <option value="date_updated">Date Updated</option>
-                <option value="date_created">Date Created</option>
-                <option value="alphabetical">Alphabetical</option>
-              </select>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                className="text-xs h-7 px-2"
-              >
-                {sortOrder === "asc" ? "↑" : "↓"}
-              </Button>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-400 font-medium">
-                {filteredRecords.length} result{filteredRecords.length !== 1 ? "s" : ""}
-              </span>
-              {hasAnyFilter && (
-                <Button variant="ghost" onClick={clearFilters} className="text-xs h-7 px-2">
-                  Clear
-                </Button>
-              )}
-            </div>
+            {soStatusFilterEl}
+            {dateFilter}
           </div>
         </div>
 
-        {/* ── ONE SCROLL AREA: KPIs + list ── */}
+        {/* ── ONE SCROLL AREA: dashboard + details ── */}
         <div
           ref={scrollRef}
           onScroll={(e) => setShowTop(e.currentTarget.scrollTop > 600)}
@@ -869,204 +1089,253 @@ export default function AnalyticsPage() {
             isEngineer && !wallpaper ? "engineer-blueprint-bg" : ""
           }`}
         >
-          {/* KPI DASHBOARD */}
-          <section className="px-3 md:px-6 pt-4 pb-3">
-            <div className="grid grid-cols-2 lg:grid-cols-12 gap-3">
-              <SummaryCard
-                big
-                label="Total SRP"
-                value={`₱${srpFmt.format(stats.totalSrp)}`}
-                hint={`${filteredRecords.length} of ${stats.total} records shown`}
-                icon={<DollarSign className="h-5 w-5 text-emerald-700" />}
-                accent="bg-emerald-100"
-                loading={loadingPage}
-                cardClass={cardClass}
-                className="col-span-2 lg:col-span-4"
-              />
-              <SummaryCard
-                label="Total Records"
-                value={stats.total.toLocaleString("en-PH")}
-                hint={`${stats.withDuration} timed records`}
-                icon={<FileText className="h-5 w-5 text-purple-700" />}
-                accent="bg-purple-100"
-                loading={loadingPage}
-                cardClass={cardClass}
-                className="lg:col-span-2"
-              />
-              <SummaryCard
-                label="Avg Creation Time"
-                value={stats.avgDurationStr}
-                hint="Average SPF creation duration"
-                icon={<Clock className="h-5 w-5 text-sky-700" />}
-                accent="bg-sky-100"
-                loading={loadingPage}
-                cardClass={cardClass}
-                className="lg:col-span-2"
-              />
-
-              {/* Top authors leaderboard */}
-              <div className={`col-span-2 lg:col-span-4 bg-white p-4 ${cardClass}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm text-gray-600 font-medium">Top authors by SRP</span>
-                  <span className="h-9 w-9 rounded-lg flex items-center justify-center bg-amber-100">
-                    <Trophy className="h-5 w-5 text-amber-700" />
+          <section className="px-3 md:px-6 pt-4 pb-2 space-y-3">
+            {/* active chart filters + metric switch */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-1.5 min-h-[28px]">
+                {chips.length === 0 ? (
+                  <span className="text-xs text-gray-500">
+                    Tip: click any bar or slice to filter the whole dashboard. Click again to undo.
                   </span>
-                </div>
-                {loadingPage ? (
-                  <div className="space-y-2">
-                    {[0, 1, 2].map((i) => (
-                      <div key={i} className="h-5 rounded bg-gray-200 animate-pulse" />
-                    ))}
-                  </div>
-                ) : topAuthors.length === 0 ? (
-                  <div className="text-xs text-gray-400">No data yet.</div>
                 ) : (
-                  <ul className="space-y-2">
-                    {topAuthors.map((a, i) => (
-                      <li key={a.name}>
-                        <div className="flex items-baseline justify-between gap-2 text-xs">
-                          <span className="truncate font-semibold text-gray-800">
-                            {i === 0 ? "🏆 " : ""}
-                            {a.name}
-                          </span>
-                          <span className="shrink-0 tabular-nums text-gray-600">
-                            {pesoCompact(a.value)}
-                            <span className="text-gray-400"> · {a.count}</span>
-                          </span>
-                        </div>
-                        <div className="mt-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${i === 0 ? "bg-amber-500" : "bg-amber-300"}`}
-                            style={{ width: `${Math.max(4, (a.value / maxAuthorValue) * 100)}%` }}
-                          />
-                        </div>
-                      </li>
+                  <>
+                    {chips.map((c) => (
+                      <button
+                        key={`${c.dim}-${c.key}`}
+                        type="button"
+                        onClick={() => toggleSel(c.dim, c.key)}
+                        className="inline-flex items-center gap-1 rounded-full bg-gray-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-gray-700"
+                        aria-label={`Remove filter ${c.label}`}
+                      >
+                        {c.label}
+                        <X className="h-3 w-3" />
+                      </button>
                     ))}
-                  </ul>
+                    <button
+                      type="button"
+                      onClick={clearSel}
+                      className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                      <FilterX className="h-3 w-3" />
+                      Clear all
+                    </button>
+                  </>
                 )}
               </div>
+              <MetricToggle metric={metric} onChange={setMetric} />
             </div>
+
+            {/* KPI TILES */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <KpiTile
+                label="Total quoted value"
+                value={formatPeso(kpis.totalValue) || "₱0.00"}
+                hint={kpiHint}
+                icon={<Banknote className="h-5 w-5" />}
+                color="#01b8aa"
+                loading={showLoading}
+                cardClass={cardClass}
+              />
+              <KpiTile
+                label="Quotations"
+                value={kpis.count.toLocaleString("en-PH")}
+                hint={`${displayGroups.length.toLocaleString("en-PH")} activity groups`}
+                icon={<FileText className="h-5 w-5" />}
+                color="#374649"
+                loading={showLoading}
+                cardClass={cardClass}
+              />
+              <KpiTile
+                label="Average quotation"
+                value={formatPesoCompact(kpis.avg)}
+                hint={formatPeso(kpis.avg) || undefined}
+                icon={<Calculator className="h-5 w-5" />}
+                color="#fd625e"
+                loading={showLoading}
+                cardClass={cardClass}
+              />
+              <KpiTile
+                label="SKU lines"
+                value={kpis.skuCount.toLocaleString("en-PH")}
+                hint={
+                  kpis.count ? `${(kpis.skuCount / kpis.count).toFixed(1)} per quotation` : undefined
+                }
+                icon={<Layers className="h-5 w-5" />}
+                color="#f2c80f"
+                loading={showLoading}
+                cardClass={cardClass}
+              />
+            </div>
+
+            {/* CHARTS */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+              <Panel
+                title="Quotations over time"
+                subtitle={`By date created · ${metric === "value" ? "quoted value" : "count"}`}
+                cardClass={cardClass}
+                className="lg:col-span-7"
+              >
+                {showLoading ? (
+                  <div className="h-52 rounded bg-gray-100 animate-pulse" />
+                ) : (
+                  <ColumnChart
+                    rows={monthRows}
+                    metric={metric}
+                    selected={sel.months}
+                    onToggle={(k) => toggleSel("months", k)}
+                  />
+                )}
+              </Panel>
+
+              <Panel
+                title="Status split"
+                subtitle="Share of total"
+                cardClass={cardClass}
+                className="lg:col-span-5"
+              >
+                {showLoading ? (
+                  <div className="h-44 rounded bg-gray-100 animate-pulse" />
+                ) : (
+                  <Donut
+                    rows={statusRows}
+                    metric={metric}
+                    selected={sel.statuses}
+                    onToggle={(k) => toggleSel("statuses", k)}
+                  />
+                )}
+              </Panel>
+
+              <Panel
+                title="Top agents"
+                subtitle={`Ranked by ${metric === "value" ? "quoted value" : "quotation count"}`}
+                cardClass={cardClass}
+                className="lg:col-span-7"
+              >
+                {showLoading ? (
+                  <div className="h-44 rounded bg-gray-100 animate-pulse" />
+                ) : (
+                  <HBars
+                    rows={agentRows}
+                    metric={metric}
+                    selected={sel.agents}
+                    onToggle={(k) => toggleSel("agents", k)}
+                    color="#01b8aa"
+                  />
+                )}
+              </Panel>
+
+              <Panel
+                title="Quotation size"
+                subtitle="Distribution by amount"
+                cardClass={cardClass}
+                className="lg:col-span-5"
+              >
+                {showLoading ? (
+                  <div className="h-44 rounded bg-gray-100 animate-pulse" />
+                ) : (
+                  <HBars
+                    rows={bucketRows}
+                    metric={metric}
+                    selected={sel.buckets}
+                    onToggle={(k) => toggleSel("buckets", k)}
+                    color="#fd625e"
+                  />
+                )}
+              </Panel>
+            </div>
+
+            {kpiPartial && (
+              <p className="text-xs text-gray-500">
+                Dashboard covers the latest {DATA_LIMIT.toLocaleString("en-PH")} of{" "}
+                {totalCount.toLocaleString("en-PH")} quotations. Narrow with search or dates to see the rest.
+              </p>
+            )}
+            {soError && <p className="text-xs text-red-500">{soError}</p>}
           </section>
 
-          {/* LIST HEADER STRIP */}
+          {/* DETAILS HEADER STRIP */}
           <div className="px-3 md:px-6 py-2 text-sm text-gray-600 flex items-center justify-between">
             <span>
-              Showing <b className="text-gray-900 tabular-nums">{visibleRecords.length}</b> of{" "}
-              <b className="text-gray-900 tabular-nums">{filteredRecords.length}</b> records
+              Details · showing <b className="text-gray-900 tabular-nums">{visibleGroups.length}</b> of{" "}
+              <b className="text-gray-900 tabular-nums">{displayGroups.length}</b> groups
+              <span className="text-gray-500"> · {filtered.length} quotations</span>
+              {hasDateFilter && <span className="text-gray-500"> · created {dateRangeLabel}</span>}
+              {soStatusFilter && <span className="text-gray-500"> · SO status: {soStatusFilter}</span>}
             </span>
           </div>
 
-          {/* ── DESKTOP TABLE ── */}
+          {/* DESKTOP TABLE */}
           <div className="hidden md:block">
             <table className="w-full text-sm border-collapse">
               <thead className="bg-blue-50/95 backdrop-blur-sm sticky top-0 z-30">
                 <tr>
-                  {[
-                    "SPF Number",
-                    "Customer Name",
-                    "Author",
-                    "Date Created",
-                    "Date Updated",
-                    "Duration",
-                    "Product Offer Qty",
-                    "Final Selling Cost",
-                    "TOTAL SRP",
-                  ].map((h, i) => (
-                    <th
-                      key={h}
-                      className={`px-4 py-3 text-left font-bold border-b whitespace-nowrap ${
-                        i === 0 ? "sticky left-0 bg-blue-50/95 backdrop-blur-sm z-20" : ""
-                      }`}
-                    >
-                      {h}
-                    </th>
-                  ))}
+                  {["Activity Ref #", "Account Ref #", "Sales Agent", "Quotation #", "Product SKU", "Status", "Date Created", "Date Updated"].map(
+                    (h) => (
+                      <th key={h} className={`px-4 py-3 text-left font-bold border-b whitespace-nowrap ${h === "Status" ? "px-2" : ""}`}>
+                        {h}
+                      </th>
+                    )
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {isRefreshing || loadingPage ? (
+                {showLoading ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-10 text-muted-foreground">
+                    <td colSpan={8} className="text-center py-10 text-muted-foreground">
                       Loading...
                     </td>
                   </tr>
-                ) : fetchError && records.length === 0 ? (
+                ) : error && displayGroups.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-10 text-red-500">
-                      {fetchError}
+                    <td colSpan={8} className="text-center py-10 text-red-500">
+                      {error}
                     </td>
                   </tr>
-                ) : filteredRecords.length === 0 ? (
+                ) : displayGroups.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-10 text-muted-foreground">
-                      No SPF creation records found.
+                    <td colSpan={8} className="text-center py-10 text-muted-foreground">
+                      {emptyMessage}
                     </td>
                   </tr>
                 ) : (
-                  visibleRecords.map((rec) => {
-                    const duration = formatDuration(
-                      rec.spf_creation_start_time,
-                      rec.spf_creation_end_time,
-                    );
-                    const totalSrp = computeTotalSrp(rec);
-                    const qtyDisplay = formatPairedByItemCode(
-                      rec.product_offer_qty,
-                      rec.item_code,
-                      formatTextCell,
-                    );
-                    const sellingCostDisplay = formatPairedByItemCode(
-                      rec.final_selling_cost,
-                      rec.item_code,
-                      formatPesoCell,
-                    );
-
+                  visibleGroups.map((group) => {
+                    const firstQuotation = group.quotations[0];
                     return (
-                      <tr
-                        key={rec.id}
-                        className="border-b hover:bg-white/60 align-top"
-                      >
-                        <td className="px-4 py-3 font-medium uppercase sticky left-0 bg-white/60 backdrop-blur-sm z-20">
-                          {rec.spf_number || "-"}
+                      <tr key={`${group.activityRef}-${group.accountRef}`} className="border-b hover:bg-white/60 align-top">
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col gap-1">
+                            <span className="font-medium uppercase">{group.activityRef || "-"}</span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleViewHistory(group.activityRef)}
+                              className="h-6 px-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                            >
+                              <History className="h-3 w-3 mr-1" />
+                              View History
+                            </Button>
+                          </div>
                         </td>
-                        <td className="px-4 py-3 uppercase">{rec.customer_name || "-"}</td>
-                        <td className="px-4 py-3 text-xs">{authorLabel(rec)}</td>
+                        <td className="px-4 py-3 font-medium uppercase">{group.accountRef || "-"}</td>
+                        <td className="px-4 py-3 uppercase">{group.salesAgent || "-"}</td>
+                        <td className="px-4 py-3">
+                          <QuotationDropdown quotations={group.quotations} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <SkuList
+                            lines={getSpfDsiSkuLines(firstQuotation.product_sku, firstQuotation.product_amount, firstQuotation.product_quantity)}
+                          />
+                        </td>
+                        <td className="px-2 py-3">
+                          <span className="text-xs px-1.5 py-1 rounded uppercase font-semibold whitespace-nowrap bg-purple-100 text-purple-700">
+                            {firstQuotation.status || "-"}
+                          </span>
+                        </td>
                         <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                          {fmt(rec.request_date_created)}
+                          {formatDate(firstQuotation.date_created)}
                         </td>
                         <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                          {fmt(rec.date_updated)}
-                        </td>
-                        <td className="px-4 py-3 text-xs font-mono">
-                          {duration}
-                        </td>
-                        <td className="px-4 py-3 text-xs font-mono">
-                          {qtyDisplay.length > 0 ? (
-                            <div className="flex flex-col gap-1">
-                              {qtyDisplay.map((item, idx) => (
-                                <div key={idx} className="whitespace-nowrap">
-                                  {idx + 1}. {item}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-xs font-mono">
-                          {sellingCostDisplay.length > 0 ? (
-                            <div className="flex flex-col gap-1">
-                              {sellingCostDisplay.map((item, idx) => (
-                                <div key={idx} className="whitespace-nowrap">
-                                  {idx + 1}. {item}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-xs font-mono font-semibold whitespace-nowrap">
-                          {totalSrp === null ? "-" : `₱ ${srpFmt.format(totalSrp)}`}
+                          {formatDate(firstQuotation.date_updated)}
                         </td>
                       </tr>
                     );
@@ -1076,98 +1345,62 @@ export default function AnalyticsPage() {
             </table>
           </div>
 
-          {/* ── MOBILE CARD LIST ── */}
-          <div className="md:hidden px-3 pb-6 space-y-3">
-            {isRefreshing || loadingPage ? (
+          {/* MOBILE CARD LIST */}
+          <div className="md:hidden px-3 pb-6 space-y-2.5">
+            {showLoading ? (
               <div className="flex justify-center py-16">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400"></div>
               </div>
-            ) : fetchError && records.length === 0 ? (
-              <div className="text-center py-16 text-red-500">{fetchError}</div>
-            ) : filteredRecords.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground">
-                No SPF creation records found.
-              </div>
+            ) : error && displayGroups.length === 0 ? (
+              <div className="text-center py-16 text-red-500">{error}</div>
+            ) : displayGroups.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">{emptyMessage}</div>
             ) : (
-              visibleRecords.map((rec) => {
-                const duration = formatDuration(
-                  rec.spf_creation_start_time,
-                  rec.spf_creation_end_time,
-                );
-                const totalSrp = computeTotalSrp(rec);
-                const qtyDisplay = formatPairedByItemCode(
-                  rec.product_offer_qty,
-                  rec.item_code,
-                  formatTextCell,
-                );
-                const sellingCostDisplay = formatPairedByItemCode(
-                  rec.final_selling_cost,
-                  rec.item_code,
-                  formatPesoCell,
-                );
-
+              visibleGroups.map((group) => {
+                const firstQuotation = group.quotations[0];
                 return (
-                  <div key={rec.id} className="bg-white rounded-lg border p-4 shadow-sm">
+                  <div
+                    key={`${group.activityRef}-${group.accountRef}`}
+                    className="bg-white rounded-xl border border-gray-200 p-3.5 shadow-sm"
+                  >
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <div className="font-bold text-sm uppercase">{rec.spf_number || "-"}</div>
-                        <div className="text-xs text-gray-500 mt-1">{rec.customer_name || "-"}</div>
+                        <div className="font-bold text-sm uppercase">{group.activityRef || "-"}</div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleViewHistory(group.activityRef)}
+                          className="h-6 px-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 mt-1"
+                        >
+                          <History className="h-3 w-3 mr-1" />
+                          View History
+                        </Button>
+                        <div className="text-xs text-gray-500 mt-1">{group.accountRef || "-"}</div>
+                        <div className="text-xs text-gray-500 mt-1">{group.salesAgent || "-"}</div>
                       </div>
-                      <span className="text-xs px-2 py-1 rounded uppercase font-semibold whitespace-nowrap bg-green-100 text-green-700">
-                        {rec.status || "-"}
-                      </span>
+                      <div className="flex gap-1">
+                        <span className="text-xs px-2 py-1 rounded uppercase font-semibold whitespace-nowrap bg-purple-100 text-purple-700">
+                          {firstQuotation.status || "-"}
+                        </span>
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 gap-2 text-xs">
                       <div>
-                        <span className="text-gray-500">Duration:</span>
-                        <div className="font-mono font-bold text-red-600">{duration}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Date Created:</span>
-                        <div>{fmt(rec.request_date_created)}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Date Updated:</span>
-                        <div>{fmt(rec.date_updated)}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Product Offer Qty:</span>
-                        <div className="font-mono mt-1 space-y-1">
-                          {qtyDisplay.length > 0 ? (
-                            qtyDisplay.map((item, idx) => (
-                              <div key={idx}>
-                                {idx + 1}. {item}
-                              </div>
-                            ))
-                          ) : (
-                            "-"
-                          )}
+                        <span className="text-gray-500">Quotation #:</span>
+                        <div className="mt-1">
+                          <QuotationDropdown quotations={group.quotations} />
                         </div>
                       </div>
                       <div>
-                        <span className="text-gray-500">Final Selling Cost:</span>
-                        <div className="font-mono mt-1 space-y-1">
-                          {sellingCostDisplay.length > 0 ? (
-                            sellingCostDisplay.map((item, idx) => (
-                              <div key={idx}>
-                                {idx + 1}. {item}
-                              </div>
-                            ))
-                          ) : (
-                            "-"
-                          )}
+                        <span className="text-gray-500">Product SKU:</span>
+                        <div className="mt-1">
+                          <SkuList
+                            lines={getSpfDsiSkuLines(firstQuotation.product_sku, firstQuotation.product_amount, firstQuotation.product_quantity)}
+                          />
                         </div>
                       </div>
-                      <div>
-                        <span className="text-gray-500">Total SRP:</span>
-                        <div className="font-bold">
-                          {totalSrp === null ? "-" : `₱ ${srpFmt.format(totalSrp)}`}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Author:</span>
-                        <div>{authorLabel(rec)}</div>
-                      </div>
+                      <div className="text-gray-400 text-xs">Created {formatDate(firstQuotation.date_created)}</div>
+                      <div className="text-gray-400 text-xs">Updated {formatDate(firstQuotation.date_updated)}</div>
                     </div>
                   </div>
                 );
@@ -1175,14 +1408,18 @@ export default function AnalyticsPage() {
             )}
           </div>
 
-          {/* INFINITE SCROLL FOOTER */}
+          {/* LIST FOOTER (auto-reveals more rows) */}
           <div ref={sentinelRef} className="h-16 flex items-center justify-center text-xs text-gray-500">
-            {hasMore ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading more records...
-              </span>
-            ) : filteredRecords.length > 0 ? (
-              <span>You&apos;ve reached the end · {filteredRecords.length} records</span>
+            {moreToShow ? (
+              <button
+                type="button"
+                onClick={() => setVisibleCount((c) => c + ROWS_STEP)}
+                className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading more · tap to load now
+              </button>
+            ) : displayGroups.length > 0 ? (
+              <span>You&apos;ve reached the end · {filtered.length} quotations</span>
             ) : null}
           </div>
 
@@ -1198,6 +1435,62 @@ export default function AnalyticsPage() {
             </button>
           )}
         </div>
+
+        {/* HISTORY DIALOG */}
+        <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col p-0">
+            <DialogHeader className="sticky top-0 bg-white border-b px-6 py-4 z-10">
+              <DialogTitle>
+                Activity History: {selectedActivityRef}
+                {activityHistory.length > 0 && activityHistory[0].company_name && (
+                  <span className="block text-sm font-normal text-gray-600 mt-1">
+                    {activityHistory[0].company_name}
+                  </span>
+                )}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {historyLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                </div>
+              ) : historyError ? (
+                <div className="text-center py-8 text-red-500">{historyError}</div>
+              ) : activityHistory.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">No history records found.</div>
+              ) : (
+                <div className="space-y-3">
+                  {activityHistory.map((record) => (
+                    <div key={record.id} className="border rounded-lg p-4 bg-gray-50">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <span className="text-gray-500 text-xs">Activity Type:</span>
+                          <div className="font-medium">{record.type_activity || "-"}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-xs">Status:</span>
+                          <div className="font-medium">{record.status || "-"}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-xs">Quotation #:</span>
+                          <div className="font-medium uppercase">{record.quotation_number || "-"}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-xs">SO Status:</span>
+                          <div className="font-bold uppercase text-green-600">{record.so_status || "-"}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-xs">Date Updated:</span>
+                          <div className="font-medium text-xs">{formatDate(record.date_updated)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AccessGuard>
   );

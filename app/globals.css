@@ -1482,7 +1482,7 @@
 }
 
 /* ============================================
-   ENGINEER THEME - Bob the Builder Inspired
+   ENGINEER-INSPIRED THEME
    ============================================ */
 
 .engineer {
@@ -1913,4 +1913,247 @@
 .engineer-hover-lift:active {
   transform: translate(2px, 2px);
   box-shadow: 4px 4px 0px #2c3e50 !important;
+}
+
+/* Christmas Theme */
+.christmas {
+  --radius: 0.5rem;
+  --background: #dcebdd;
+  --foreground: #20342c;
+  --card: #fffdf8;
+  --card-foreground: #24352b;
+  --popover: #ffffff;
+  --popover-foreground: #24352b;
+  --primary: #b91c1c;
+  --primary-foreground: #ffffff;
+  --secondary: #e4f1e8;
+  --secondary-foreground: #17462d;
+  --muted: #e1eee2;
+  --muted-foreground: #536871;
+  --accent: #e3f0e7;
+  --accent-foreground: #17462d;
+  --destructive: #b91c1c;
+  --destructive-foreground: #ffffff;
+  --border: #cfe0e3;
+  --input: #cfe0e3;
+  --ring: #b91c1c;
+  --chart-1: #166534;
+  --chart-2: #b91c1c;
+  --chart-3: #d6a328;
+  --chart-4: #168c68;
+  --chart-5: #7f1d1d;
+  --sidebar: #d5e8d8;
+  --sidebar-foreground: #163d2b;
+  --sidebar-primary: #166534;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #c7dfcc;
+  --sidebar-accent-foreground: #163d2b;
+  --sidebar-border: #c5dbcd;
+  --sidebar-ring: #b91c1c;
+  background-color: var(--background);
+  color: var(--foreground);
+  background-image:
+    linear-gradient(110deg, #d5e9d8 0%, #e1ebdd 52%, #f0dedd 100%);
+  background-attachment: fixed;
+}
+
+body.christmas main {
+  background: linear-gradient(110deg, #d5e9d8 0%, #e1ebdd 52%, #f0dedd 100%);
+  color: #20342c;
+}
+
+.christmas main [class~="bg-white"] {
+  background-color: #fffdf8 !important;
+}
+
+.christmas main [class~="bg-white/90"] {
+  background-color: rgba(255, 253, 248, 0.94) !important;
+}
+
+.christmas .formal-card,
+.christmas [class~="border"][class~="rounded-lg"][class~="bg-white"] {
+  border-color: #cbded2 !important;
+  box-shadow: 0 3px 10px rgba(22, 70, 45, 0.1) !important;
+}
+
+.christmas .formal-card {
+  border-top: 3px solid #166534 !important;
+}
+
+.christmas main [class~="border-b"] {
+  border-bottom-color: #cbded2 !important;
+}
+
+.christmas main [class~="border-t"] {
+  border-top-color: #cbded2 !important;
+}
+
+.christmas .formal-card-primary {
+  border-color: #166534 !important;
+  background: linear-gradient(135deg, #166534 0%, #15803d 72%, #b91c1c 100%) !important;
+  box-shadow: 0 2px 5px rgba(22, 101, 52, 0.16) !important;
+}
+
+.christmas .formal-button {
+  border-color: #a51d2d !important;
+  background-color: #b91c1c !important;
+  color: #ffffff !important;
+}
+
+.christmas .formal-button:hover {
+  background-color: #166534 !important;
+  border-color: #166534 !important;
+}
+
+.christmas .formal-input:focus {
+  border-color: #15803d !important;
+  box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.12) !important;
+}
+
+.christmas .formal-nav-item:hover {
+  background-color: #eef5ef;
+  border-left-color: #166534;
+}
+
+.christmas .formal-nav-item.active {
+  background-color: #eaf3eb;
+  border-left-color: #166534;
+  color: #166534;
+}
+
+.christmas .formal-header {
+  background: linear-gradient(135deg, #166534 0%, #15803d 72%, #b91c1c 100%);
+}
+
+.christmas .formal-table th {
+  background-color: #f2f7f1;
+  border-bottom-color: #dce8dd;
+}
+
+.christmas [data-sidebar="menu-button"][data-active="true"] {
+  color: #ffffff !important;
+  background: linear-gradient(110deg, #166534 0%, #15803d 55%, #b91c1c 100%) !important;
+}
+
+.christmas-card {
+  border: 1px solid #cbded2;
+  border-top: 3px solid #166534;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(22, 101, 52, 0.08);
+  color: #24352b;
+}
+
+.christmas-card-primary {
+  border: 1px solid #166534;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, #166534 0%, #15803d 72%, #b91c1c 100%);
+  box-shadow: 0 3px 8px rgba(22, 101, 52, 0.18);
+  color: #ffffff;
+}
+
+.christmas-theme-option-active {
+  border: 2px solid #166534 !important;
+  border-top: 3px solid #166534 !important;
+  background: #e8f3eb !important;
+  box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.12), 0 3px 10px rgba(22, 70, 45, 0.12) !important;
+  color: #173d2b !important;
+}
+
+.christmas-theme-option-active p,
+.christmas-theme-option-active span {
+  color: #244b32;
+}
+
+.theme-active-badge {
+  background-color: #166534 !important;
+  color: #ffffff !important;
+}
+
+.formal-theme-active-badge {
+  background-color: #b91c1c !important;
+  border-color: #991b1b !important;
+  color: #ffffff !important;
+}
+
+.christmas-card-gold {
+  border: 1px solid #ead9aa;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, #fffdf7 0%, #fff8e6 100%);
+  color: #4a3b1b;
+}
+
+.christmas-badge {
+  border: 1px solid rgba(22, 101, 52, 0.18);
+  border-radius: 9999px;
+  font-weight: 600;
+}
+
+.christmas-button {
+  border: 1px solid #166534;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.christmas-button:hover {
+  box-shadow: 0 2px 6px rgba(22, 101, 52, 0.16);
+}
+
+.christmas [class~="bg-white"] {
+  background-color: #fffdf8 !important;
+}
+
+.christmas [class~="bg-white/90"] {
+  background-color: rgba(255, 253, 248, 0.94) !important;
+}
+
+.christmas [class~="bg-gray-50"] {
+  background-color: #edf5f5 !important;
+}
+
+.christmas [class~="bg-gray-100"] {
+  background-color: #e3efe8 !important;
+}
+
+.christmas [class~="bg-red-50"] {
+  background-color: #fbecee !important;
+}
+
+.christmas [class~="bg-red-100"] {
+  background-color: #dcefe0 !important;
+}
+
+.christmas [class~="bg-red-600"],
+.christmas [class~="bg-red-700"] {
+  background-color: #b91c1c !important;
+}
+
+.christmas [class~="text-red-500"],
+.christmas [class~="text-red-600"],
+.christmas [class~="text-red-700"],
+.christmas [class~="text-red-800"] {
+  color: #166534 !important;
+}
+
+.christmas [class~="text-red-100"] {
+  color: #ffe4e6 !important;
+}
+
+.christmas [class~="border-red-100"],
+.christmas [class~="border-red-200"],
+.christmas [class~="border-red-500"],
+.christmas [class~="border-red-600"],
+.christmas [class~="border-red-700"] {
+  border-color: #bbd9c1 !important;
+}
+
+.christmas [class~="border-gray-200"],
+.christmas [class~="border-gray-300"] {
+  border-color: #dce8dd !important;
+}
+
+.christmas [class~="border-red-600"][class~="bg-red-50"] {
+  border-color: #fecaca !important;
+  background-color: #fef2f2 !important;
 }

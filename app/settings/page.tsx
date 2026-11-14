@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Palette, Sparkles, Building2, Wrench, ChevronDown, Bell, AlertTriangle, Database } from "lucide-react";
+import { Palette, Sparkles, Building2, Wrench, TreePine, ChevronDown, Bell, AlertTriangle, Database } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NotificationSettings } from "@/components/notifications/NotificationSettings";
 
@@ -68,10 +68,10 @@ const [mounted, setMounted] = useState(false);
     <div className="h-dvh flex flex-col overflow-hidden">
       {/* Header */}
       <div className={`shrink-0 bg-white px-6 pt-6 pb-3 ${
-        theme === "comic" ? "border-b-4 border-gray-800" : theme === "engineer" ? "border-b-4 border-gray-800" : "border-b border-gray-200"
+        theme === "comic" ? "border-b-4 border-gray-800" : theme === "engineer" ? "border-b-4 border-gray-800" : theme === "christmas" ? "border-b border-emerald-200" : "border-b border-gray-200"
       }`}>
         <div className="container mx-auto max-w-4xl space-y-1">
-          <h1 className={`text-3xl font-bold ${theme === "comic" ? "font-comic-title text-red-500 comic-text-outline" : theme === "engineer" ? "font-engineer-title text-orange-600 engineer-text-shadow" : "font-formal-title text-red-600"}`}>
+          <h1 className={`text-3xl font-bold ${theme === "comic" ? "font-comic-title text-red-500 comic-text-outline" : theme === "engineer" ? "font-engineer-title text-orange-600 engineer-text-shadow" : theme === "christmas" ? "font-formal-title text-emerald-800" : "font-formal-title text-red-600"}`}>
             Settings
           </h1>
           <p className={`text-muted-foreground ${theme === "comic" ? "font-comic" : theme === "engineer" ? "font-engineer" : "font-formal"}`}>
@@ -85,14 +85,14 @@ const [mounted, setMounted] = useState(false);
         <div className="container mx-auto max-w-4xl space-y-6 pb-12">
 
       {/* Theme Settings */}
-      <Card className={theme === "comic" ? "comic-card" : theme === "engineer" ? "engineer-card" : "formal-card"}>
+      <Card className={theme === "comic" ? "comic-card" : theme === "engineer" ? "engineer-card" : theme === "christmas" ? "christmas-card" : "formal-card"}>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${theme === "comic" ? "comic-card-primary" : theme === "engineer" ? "engineer-card-primary" : "formal-card-primary"}`}>
+            <div className={`p-2 rounded-lg ${theme === "comic" ? "comic-card-primary" : theme === "engineer" ? "engineer-card-primary" : theme === "christmas" ? "christmas-card-primary" : "formal-card-primary"}`}>
               <Palette className="h-5 w-5 text-white" />
             </div>
             <div>
-              <CardTitle className={theme === "comic" ? "font-comic-title" : "font-formal-title"}>
+              <CardTitle className={theme === "comic" ? "font-comic-title" : theme === "engineer" ? "font-engineer-title" : "font-formal-title"}>
                 Theme
               </CardTitle>
               <CardDescription className={theme === "comic" ? "font-comic" : theme === "engineer" ? "font-engineer" : "font-formal"}>
@@ -105,7 +105,7 @@ const [mounted, setMounted] = useState(false);
           <RadioGroup
             value={theme}
             onValueChange={(value) => setTheme(value as Theme)}
-            className="grid grid-cols-1 md:grid-cols-3 gap-4"
+            className="grid grid-cols-1 sm:grid-cols-2 gap-4"
           >
             {/* Comic Theme Option */}
             <Label
@@ -159,7 +159,7 @@ const [mounted, setMounted] = useState(false);
                   </div>
                   <RadioGroupItem value="formal" id="formal" className="sr-only" />
                   {theme === "formal" && (
-                    <span className="formal-badge bg-red-600 text-white px-2 py-0.5 text-xs">
+                    <span className="formal-badge formal-theme-active-badge px-2 py-0.5 text-xs">
                       Active
                     </span>
                   )}
@@ -202,11 +202,46 @@ const [mounted, setMounted] = useState(false);
                 <div className="space-y-2">
                   <div className="h-2 w-full bg-linear-to-r from-orange-500 via-yellow-400 to-orange-500 rounded-full" />
                   <p className="font-engineer text-sm opacity-90">
-                    Bob the Builder inspired - construction site aesthetic with safety colors
+                    Engineer-inspired industrial style with practical details and safety colors
                   </p>
                   <div className="flex gap-1">
                     <span className="engineer-badge bg-orange-500 text-white px-2 py-0.5 text-xs">Industrial</span>
                     <span className="engineer-badge bg-yellow-400 text-gray-900 px-2 py-0.5 text-xs">Construction</span>
+                  </div>
+                </div>
+              </div>
+            </Label>
+
+            {/* Christmas Theme Option */}
+            <Label
+              htmlFor="christmas"
+              className={`cursor-pointer transition-all ${
+                theme === "christmas"
+                  ? "christmas-card christmas-theme-option-active scale-[1.02]"
+                  : "christmas-card hover:scale-[1.01]"
+              }`}
+            >
+              <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <TreePine className="h-5 w-5 text-emerald-700" />
+                    <span className="font-formal-title text-lg text-emerald-800">Christmas</span>
+                  </div>
+                  <RadioGroupItem value="christmas" id="christmas" className="sr-only" />
+                  {theme === "christmas" && (
+                    <span className="christmas-badge theme-active-badge px-2 py-0.5 text-xs">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <div className="h-2 w-full bg-linear-to-r from-emerald-700 via-red-500 to-amber-400 rounded-full" />
+                  <p className="font-formal text-sm text-gray-600">
+                    A festive evergreen, holly red, and warm gold color palette
+                  </p>
+                  <div className="flex gap-1">
+                    <span className="christmas-badge bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs">Festive</span>
+                    <span className="christmas-badge bg-amber-100 text-amber-800 px-2 py-0.5 text-xs">Seasonal</span>
                   </div>
                 </div>
               </div>
@@ -216,7 +251,7 @@ const [mounted, setMounted] = useState(false);
       </Card>
 
       {/* Preview Section */}
-      <Card className={theme === "comic" ? "comic-card" : theme === "engineer" ? "engineer-card" : "formal-card"}>
+      <Card className={theme === "comic" ? "comic-card" : theme === "engineer" ? "engineer-card" : theme === "christmas" ? "christmas-card" : "formal-card"}>
         <CardHeader>
           <CardTitle className={theme === "comic" ? "font-comic-title" : theme === "engineer" ? "font-engineer-title" : "font-formal-title"}>
             Preview
@@ -234,6 +269,8 @@ const [mounted, setMounted] = useState(false);
                   ? "comic-button px-4 py-2 bg-red-500 text-white"
                   : theme === "engineer"
                   ? "engineer-button px-4 py-2"
+                  : theme === "christmas"
+                  ? "christmas-button px-4 py-2 bg-emerald-700 text-white"
                   : "formal-button px-4 py-2 bg-red-600 text-white hover:bg-red-700"
               }
             >
@@ -245,6 +282,8 @@ const [mounted, setMounted] = useState(false);
                   ? "comic-button px-4 py-2 bg-white text-gray-800 border-2 border-gray-800"
                   : theme === "engineer"
                   ? "engineer-button px-4 py-2 bg-yellow-400 text-gray-900"
+                  : theme === "christmas"
+                  ? "christmas-button px-4 py-2 bg-white text-emerald-800 border border-emerald-200 hover:bg-emerald-50"
                   : "formal-button px-4 py-2 bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
               }
             >
@@ -255,14 +294,14 @@ const [mounted, setMounted] = useState(false);
           {/* Sample Card */}
           <div
             className={`p-4 ${
-              theme === "comic" ? "comic-card-yellow" : theme === "engineer" ? "engineer-card-yellow" : "formal-card bg-gray-50"
+              theme === "comic" ? "comic-card-yellow" : theme === "engineer" ? "engineer-card-yellow" : theme === "christmas" ? "christmas-card-gold" : "formal-card bg-gray-50"
             }`}
           >
             <h3 className={`font-bold mb-2 ${theme === "comic" ? "font-comic-title" : theme === "engineer" ? "font-engineer-title" : "font-formal-title"}`}>
               Sample Card
             </h3>
             <p className={theme === "comic" ? "font-comic" : theme === "engineer" ? "font-engineer" : "font-formal"}>
-              This is how cards appear in the {theme === "comic" ? "Comic" : theme === "engineer" ? "Engineer" : "Formal"} theme.
+              This is how cards appear in the {theme === "comic" ? "Comic" : theme === "engineer" ? "Engineer" : theme === "christmas" ? "Christmas" : "Formal"} theme.
             </p>
           </div>
 
@@ -272,17 +311,17 @@ const [mounted, setMounted] = useState(false);
               Font: {theme === "comic" ? "Fredoka / Comic Neue (Playful)" : theme === "engineer" ? "Roboto Condensed / Arial Narrow (Industrial)" : "Arial / Helvetica (Professional)"}
             </p>
             <p className={`text-sm ${theme === "comic" ? "font-comic" : theme === "engineer" ? "font-engineer" : "font-formal"}`}>
-              Primary Color: {theme === "comic" ? "Superhero Red #ff4757" : theme === "engineer" ? "Safety Orange #ff6b35" : "Professional Red #dc2626"}
+              Primary Color: {theme === "comic" ? "Superhero Red #ff4757" : theme === "engineer" ? "Safety Orange #ff6b35" : theme === "christmas" ? "Evergreen #166534" : "Professional Red #dc2626"}
             </p>
             <p className={`text-sm ${theme === "comic" ? "font-comic" : theme === "engineer" ? "font-engineer" : "font-formal"}`}>
-              Background: {theme === "comic" ? "Sky Blue #87CEEB" : theme === "engineer" ? "Construction Beige #f4e4bc" : "Clean White #ffffff"}
+              Background: {theme === "comic" ? "Sky Blue #87CEEB" : theme === "engineer" ? "Construction Beige #f4e4bc" : theme === "christmas" ? "Winter Ivory #fffdf7" : "Clean White #ffffff"}
             </p>
           </div>
         </CardContent>
       </Card>
 
       {/* Notification Settings — collapsible */}
-      <Card className={theme === "comic" ? "comic-card" : theme === "engineer" ? "engineer-card" : "formal-card"}>
+      <Card className={theme === "comic" ? "comic-card" : theme === "engineer" ? "engineer-card" : theme === "christmas" ? "christmas-card" : "formal-card"}>
         <button
           type="button"
           onClick={() => setIsNotifOpen((v) => !v)}
@@ -291,7 +330,7 @@ const [mounted, setMounted] = useState(false);
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${theme === "comic" ? "comic-card-primary" : theme === "engineer" ? "engineer-card-primary" : "formal-card-primary"}`}>
+                <div className={`p-2 rounded-lg ${theme === "comic" ? "comic-card-primary" : theme === "engineer" ? "engineer-card-primary" : theme === "christmas" ? "christmas-card-primary" : "formal-card-primary"}`}>
                   <Bell className="h-5 w-5 text-white" />
                 </div>
                 <div>

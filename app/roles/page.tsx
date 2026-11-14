@@ -9,6 +9,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useWallpaper } from "@/contexts/WallpaperContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import CollapsibleSearch from "@/components/collapsible-search";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -246,15 +247,21 @@ export default function RolesPage() {
             <SidebarTrigger />
             <h1 className="text-xl md:text-2xl font-semibold">User Access Management</h1>
           </div>
-          <div className="relative w-full md:w-auto">
+          <div className="relative w-full md:hidden">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               placeholder="Search users..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 w-full md:w-64"
+              className="pl-9 w-full"
             />
           </div>
+          <CollapsibleSearch
+            className="hidden md:flex"
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Search users..."
+          />
         </div>
 
         {/* Mobile: Stack description and pagination */}

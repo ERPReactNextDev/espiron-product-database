@@ -8,6 +8,7 @@ import { useWallpaper } from "@/contexts/WallpaperContext";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { AccessGuard } from "@/components/AccessGuard";
+import CollapsibleSearch from "@/components/collapsible-search";
 import { supabase } from "@/utils/supabase";
 import {
   ChevronLeft,
@@ -685,16 +686,11 @@ const [isRefreshing, setIsRefreshing] = useState(false);
           <h1 className="text-2xl font-semibold shrink-0">SPF Requests</h1>
           <div className="flex flex-wrap gap-2 items-center">
             <SPFRequestDownloadAll requests={filteredRequests} />
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Search all columns..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-9 w-64 rounded-md border pl-9 pr-3 text-sm bg-white/70"
-              />
-            </div>
+            <CollapsibleSearch
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Search all columns..."
+            />
             <span className="text-sm text-muted-foreground">{filteredRequests.length} results</span>
             {(searchTerm !== "" || statusFilter !== null) && (
               <Button
@@ -787,15 +783,37 @@ const [isRefreshing, setIsRefreshing] = useState(false);
               }`}
             />
           </button>
-          {(searchTerm !== "" || statusFilter !== null) && (
-            <Button
-              variant="ghost"
-              onClick={clearFilters}
-              className="text-xs h-7 px-2"
+          <div className="flex items-center gap-2">
+            {(searchTerm !== "" || statusFilter !== null) && (
+              <Button
+                variant="ghost"
+                onClick={clearFilters}
+                className="text-xs h-7 px-2"
+              >
+                Clear
+              </Button>
+            )}
+            <button
+              disabled={isRefreshing}
+              onClick={handleRefresh}
+              aria-label="Refresh requests"
+              title="Refresh"
+              className="h-8 w-8 rounded-full border border-gray-200 bg-white/80 flex items-center justify-center disabled:opacity-50"
             >
-              Clear
-            </Button>
-          )}
+              <RefreshCw className={`h-4 w-4 text-gray-600 ${isRefreshing ? "animate-spin" : ""}`} />
+            </button>
+            {hasMoreToLoad && (
+              <button
+                disabled={loadingMore}
+                onClick={loadMoreFromDB}
+                aria-label="Load more requests"
+                title="Load more"
+                className="h-8 w-8 rounded-full border border-gray-200 bg-white/80 flex items-center justify-center disabled:opacity-50"
+              >
+                <ChevronDown className="h-4 w-4 text-gray-600" />
+              </button>
+            )}
+          </div>
         </div>
 
         {showMobileFilters && (
@@ -866,7 +884,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
             <Button
               size="sm"
               variant="outline"
-              className="text-xs"
+              className="h-8 rounded-full px-4 text-xs"
               disabled={loadingMore}
               onClick={loadMoreFromDB}
             >
@@ -1010,7 +1028,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
       </div>
 
       {/* ── MOBILE CARD LIST ── */}
-      <div className="md:hidden flex-1 overflow-y-auto px-3 pt-3 pb-28 space-y-3 min-h-0">
+      <div className="md:hidden flex-1 overflow-y-auto px-3 pt-3 pb-3 space-y-3 min-h-0">
         {isRefreshing ? (
           <div className="flex justify-center py-16">
             <div className="h-7 w-7 rounded-full border-2 border-gray-200 border-t-gray-800 animate-spin" />
@@ -1121,23 +1139,17 @@ const [isRefreshing, setIsRefreshing] = useState(false);
       {/* ── MOBILE PAGINATION ── */}
       {(totalPages > 1 || hasMoreToLoad) && (
         <div
-          className="md:hidden flex flex-col items-center gap-2 py-3 border-t bg-white/70 backdrop-blur-sm shrink-0"
-          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 80px)" }}
+          className="md:hidden grid grid-cols-[1fr_auto_1fr] items-center gap-2 py-2 px-4 border-t bg-white/70 backdrop-blur-sm shrink-0"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)" }}
         >
-          <div className="flex justify-center items-center gap-3">
+          <span />
+          <div className="flex items-center justify-center gap-2">
             <button
               disabled={currentPage === 1}
               onClick={() => setCurrentPage((p) => p - 1)}
               className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
             >
               <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              disabled={isRefreshing}
-              onClick={handleRefresh}
-              className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
-            >
-              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
             <span className="text-sm font-medium text-gray-600">{currentPage} / {totalPages}</span>
             <button
@@ -1148,15 +1160,6 @@ const [isRefreshing, setIsRefreshing] = useState(false);
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
-          {hasMoreToLoad && (
-            <button
-              disabled={loadingMore}
-              onClick={loadMoreFromDB}
-              className="h-8 px-4 rounded-lg border bg-white text-xs font-medium text-gray-600 disabled:opacity-50"
-            >
-              {loadingMore ? "Loading..." : `Load More (${totalCount - dbOffset} more)`}
-            </button>
-          )}
         </div>
       )}
 

@@ -6,7 +6,14 @@ import { GeistSans, GeistMono } from "geist/font";
 export function ThemeBody({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme();
 
-  const themeClass = theme === "comic" ? "comic font-comic" : theme === "engineer" ? "engineer font-engineer" : "formal font-formal";
+  const themeClass =
+    theme === "comic"
+      ? "comic font-comic"
+      : theme === "engineer"
+        ? "engineer font-engineer"
+        : theme === "christmas"
+          ? "christmas font-formal"
+          : "formal font-formal";
 
   return (
     <body

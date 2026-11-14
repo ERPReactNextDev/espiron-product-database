@@ -56,6 +56,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { AccessGuard } from "@/components/AccessGuard";
+import CollapsibleSearch from "@/components/collapsible-search";
 import { jsPDF } from "jspdf";
 import { db } from "@/lib/firebase";
 import {
@@ -557,7 +558,7 @@ export default function NotesPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <div className="relative flex-1 min-w-37.5 md:w-64">
+            <div className="relative flex-1 min-w-37.5 sm:hidden">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="Search notes..."
@@ -568,6 +569,13 @@ export default function NotesPage() {
                 }`}
               />
             </div>
+            <CollapsibleSearch
+              className="hidden sm:flex"
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Search notes..."
+              inputClassName={isComic ? "font-comic border-2 border-gray-300" : ""}
+            />
             <Button
               onClick={() => setIsCreateDialogOpen(true)}
               className={`${

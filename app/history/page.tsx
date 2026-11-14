@@ -11,6 +11,7 @@ import { useUser } from "@/contexts/UserContext";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
 import { Input } from "@/components/ui/input";
+import CollapsibleSearch from "@/components/collapsible-search";
 
 import { Button } from "@/components/ui/button";
 
@@ -479,28 +480,23 @@ function LogDetailSheet({ log, open, onClose }: { log: AuditLog | null; open: bo
 
 ───────────────────────────────────────────── */
 
-type TabState = {
-
+type TabPage = {
   logs: AuditLog[];
-
   cursor: QueryDocumentSnapshot<DocumentData> | null;
-
   hasMore: boolean;
+};
 
+type TabState = TabPage & {
   page: number;
-
+  pageHistory: TabPage[];
   search: string;
-
   actionFilter: string;
-
 };
 
 
 
 const initTabState = (): TabState => ({
-
-  logs: [], cursor: null, hasMore: true, page: 1, search: "", actionFilter: "all",
-
+  logs: [], cursor: null, hasMore: true, page: 1, pageHistory: [], search: "", actionFilter: "all",
 });
 
 
@@ -647,7 +643,7 @@ interface TabLayoutProps {
 
   onActionFilterChange: (value: string) => void;
 
-  onFirstPage: () => void;
+  onPreviousPage: () => void;
 
   onNextPage: () => void;
 
@@ -681,7 +677,7 @@ function TabLayout({
 
   onActionFilterChange,
 
-  onFirstPage,
+  onPreviousPage,
 
   onNextPage,
 
@@ -695,36 +691,34 @@ function TabLayout({
 
   return (
 
-    <div className="h-dvh flex flex-col overflow-hidden -mx-4 md:-mx-6 -mt-4 md:-mt-6">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden -mx-4 md:-mx-6 -mt-4 md:-mt-6">
 
 
 
       {/* ── Toolbar ── */}
 
-      <div className="shrink-0 bg-white/80 backdrop-blur-md border-b px-4 md:px-6 pt-4 pb-3 space-y-3">
+      <div className="shrink-0 bg-white/80 backdrop-blur-md border-b px-4 md:px-6 pt-4 pb-3">
 
         {/* search + filter row */}
 
         <div className="flex items-center gap-2">
 
-          <div className="relative flex-1 max-w-xs">
-
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-
-            <input
-
-              type="text"
-
-              placeholder={searchPlaceholder}
-
+          <div className="hidden md:block">
+            <CollapsibleSearch
               value={search}
-
-              onChange={(e) => onSearchChange(e.target.value)}
-
-              className="w-full h-9 pl-9 pr-3 bg-white/70 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-300"
-
+              onChange={onSearchChange}
+              placeholder={searchPlaceholder}
             />
-
+          </div>
+          <div className="relative flex-1 max-w-xs md:hidden">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder={searchPlaceholder}
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="w-full h-9 pl-9 pr-3 bg-white/70 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gray-300"
+            />
           </div>
 
           <Select value={actionFilter} onValueChange={onActionFilterChange}>
@@ -748,38 +742,6 @@ function TabLayout({
             </SelectContent>
 
           </Select>
-
-        </div>
-
-        {/* pagination info */}
-
-        <div className="flex items-center justify-between">
-
-          <span className="text-sm text-gray-500">
-
-            Page {page} · {filteredCount} record{filteredCount !== 1 ? "s" : ""} on page
-
-          </span>
-
-          <div className="flex gap-2">
-
-            <Button size="sm" variant="outline" disabled={page === 1 || fetching}
-
-              onClick={onFirstPage}>
-
-              <ChevronLeft className="h-3.5 w-3.5 mr-1" /> First
-
-            </Button>
-
-            <Button size="sm" variant="outline" disabled={!hasMore || fetching || rateLimited}
-
-              onClick={onNextPage}>
-
-              {rateLimited ? "Please wait…" : <>Next <ChevronRight className="h-3.5 w-3.5 ml-1" /></>}
-
-            </Button>
-
-          </div>
 
         </div>
 
@@ -821,7 +783,7 @@ function TabLayout({
 
       {/* ── Mobile cards ── */}
 
-      <div className="md:hidden flex-1 overflow-y-auto px-3 pt-3 pb-28 space-y-3 min-h-0">
+      <div className="md:hidden flex-1 overflow-y-auto px-3 pt-3 pb-3 space-y-3 min-h-0">
 
         {fetching ? (
 
@@ -843,6 +805,30 @@ function TabLayout({
 
         ) : mobileCards}
 
+      </div>
+
+      <div className="mt-auto shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 md:px-6 py-2 bg-white/80 backdrop-blur-md border-t">
+        <span />
+        <div className="flex items-center justify-center gap-2">
+          <button
+            disabled={page === 1 || fetching}
+            onClick={onPreviousPage}
+            aria-label="Previous page"
+            className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-sm font-medium text-gray-600">{page}</span>
+          <button
+            disabled={!hasMore || fetching || rateLimited}
+            onClick={onNextPage}
+            aria-label="Next page"
+            className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-40"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+        <span />
       </div>
 
     </div>
@@ -1047,7 +1033,13 @@ export default function HistoryPage() {
 
       const { logs, lastDoc, hasMore } = await fetchLogs(tab, null, actionFilter);
 
-      updateTab(tab, { logs, cursor: lastDoc, hasMore, page: 1 });
+      updateTab(tab, {
+        logs,
+        cursor: lastDoc,
+        hasMore,
+        page: 1,
+        pageHistory: [{ logs, cursor: lastDoc, hasMore }],
+      });
 
       setNameVersion((v) => v + 1);
 
@@ -1077,6 +1069,13 @@ export default function HistoryPage() {
 
     if (fetching || rateLimited) return; // rate limit: block spam clicks
 
+    const current = tabStates[tab];
+    if (current.page < current.pageHistory.length) {
+      const next = current.pageHistory[current.page];
+      updateTab(tab, { ...next, page: current.page + 1 });
+      return;
+    }
+
     setRateLimited(true);
     setTimeout(() => setRateLimited(false), NEXT_PAGE_COOLDOWN_MS);
 
@@ -1084,16 +1083,28 @@ export default function HistoryPage() {
 
     try {
 
-      const { cursor, actionFilter } = tabStates[tab];
+      const { cursor, actionFilter, page, pageHistory } = current;
 
       const { logs, lastDoc, hasMore } = await fetchLogs(tab, cursor, actionFilter);
 
-      updateTab(tab, { logs, cursor: lastDoc, hasMore, page: tabStates[tab].page + 1 });
+      const nextPage = { logs, cursor: lastDoc, hasMore };
+      updateTab(tab, {
+        ...nextPage,
+        page: page + 1,
+        pageHistory: [...pageHistory, nextPage],
+      });
 
       setNameVersion((v) => v + 1);
 
     } finally { setFetching(false); }
 
+  };
+
+  const loadPreviousPage = (tab: CollectionTab) => {
+    const current = tabStates[tab];
+    if (current.page <= 1 || fetching) return;
+    const previous = current.pageHistory[current.page - 2];
+    if (previous) updateTab(tab, { ...previous, page: current.page - 1 });
   };
 
 
@@ -1367,7 +1378,7 @@ export default function HistoryPage() {
 
           {/* ════ SUPPLIERS ════ */}
 
-          <TabsContent value="suppliers" className="flex-1 min-h-0 overflow-hidden mt-0 p-4 md:p-6">
+          <TabsContent value="suppliers" className="flex flex-col flex-1 min-h-0 overflow-hidden mt-0 px-4 pt-4 pb-0 md:px-6 md:pt-6 md:pb-0">
 
             <TabLayout
 
@@ -1437,7 +1448,7 @@ export default function HistoryPage() {
 
               onActionFilterChange={(value) => updateTab("suppliers", { actionFilter: value })}
 
-              onFirstPage={() => { updateTab("suppliers", { cursor: null, page: 1 }); loadTab("suppliers", tabStates.suppliers.actionFilter); }}
+              onPreviousPage={() => loadPreviousPage("suppliers")}
 
               onNextPage={() => loadNextPage("suppliers")}
 
@@ -1451,7 +1462,7 @@ export default function HistoryPage() {
 
           {/* ════ PRODUCTS ════ */}
 
-          <TabsContent value="products" className="flex-1 min-h-0 overflow-hidden mt-0 p-4 md:p-6">
+          <TabsContent value="products" className="flex flex-col flex-1 min-h-0 overflow-hidden mt-0 px-4 pt-4 pb-0 md:px-6 md:pt-6 md:pb-0">
 
             <TabLayout
 
@@ -1635,7 +1646,7 @@ export default function HistoryPage() {
 
               onActionFilterChange={(value) => updateTab("products", { actionFilter: value })}
 
-              onFirstPage={() => { updateTab("products", { cursor: null, page: 1 }); loadTab("products", tabStates.products.actionFilter); }}
+              onPreviousPage={() => loadPreviousPage("products")}
 
               onNextPage={() => loadNextPage("products")}
 
@@ -1649,7 +1660,7 @@ export default function HistoryPage() {
 
           {/* ════ PRODUCT FAMILIES ════ */}
 
-          <TabsContent value="productFamilies" className="flex-1 min-h-0 overflow-hidden mt-0 p-4 md:p-6">
+          <TabsContent value="productFamilies" className="flex flex-col flex-1 min-h-0 overflow-hidden mt-0 px-4 pt-4 pb-0 md:px-6 md:pt-6 md:pb-0">
 
             <TabLayout
 
@@ -1711,7 +1722,7 @@ export default function HistoryPage() {
 
               onActionFilterChange={(value) => updateTab("productFamilies", { actionFilter: value })}
 
-              onFirstPage={() => { updateTab("productFamilies", { cursor: null, page: 1 }); loadTab("productFamilies", tabStates.productFamilies.actionFilter); }}
+              onPreviousPage={() => loadPreviousPage("productFamilies")}
 
               onNextPage={() => loadNextPage("productFamilies")}
 
@@ -1725,7 +1736,7 @@ export default function HistoryPage() {
 
           {/* ════ PRODUCT USAGE ════ */}
 
-          <TabsContent value="productUsages" className="flex-1 min-h-0 overflow-hidden mt-0 p-4 md:p-6">
+          <TabsContent value="productUsages" className="flex flex-col flex-1 min-h-0 overflow-hidden mt-0 px-4 pt-4 pb-0 md:px-6 md:pt-6 md:pb-0">
 
             <TabLayout
 
@@ -1787,7 +1798,7 @@ export default function HistoryPage() {
 
               onActionFilterChange={(value) => updateTab("productUsages", { actionFilter: value })}
 
-              onFirstPage={() => { updateTab("productUsages", { cursor: null, page: 1 }); loadTab("productUsages", tabStates.productUsages.actionFilter); }}
+              onPreviousPage={() => loadPreviousPage("productUsages")}
 
               onNextPage={() => loadNextPage("productUsages")}
 
@@ -1801,7 +1812,7 @@ export default function HistoryPage() {
 
           {/* ════ SPF VERSIONS ════ */}
 
-          <TabsContent value="spfVersions" className="flex-1 min-h-0 overflow-hidden mt-0 p-4 md:p-6">
+          <TabsContent value="spfVersions" className="flex flex-col flex-1 min-h-0 overflow-hidden mt-0 px-4 pt-4 pb-0 md:px-6 md:pt-6 md:pb-0">
 
             <TabLayout
 
@@ -1881,7 +1892,7 @@ export default function HistoryPage() {
 
               onActionFilterChange={(value) => updateTab("spfVersions", { actionFilter: value })}
 
-              onFirstPage={() => { updateTab("spfVersions", { cursor: null, page: 1 }); loadTab("spfVersions", tabStates.spfVersions.actionFilter); }}
+              onPreviousPage={() => loadPreviousPage("spfVersions")}
 
               onNextPage={() => loadNextPage("spfVersions")}
 

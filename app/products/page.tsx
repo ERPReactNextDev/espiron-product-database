@@ -16,8 +16,9 @@ import FilteringComponentV2 from "@/components/filtering-component-v2";
 import UploadProductModal from "@/components/upload-product";
 import DownloadProduct from "@/components/download-product";
 import ViewProduct from "@/components/view-product";
+import CollapsibleSearch from "@/components/collapsible-search";
 import { logProductEvent } from "@/lib/auditlogger";
-import { Pencil, Trash2, Eye, SlidersHorizontal, X, Plus, Search, ChevronLeft, ChevronRight, Copy } from "lucide-react";
+import { Pencil, Trash2, Eye, SlidersHorizontal, X, Plus, Search, ChevronLeft, ChevronRight, ChevronDown, Copy } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,6 +76,13 @@ export default function ProductsPage() {
   const [loadedCount, setLoadedCount] = useState(LOAD_CHUNK);
   const [loadMoreRateLimited, setLoadMoreRateLimited] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+
+  const handleLoadMore = () => {
+    if (loadMoreRateLimited) return;
+    setLoadMoreRateLimited(true);
+    setTimeout(() => setLoadMoreRateLimited(false), LOAD_MORE_COOLDOWN_MS);
+    setLoadedCount((count) => count + LOAD_CHUNK);
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem("productCardScale");
@@ -281,32 +289,23 @@ setLoading(false);
       <div className="hidden md:flex flex-col gap-3 px-6 pt-6 pb-3 shrink-0 bg-white/80 backdrop-blur-md border-b">
         <SidebarTrigger />
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Products</h1>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-semibold">Products</h1>
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <button onClick={() => setCardScale(p => Math.max(p - 0.1, 0.6))} className="text-lg font-bold px-1">−</button>
+              <span className="w-10 text-center text-xs">{(cardScale * 100).toFixed(0)}%</span>
+              <button onClick={() => setCardScale(p => Math.min(p + 0.1, 1.6))} className="text-lg font-bold px-1">+</button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <CollapsibleSearch
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Search product..."
+            />
             <UploadProductModal />
             <DownloadProduct products={products} />
             <Button onClick={() => router.push("/add-product")}>+ Add Product</Button>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <Input
-            placeholder="Search product..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-md bg-white/70"
-          />
-          <div className="flex items-center gap-2">
-            <button className="px-4 py-1.5 rounded-full border border-green-600 text-green-600 text-sm font-medium bg-transparent hover:bg-green-50 transition-colors">
-              Server 1
-            </button>
-            <button className="px-4 py-1.5 rounded-full border border-green-600 text-green-600 text-sm font-medium bg-transparent hover:bg-green-50 transition-colors">
-              Server 2
-            </button>
-          </div>
-          <div className="flex items-center gap-2 ml-auto text-sm text-gray-500">
-            <button onClick={() => setCardScale(p => Math.max(p - 0.1, 0.6))} className="text-lg font-bold px-1">−</button>
-            <span className="w-10 text-center text-xs">{(cardScale * 100).toFixed(0)}%</span>
-            <button onClick={() => setCardScale(p => Math.min(p + 0.1, 1.6))} className="text-lg font-bold px-1">+</button>
           </div>
         </div>
       </div>
@@ -349,7 +348,20 @@ setLoading(false);
         </div>
 
         <div className="flex items-center justify-between mt-2">
-          <span className="text-xs text-gray-400">{searchedProducts.length} products</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">{searchedProducts.length} products</span>
+            {hasMoreToLoad && (
+              <button
+                disabled={loadMoreRateLimited}
+                onClick={handleLoadMore}
+                aria-label="Load more products"
+                title={`Load More (${searchedProducts.length - loadedCount} more available)`}
+                className="h-7 w-7 rounded-full border border-gray-200 bg-white/80 flex items-center justify-center disabled:opacity-50"
+              >
+                <ChevronDown className={`h-4 w-4 text-gray-600 ${loadMoreRateLimited ? "animate-pulse" : ""}`} />
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-2 bg-white/60 rounded-lg px-2.5 py-1">
             <button onClick={() => setCardScale(p => Math.max(p - 0.1, 0.6))} className="text-gray-600 font-bold text-sm">−</button>
             <span className="text-xs text-gray-500 w-7 text-center">{(cardScale * 100).toFixed(0)}%</span>
@@ -375,7 +387,7 @@ setLoading(false);
             </div>
           ) : (
             <>
-              <div className="flex-1 overflow-y-auto px-3 md:px-6 pt-3 pb-32 md:pb-4">
+              <div className="flex-1 overflow-y-auto px-3 md:px-6 pt-3 pb-3 md:pb-4">
                 {visibleProducts.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 text-center">
                     <div className="h-14 w-14 rounded-full bg-white/60 flex items-center justify-center mb-3">
@@ -457,8 +469,9 @@ setLoading(false);
                 )}
               </div>
 
-              <div className="flex flex-col items-center gap-2 py-3 border-t bg-white/70 backdrop-blur-sm shrink-0 px-4 fixed bottom-[62px] left-0 right-0 md:static z-30 md:z-20">
-                <div className="flex justify-center items-center gap-3">
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 py-2 border-t bg-white/70 backdrop-blur-sm shrink-0 px-4 z-20">
+                <span />
+                <div className="flex items-center justify-center gap-2">
                   <button
                     disabled={currentPage === 1}
                     onClick={() => setCurrentPage((p) => p - 1)}
@@ -476,18 +489,15 @@ setLoading(false);
                   </button>
                 </div>
                 {hasMoreToLoad && (
-                  <button
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="hidden md:inline-flex justify-self-end h-8 rounded-full px-4 text-xs"
                     disabled={loadMoreRateLimited}
-                    onClick={() => {
-                      if (loadMoreRateLimited) return;
-                      setLoadMoreRateLimited(true);
-                      setTimeout(() => setLoadMoreRateLimited(false), LOAD_MORE_COOLDOWN_MS);
-                      setLoadedCount((n) => n + LOAD_CHUNK);
-                    }}
-                    className="h-8 px-4 rounded-lg border bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 shadow-sm disabled:opacity-50"
+                    onClick={handleLoadMore}
                   >
-                    {loadMoreRateLimited ? "Please wait…" : `Load More (${searchedProducts.length - loadedCount} more available)`}
-                  </button>
+                    {loadMoreRateLimited ? "Please wait…" : `Load More (${searchedProducts.length - loadedCount} more)`}
+                  </Button>
                 )}
               </div>
             </>
