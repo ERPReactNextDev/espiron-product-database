@@ -6,8 +6,14 @@ const STORAGE_KEY = "app_theme";
 export type Theme = "comic" | "formal" | "engineer" | "christmas";
 
 export function isChristmasSeason(date: Date) {
-  const month = date.getMonth();
-  return month >= 8 || (month === 0 && date.getDate() <= 6);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+
+  return (
+    (month === 11 && day >= 16) ||
+    month === 12 ||
+    (month === 1 && day <= 5)
+  );
 }
 
 type ThemeContextType = {

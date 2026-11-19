@@ -23,7 +23,7 @@ import { useEffect, useState } from "react";
 import { NotificationSettings } from "@/components/notifications/NotificationSettings";
 
 export default function SettingsPage() {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, isChristmasAvailable } = useTheme();
   const { userId, department } = useUser();
   const { wallpaper } = useWallpaper();
   const isEngineer = theme === "engineer";
@@ -213,39 +213,41 @@ const [mounted, setMounted] = useState(false);
             </Label>
 
             {/* Christmas Theme Option */}
-            <Label
-              htmlFor="christmas"
-              className={`cursor-pointer transition-all ${
-                theme === "christmas"
-                  ? "christmas-card christmas-theme-option-active scale-[1.02]"
-                  : "christmas-card hover:scale-[1.01]"
-              }`}
-            >
-              <div className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <TreePine className="h-5 w-5 text-emerald-700" />
-                    <span className="font-formal-title text-lg text-emerald-800">Christmas</span>
+            {isChristmasAvailable && (
+              <Label
+                htmlFor="christmas"
+                className={`cursor-pointer transition-all ${
+                  theme === "christmas"
+                    ? "christmas-card christmas-theme-option-active scale-[1.02]"
+                    : "christmas-card hover:scale-[1.01]"
+                }`}
+              >
+                <div className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <TreePine className="h-5 w-5 text-emerald-700" />
+                      <span className="font-formal-title text-lg text-emerald-800">Christmas</span>
+                    </div>
+                    <RadioGroupItem value="christmas" id="christmas" className="sr-only" />
+                    {theme === "christmas" && (
+                      <span className="christmas-badge theme-active-badge px-2 py-0.5 text-xs">
+                        Active
+                      </span>
+                    )}
                   </div>
-                  <RadioGroupItem value="christmas" id="christmas" className="sr-only" />
-                  {theme === "christmas" && (
-                    <span className="christmas-badge theme-active-badge px-2 py-0.5 text-xs">
-                      Active
-                    </span>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <div className="h-2 w-full bg-linear-to-r from-emerald-700 via-red-500 to-amber-400 rounded-full" />
-                  <p className="font-formal text-sm text-gray-600">
-                    A festive evergreen, holly red, and warm gold color palette
-                  </p>
-                  <div className="flex gap-1">
-                    <span className="christmas-badge bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs">Festive</span>
-                    <span className="christmas-badge bg-amber-100 text-amber-800 px-2 py-0.5 text-xs">Seasonal</span>
+                  <div className="space-y-2">
+                    <div className="h-2 w-full bg-linear-to-r from-emerald-700 via-red-500 to-amber-400 rounded-full" />
+                    <p className="font-formal text-sm text-gray-600">
+                      A festive evergreen, holly red, and warm gold color palette
+                    </p>
+                    <div className="flex gap-1">
+                      <span className="christmas-badge bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs">Festive</span>
+                      <span className="christmas-badge bg-amber-100 text-amber-800 px-2 py-0.5 text-xs">Seasonal</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Label>
+              </Label>
+            )}
           </RadioGroup>
         </CardContent>
       </Card>
