@@ -35,6 +35,14 @@ function getStatusLabel(status: string | undefined): string {
   return status ?? "";
 }
 
+function getEffectiveStatus(
+  request: SPFRequest,
+  createdSPF: Record<string, string>
+): string | undefined {
+  if (request.is_cancelled) return "Cancelled";
+  return createdSPF[request.spf_number];
+}
+
 /* ─────────────────────────────────────────────────────────────── */
 /* ALLOWED STATUSES                                                */
 /* ─────────────────────────────────────────────────────────────── */
@@ -557,7 +565,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
     // Apply status filter
     if (statusFilter) {
       filtered = filtered.filter((r) => {
-        const spfStatus = createdSPF[r.spf_number];
+        const spfStatus = getEffectiveStatus(r, createdSPF);
 
         if (statusFilter === "No Status Yet") {
           return !spfStatus;
@@ -593,6 +601,9 @@ const [isRefreshing, setIsRefreshing] = useState(false);
 /* ── Dynamic status list derived from createdSPF ── */
   const availableStatuses = useMemo(() => {
     const statusSet = new Set<string>();
+    if (requests.some((request) => request.is_cancelled)) {
+      statusSet.add("Cancelled");
+    }
     Object.values(createdSPF).forEach((status) => {
       if (!status) return;
       const label = getStatusLabel(status);
