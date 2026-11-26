@@ -24,9 +24,11 @@ const MAX_VISIBLE_USERS = 5;
 function PresenceAvatar({
   user,
   tooltipSide = "bottom",
+  compact = false,
 }: {
   user: PresenceUser;
   tooltipSide?: "top" | "right" | "bottom" | "left";
+  compact?: boolean;
 }) {
   const name = `${user.firstName} ${user.lastName}`.trim() || "Espiron user";
   const status = user.status === "SPF_IDLE" ? "idle" : "online";
@@ -37,12 +39,12 @@ function PresenceAvatar({
       <TooltipTrigger asChild>
         <Avatar
           aria-label={`${name} is ${status}`}
-          className={`size-9 cursor-default border-2 border-white shadow-sm ${
+          className={`${compact ? "size-7" : "size-9"} cursor-default border-2 border-white shadow-sm ${
             status === "idle" ? "opacity-50" : "opacity-100"
           }`}
         >
           <AvatarImage src={user.profilePicture || undefined} alt={name} className="object-cover" />
-          <AvatarFallback className="bg-gray-200 text-xs font-semibold text-gray-700">
+          <AvatarFallback className={`bg-gray-200 font-semibold text-gray-700 ${compact ? "text-[10px]" : "text-xs"}`}>
             {initials}
           </AvatarFallback>
         </Avatar>
@@ -52,7 +54,7 @@ function PresenceAvatar({
   );
 }
 
-export function SpfPresenceAvatars() {
+export function SpfPresenceAvatars({ compact = false }: { compact?: boolean }) {
   const { userId } = useUser();
   const pathname = usePathname();
   const [presence, setPresence] = useState<{ userId: string; users: PresenceUser[] } | null>(null);
@@ -126,14 +128,18 @@ export function SpfPresenceAvatars() {
   if (!userId || pathname === "/login") return null;
 
   return (
-    <div className="inline-flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-full border border-gray-200 bg-white/95 px-2.5 py-1.5 shadow-sm">
-      <span className="whitespace-nowrap rounded-full border border-blue-100 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">
+    <div className={`inline-flex max-w-full items-center rounded-full border border-gray-200 bg-white/95 shadow-sm ${
+      compact ? "gap-1 px-1.5 py-1" : "gap-2 px-2.5 py-1.5"
+    }`}>
+      <span className={`whitespace-nowrap rounded-full border border-blue-100 bg-blue-50 font-semibold text-blue-700 ${
+        compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-1 text-[11px]"
+      }`}>
         Online Status:
       </span>
       {users.length > 0 ? (
         <div role="group" aria-label="Users currently online or idle" className="flex items-center -space-x-2">
           {users.slice(0, MAX_VISIBLE_USERS).map((user) => (
-            <PresenceAvatar key={user.id} user={user} />
+            <PresenceAvatar key={user.id} user={user} compact={compact} />
           ))}
           {users.length > MAX_VISIBLE_USERS && (
             <HoverCard openDelay={150} closeDelay={100}>
@@ -141,7 +147,9 @@ export function SpfPresenceAvatars() {
                 <button
                   type="button"
                   aria-label={`${users.length - MAX_VISIBLE_USERS} additional active users`}
-                  className="ml-1 whitespace-nowrap rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-200"
+                  className={`ml-1 whitespace-nowrap rounded-full border border-gray-200 bg-gray-100 font-semibold text-gray-700 hover:bg-gray-200 ${
+                    compact ? "px-1.5 py-1 text-[10px]" : "px-2.5 py-1.5 text-xs"
+                  }`}
                 >
                   +{users.length - MAX_VISIBLE_USERS}
                 </button>
@@ -153,7 +161,7 @@ export function SpfPresenceAvatars() {
                   className="grid max-h-64 grid-cols-5 gap-2 overflow-y-auto"
                 >
                   {users.slice(MAX_VISIBLE_USERS).map((user) => {
-                    return <PresenceAvatar key={user.id} user={user} tooltipSide="left" />;
+                    return <PresenceAvatar key={user.id} user={user} tooltipSide="left" compact={compact} />;
                   })}
                 </div>
               </HoverCardContent>

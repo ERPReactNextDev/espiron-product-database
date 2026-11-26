@@ -396,7 +396,7 @@ export function SidebarLeft() {
               })}
             </SidebarMenu>
             <div className="mt-auto flex justify-center py-4">
-              <SpfPresenceAvatars />
+              <SpfPresenceAvatars compact />
             </div>
           </nav>
 
@@ -430,13 +430,9 @@ export function SidebarLeft() {
      DESKTOP — left sidebar (collapsible icon)
   ───────────────────────────────────────────── */
   return (
-    <>
-      <div className="fixed right-4 top-3 z-50">
-        <SpfPresenceAvatars />
-      </div>
-      <Sidebar
-        collapsible="icon"
-        className={`
+    <Sidebar
+      collapsible="icon"
+      className={`
         shadow-2xl
         border-r
         ${isComic
@@ -448,7 +444,7 @@ export function SidebarLeft() {
           : "bg-white border-gray-200"
         }
       `}
-      >
+    >
       {/* HEADER */}
       <SidebarHeader className={`group-data-[collapsible=icon]:m-0.5 group-data-[collapsible=icon]:h-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-xl group-data-[collapsible=icon]:border-0! group-data-[collapsible=icon]:bg-transparent! group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:shadow-none! h-18 px-3 flex items-center m-2 rounded-2xl ${
         isComic
@@ -674,6 +670,11 @@ export function SidebarLeft() {
       {/* FOOTER
           Collapsed: avatar only — no card background, no badge */}
       <SidebarFooter className="p-3 group-data-[collapsible=icon]:p-1">
+        {user && userId && !collapsed && (
+          <div className="mb-2">
+            <SpfPresenceAvatars compact />
+          </div>
+        )}
         {user && userId && (
           <div
             className={`
@@ -703,7 +704,6 @@ export function SidebarLeft() {
           </div>
         )}
       </SidebarFooter>
-      </Sidebar>
-    </>
+    </Sidebar>
   );
 }

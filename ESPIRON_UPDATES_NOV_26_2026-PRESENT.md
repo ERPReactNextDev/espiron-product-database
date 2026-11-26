@@ -26,14 +26,15 @@ The `users.spf_logging_status` field tracks whether a user's Espiron session is 
 
 The app-wide status tracker watches the current authenticated session:
 
-- After two minutes without activity in a focused, visible Espiron tab, it sets `spf_logging_status` to `SPF_IDLE`.
-- Switching away from the tab, losing window focus, or hiding the page sets the status to `SPF_IDLE` immediately.
-- Returning to the visible, focused tab or moving/clicking the mouse, typing, scrolling, or touching the page sets the status to `SPF_ONLINE` and restarts the two-minute timer.
+- After ten minutes without mouse or keyboard activity in a focused, visible Espiron tab, it sets `spf_logging_status` to `SPF_IDLE`.
+- Switching away from the tab, losing window focus, or hiding the page starts the same ten-minute timer instead of immediately setting the user idle. Short tab switches do not change the status.
+- If the app remains away or hidden for ten minutes, the status becomes `SPF_IDLE`.
+- Returning to the visible, focused tab or moving/clicking the mouse, typing, scrolling, or touching the page sets the status to `SPF_ONLINE` and restarts the ten-minute activity timer.
 - Status changes are sent to `POST /api/spf-logging-status`. The endpoint accepts only `SPF_ONLINE` and `SPF_IDLE` and uses the session cookie to identify the user.
 
 ### Active user avatars
 
-After the splash screen, The global app shell displays an **Online Status:** badge with profile avatars in the top-right corner on desktop and in the mobile navigation drawer above the user profile. It lists users whose status is `SPF_ONLINE` or `SPF_IDLE`. Up to five avatars are shown; additional users are summarized as `+N`. Hovering the count opens a panel of the remaining avatars, and hovering an avatar shows the user's first and last name and current status. Online users appear at full opacity; idle users appear at 50% opacity. Offline users are omitted. Supabase Realtime updates the list immediately when user rows change; the authenticated `GET /api/spf-presence` endpoint refreshes the list on load and every 15 seconds as a fallback.
+After the splash screen, The sidebar displays a compact **Online Status:** badge near the bottom-left, above the user profile, on desktop and in the mobile navigation drawer. It lists users whose status is `SPF_ONLINE` or `SPF_IDLE`. Up to five avatars are shown; additional users are summarized as `+N`. Hovering the count opens a panel of the remaining avatars, and hovering an avatar shows the user's first and last name and current status. Online users appear at full opacity; idle users appear at 50% opacity. Offline users are omitted. Supabase Realtime updates the list immediately when user rows change; the authenticated `GET /api/spf-presence` endpoint refreshes the list on load and every 15 seconds as a fallback.
 
 ### Implementation
 

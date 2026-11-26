@@ -5,7 +5,7 @@ import { useUser } from "@/contexts/UserContext";
 
 type LoggingStatus = "SPF_ONLINE" | "SPF_IDLE";
 
-const IDLE_TIMEOUT_MS = 2 * 60 * 1000;
+const IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 
 export function SpfLoggingStatusTracker() {
   const { userId } = useUser();
@@ -74,12 +74,12 @@ export function SpfLoggingStatusTracker() {
       if (document.visibilityState === "visible" && document.hasFocus()) {
         markActive();
       } else {
-        markIdle();
+        scheduleIdle();
       }
     };
 
-    const handleWindowBlur = () => markIdle();
-    const handlePageHide = () => markIdle();
+    const handleWindowBlur = () => scheduleIdle();
+    const handlePageHide = () => scheduleIdle();
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     document.addEventListener("pointermove", handlePointerMove);
@@ -95,7 +95,7 @@ export function SpfLoggingStatusTracker() {
     if (document.visibilityState === "visible" && document.hasFocus()) {
       markActive();
     } else {
-      markIdle();
+      scheduleIdle();
     }
 
     return () => {
