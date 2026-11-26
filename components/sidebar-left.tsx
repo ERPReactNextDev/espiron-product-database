@@ -42,6 +42,7 @@ import { useNotifications } from "@/contexts/NotificationContext";
 import { useRoleAccess, type AccessKey } from "@/contexts/RoleAccessContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { NavUser } from "@/components/nav-user";
+import { SpfPresenceAvatars } from "@/components/spf-presence-avatars";
 import { db } from "@/lib/firebase";
 import {
   Sheet,
@@ -348,13 +349,13 @@ export function SidebarLeft() {
             </div>
           </SheetHeader>
 
-          <nav aria-label="Mobile navigation" className="flex-1 overflow-y-auto px-3 py-4">
+          <nav aria-label="Mobile navigation" className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
             <p className={`mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500 ${
               isComic ? "font-comic" : isEngineer ? "font-engineer" : "font-formal"
             }`}>
               Menu
             </p>
-            <SidebarMenu className="gap-1">
+            <SidebarMenu className="shrink-0 gap-1">
               {filteredNavItems.map(({ href, icon: Icon, label, badgeKey }) => {
                 const active = pathname === href;
                 const badge = getBadgeCount(badgeKey);
@@ -394,6 +395,9 @@ export function SidebarLeft() {
                 );
               })}
             </SidebarMenu>
+            <div className="mt-auto flex justify-center py-4">
+              <SpfPresenceAvatars />
+            </div>
           </nav>
 
           {user && userId && (
@@ -426,9 +430,13 @@ export function SidebarLeft() {
      DESKTOP — left sidebar (collapsible icon)
   ───────────────────────────────────────────── */
   return (
-    <Sidebar
-      collapsible="icon"
-      className={`
+    <>
+      <div className="fixed right-4 top-3 z-50">
+        <SpfPresenceAvatars />
+      </div>
+      <Sidebar
+        collapsible="icon"
+        className={`
         shadow-2xl
         border-r
         ${isComic
@@ -440,7 +448,7 @@ export function SidebarLeft() {
           : "bg-white border-gray-200"
         }
       `}
-    >
+      >
       {/* HEADER */}
       <SidebarHeader className={`group-data-[collapsible=icon]:m-0.5 group-data-[collapsible=icon]:h-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-xl group-data-[collapsible=icon]:border-0! group-data-[collapsible=icon]:bg-transparent! group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:shadow-none! h-18 px-3 flex items-center m-2 rounded-2xl ${
         isComic
@@ -695,6 +703,7 @@ export function SidebarLeft() {
           </div>
         )}
       </SidebarFooter>
-    </Sidebar>
+      </Sidebar>
+    </>
   );
 }

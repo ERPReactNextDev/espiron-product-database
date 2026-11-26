@@ -80,11 +80,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Reset attempts after success
-    await updateUserByEmail(Email, {
+    const updatedUser = await updateUserByEmail(Email, {
       LoginAttempts: 0,
       Status: "Active",
       LockUntil: null,
+      spf_logging_status: "SPF_ONLINE",
     });
+    if (!updatedUser) {
+      return NextResponse.json(
+        { message: "Unable to update account status after login." },
+        { status: 500 }
+      );
+    }
 
     const userId = user.id.toString();
 

@@ -14,6 +14,7 @@ import { ThemeBody } from "@/components/theme-body";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { GlobalNotificationsInit } from "@/components/global-notifications-init";
 import { FCMTokenManager } from "@/components/fcm-token-manager";
+import { SpfLoggingStatusTracker } from "@/components/spf-logging-status-tracker";
 
 export const viewport = {
   width: "device-width",
@@ -41,6 +42,7 @@ export default function RootLayout({
       <ThemeProvider>
         <ThemeBody>
           <UserProvider>
+            <SpfLoggingStatusTracker />
             <RoleAccessProvider>
               <WallpaperProvider>
                 <SidebarProvider>

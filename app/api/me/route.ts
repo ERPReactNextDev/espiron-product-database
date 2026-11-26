@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserById } from "@/lib/supabase-admin";
+import { getUserById, updateUser } from "@/lib/supabase-admin";
 import { serialize } from "cookie";
 
 const ALLOWED_DEPARTMENTS = ["Engineering", "IT"];
+
+async function markUserOffline(userId: string) {
+  try {
+    const updatedUser = await updateUser(userId, { spf_logging_status: "SPF_OFFLINE" });
+    if (!updatedUser) {
+      console.error("Failed to set SPF logging status to offline for forced logout.");
+    }
+  } catch (error) {
+    console.error("Failed to update SPF logging status during forced logout:", error);
+  }
+}
 
 export async function GET(req: NextRequest) {
   const session = req.cookies.get("session")?.value;
@@ -28,6 +39,7 @@ export async function GET(req: NextRequest) {
 
     // Force logout if department is no longer allowed
     if (!ALLOWED_DEPARTMENTS.includes(user.Department) && !ALLOWED_DEPARTMENTS.map(d => d.toLowerCase()).includes(user.Department?.toLowerCase())) {
+      await markUserOffline(user.id.toString());
       return NextResponse.json(
         { forceLogout: true, message: "Your role no longer has access. You have been logged out." },
         { status: 403, headers: { "Set-Cookie": clearCookie } }
@@ -36,6 +48,7 @@ export async function GET(req: NextRequest) {
 
     // Force logout if resigned
     if (user.Status === "Resigned") {
+      await markUserOffline(user.id.toString());
       return NextResponse.json(
         { forceLogout: true, message: "Your account has been resigned. You have been logged out." },
         { status: 403, headers: { "Set-Cookie": clearCookie } }
