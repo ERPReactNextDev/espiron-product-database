@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import { Minus } from "lucide-react";
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { toast } from "sonner";
 
 import {
@@ -20,34 +18,21 @@ import { Button } from "@/components/ui/button";
 /* ---------------- Types ---------------- */
 
 type Props = {
-
-  classificationId: string;
-
-  productUsageId: string; // ✅ CHANGED
-
-  productFamilyId: string;
-
   technicalSpecificationId: string;
 
   title: string;
 
-  referenceID: string;
+  onDelete: (technicalSpecificationId: string) => Promise<void>;
 
 };
 
 export default function AddProductDeleteTechnicalSpecification({
 
-  classificationId,
-
-  productUsageId,
-
-  productFamilyId,
-
   technicalSpecificationId,
 
   title,
 
-  referenceID,
+  onDelete,
 
 }: Props) {
 
@@ -61,41 +46,7 @@ export default function AddProductDeleteTechnicalSpecification({
 
       setDeleting(true);
 
-      await updateDoc(
-
-        doc(
-
-          db,
-
-          "classificationTypes",
-
-          classificationId,
-
-          "categoryTypes",
-
-          productUsageId, // ✅ CHANGED
-
-          "productFamilies",
-
-          productFamilyId,
-
-          "technicalSpecifications",
-
-          technicalSpecificationId
-
-        ),
-
-        {
-
-          isActive: false,
-
-          deletedBy: referenceID,
-
-          deletedAt: serverTimestamp(),
-
-        }
-
-      );
+      await onDelete(technicalSpecificationId);
 
       toast.success("Technical specification deleted");
 
@@ -145,13 +96,13 @@ export default function AddProductDeleteTechnicalSpecification({
 
         <DialogFooter>
 
-          <Button onClick={() => setOpen(false)}>
+          <Button disabled={deleting} onClick={() => setOpen(false)}>
 
             Cancel
 
           </Button>
 
-          <Button variant="destructive" onClick={handleDelete}>
+          <Button disabled={deleting} variant="destructive" onClick={handleDelete}>
 
             Delete
 

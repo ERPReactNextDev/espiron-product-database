@@ -396,6 +396,14 @@ CREATE INDEX idx_espiron_spf_request_revision_history_revision_number ON espiron
       "productUsageId": "CAT-001"
     }
   ],
+  "productTypes": [
+    {
+      "productTypeId": "TYPE-001",
+      "productTypeName": "Recessed Panel",
+      "productFamilyId": "FAM-001",
+      "productUsageId": "CAT-001"
+    }
+  ],
   "technicalSpecifications": [
     {
       "id": "SPEC-001",
@@ -466,6 +474,11 @@ CREATE INDEX idx_espiron_spf_request_revision_history_revision_number ON espiron
 | productFamilies[].productFamilyId | string | Family ID (e.g., "FAM-001") |
 | productFamilies[].productFamilyName | string | Family name (e.g., "LED Panels", "50W Drivers") |
 | productFamilies[].productUsageId | string | Links to parent category type |
+| **productTypes** | array | **Product Type - specific type within a family** |
+| productTypes[].productTypeId | string | Product Type ID |
+| productTypes[].productTypeName | string | Product Type name |
+| productTypes[].productFamilyId | string | Links to parent Product Family |
+| productTypes[].productUsageId | string | Links to parent Product Usage |
 | technicalSpecifications | array | Full specs with values |
 | commercialDetails | object | Pricing, packaging, warranty info |
 | supplier | object | { supplierId, company, supplierBrand } |
@@ -485,11 +498,11 @@ categoryTypes (Product Usage - WHAT it's used for)
   ├── Power Supply
   └── Distribution
        └── productFamilies (Product Family - WHICH type within usage)
-            ├── LED Panels
-            ├── LED Drivers
-            └── Power Cables
-                 └── technicalSpecifications (Specs for this family)
+            ├── productTypes (Product Type - specific kind within a family)
+            └── technicalSpecifications (Specs for this family)
 ```
+
+Products are linked to one Product Usage and may have multiple Product Families under that usage. A single Product Type is selected from those families. Excel templates export the Product Families as a pipe-separated list, with a matching Product Family Usage list, and Product Type, Product Type Usage, and Product Type Family columns explicitly identify the type and its parent. Uploads resolve the one usage and its family list, then reuse or create the Product Type under its parent; technical specifications use the Product Type's parent family.
 
 ### espiron_product_usage (Metadata Collection)
 
@@ -522,13 +535,14 @@ Stores the available product families:
 
 ### espiron_technicalSpecifications (Template Collection)
 
-Stores technical specification templates for each family:
+Stores technical specification templates at the Product Family level. A template may include an optional `productTypeId` to represent an independent Product Type override. Product Types inherit their parent family's templates until an override is saved; after that, only their Type-scoped templates are used. The Product Type document's `hasTechnicalSpecificationsOverride` flag preserves an intentionally empty override.
 
 ```json
 {
   "id": "SPEC-001",
   "categoryTypeId": "CAT-001",
   "productFamilyId": "FAM-001",
+  "productTypeId": "TYPE-001",
   "title": "BRIGHTNESS",
   "sortOrder": 1,
   "specs": [

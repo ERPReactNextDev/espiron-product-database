@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SeenByDialog } from "@/components/seen-by-dialog";
+import { isVisibleChatMessage } from "@/lib/chat-message-visibility";
 
 const EngiConnectLogo = () => (
   <div className="flex items-center justify-center size-9 bg-linear-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg rotate-3">
@@ -222,21 +223,23 @@ export function CollaborationHub({
   };
 
   const unreadCount = useMemo(() => {
-    return messages.filter(msg => 
+    return messages.filter(msg =>
+      isVisibleChatMessage(msg) &&
       msg.senderId !== currentUserId && 
       !msg.seenBy?.includes(currentUserId)
     ).length;
   }, [messages, currentUserId]);
 
   const firstUnreadIndex = useMemo(() => {
-    return messages.findIndex(msg =>
+    return messages.filter(isVisibleChatMessage).findIndex(msg =>
       msg.senderId !== currentUserId && !msg.seenBy?.includes(currentUserId)
     );
   }, [messages, currentUserId]);
 
   const filteredMessages = useMemo(() => {
-    if (!searchQuery) return messages;
-    return messages.filter(m => m.text?.toLowerCase().includes(searchQuery.toLowerCase()));
+    const visibleMessages = messages.filter(isVisibleChatMessage);
+    if (!searchQuery) return visibleMessages;
+    return visibleMessages.filter(m => m.text?.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [messages, searchQuery]);
 
   // FEATURE: MENTION SUPPORT (RENDER LOGIC)

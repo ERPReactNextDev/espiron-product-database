@@ -90,6 +90,7 @@ export type ProductEventPayload = {
 
   categoryTypes?      : { productUsageId: string; categoryTypeName: string }[];
   productFamilies?    : { productFamilyId: string; productFamilyName: string }[];
+  productTypes?       : { productTypeId: string; productTypeName: string }[];
 
   // ── Media ──
   mainImage?          : { url?: string; publicId?: string | null } | null;
@@ -127,6 +128,7 @@ export async function logProductEvent(payload: ProductEventPayload): Promise<voi
       supplier               : payload.supplier                ?? null,
       categoryTypes          : payload.categoryTypes           ?? null,
       productFamilies        : payload.productFamilies         ?? null,
+      productTypes           : payload.productTypes            ?? null,
       mainImage              : payload.mainImage               ?? null,
       dimensionalDrawing     : payload.dimensionalDrawing      ?? null,
       illuminanceDrawing     : payload.illuminanceDrawing      ?? null,

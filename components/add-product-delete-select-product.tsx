@@ -10,10 +10,13 @@ import {
   getDocs,
   collection,
   writeBatch,
+  query,
+  where,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
 import { toast } from "sonner";
+import { removeProductClassification } from "@/lib/product-classification-sync";
 
 import {
   Dialog,
@@ -36,9 +39,10 @@ type ProductFamilyItem = {
 type Props = {
   item: ProductFamilyItem;
   referenceID: string;
+  onDeleted?: () => void;
 };
 
-export default function AddProductDeleteProduct({ item, referenceID }: Props) {
+export default function AddProductDeleteProduct({ item, referenceID, onDeleted }: Props) {
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -46,34 +50,32 @@ export default function AddProductDeleteProduct({ item, referenceID }: Props) {
     try {
       setDeleting(true);
 
-      /* ✅ SOFT DELETE PRODUCT FAMILY */
-      await updateDoc(
-        doc(db, "productFamilies", item.id),
-        {
-          isActive    : false,
-          deletedBy   : referenceID,
-          deletedAt   : serverTimestamp(),
-          whatHappened: "Product Family Deleted",
-          date_updated: serverTimestamp(),
-        },
+      const productTypes = await getDocs(
+        query(collection(db, "productTypes"), where("productFamilyId", "==", item.id)),
       );
-
-      /* ✅ REMOVE FROM ALL PRODUCTS */
-      const snapshot = await getDocs(collection(db, "products"));
-      const batch = writeBatch(db);
-
-      snapshot.forEach((productDoc) => {
-        const data = productDoc.data();
-        if (!data.productFamilies) return;
-        const updated = data.productFamilies.filter(
-          (pf: any) => pf.productFamilyId !== item.id,
-        );
-        batch.update(doc(db, "products", productDoc.id), {
-          productFamilies: updated,
+      for (let index = 0; index < productTypes.docs.length; index += 400) {
+        const batch = writeBatch(db);
+        productTypes.docs.slice(index, index + 400).forEach((productType) => {
+          batch.update(productType.ref, {
+            isActive: false,
+            deletedBy: referenceID,
+            deletedAt: serverTimestamp(),
+            whatHappened: "Product Type Deleted",
+            date_updated: serverTimestamp(),
+          });
         });
+        await batch.commit();
+      }
+
+      await updateDoc(doc(db, "productFamilies", item.id), {
+        isActive: false,
+        deletedBy: referenceID,
+        deletedAt: serverTimestamp(),
+        whatHappened: "Product Family Deleted",
+        date_updated: serverTimestamp(),
       });
 
-      await batch.commit();
+      await removeProductClassification({ productFamilyId: item.id });
 
       // ✅ AUDIT LOG
       await logProductFamilyEvent({
@@ -85,6 +87,7 @@ export default function AddProductDeleteProduct({ item, referenceID }: Props) {
       });
 
       toast.success("Product family deleted");
+      onDeleted?.();
       setOpen(false);
     } catch (error) {
       console.error(error);

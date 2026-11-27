@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { SeenByDialog } from "@/components/seen-by-dialog";
+import { isVisibleChatMessage } from "@/lib/chat-message-visibility";
 
 const EspironLogo = () => (
   <div className="flex items-center justify-center size-9 bg-linear-to-br from-[#be2d2d] to-[#5f2828] rounded-xl shadow-lg">
@@ -327,20 +328,23 @@ export function CollaborationHubDialog({
   };
 
   const unreadCount = useMemo(() => {
-    return messages.filter(msg => 
+    return messages.filter(msg =>
+      isVisibleChatMessage(msg) &&
       msg.senderId !== currentUserId && 
       !msg.seenBy?.includes(currentUserId)
     ).length;
   }, [messages, currentUserId]);
 
   const firstUnreadIndex = useMemo(() => {
-    return messages.findIndex(msg =>
+    return messages.filter(isVisibleChatMessage).findIndex(msg =>
       msg.senderId !== currentUserId && !msg.seenBy?.includes(currentUserId)
     );
   }, [messages, currentUserId]);
 
   const filteredMessages = useMemo(() => {
-    const visibleMessages = messages.filter(canSeePrivateMessage);
+    const visibleMessages = messages.filter(
+      (message) => isVisibleChatMessage(message) && canSeePrivateMessage(message)
+    );
     if (!searchQuery) return visibleMessages;
     return visibleMessages.filter(m => m.text?.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [messages, searchQuery, currentUserId, userDepartment]);

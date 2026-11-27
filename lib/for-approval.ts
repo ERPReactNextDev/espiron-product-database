@@ -295,7 +295,9 @@ export async function performApprovedAction(requestId: string): Promise<void> {
         brandOrigin: payload.brandOrigin ?? "CHINA",
         productClass: payload.productClass ?? "",
         supplier: payload.supplier ?? null,
-        productFamilies: payload.productFamily ? [{ ...payload.productFamily, productUsageId: payload.categoryTypes?.[0]?.productUsageId || "" }] : [],
+        productFamilies: payload.productFamilies
+          ?? (payload.productFamily ? [{ ...payload.productFamily, productUsageId: payload.categoryTypes?.[0]?.productUsageId || "" }] : []),
+        productTypes: payload.productTypes ?? [],
         categoryTypes: payload.categoryTypes ?? [],
         commercialDetails: payload.commercialDetails ?? {},
         technicalSpecifications: payload.technicalSpecifications ?? [],
@@ -317,6 +319,7 @@ export async function performApprovedAction(requestId: string): Promise<void> {
         productClass: payload.productClass ?? "",
         pricePoint: payload.pricePoint ?? "ECONOMY",
         brandOrigin: payload.brandOrigin ?? "CHINA",
+        productTypes: payload.productTypes ?? [],
         referenceID: data.requesterReferenceID ?? undefined,
         userId: data.requesterUserId ?? undefined,
       });
@@ -335,6 +338,7 @@ export async function performApprovedAction(requestId: string): Promise<void> {
         productClass: payload.productClass ?? "",
         supplier: payload.supplier ?? null,
         productFamilies: payload.productFamilies ?? [],
+        productTypes: payload.productTypes ?? [],
         categoryTypes: payload.categoryTypes ?? [],
         commercialDetails: payload.commercialDetails ?? {},
         technicalSpecifications: payload.technicalSpecifications ?? [],
@@ -348,6 +352,7 @@ export async function performApprovedAction(requestId: string): Promise<void> {
         productClass: payload.productClass ?? "",
         pricePoint: payload.pricePoint ?? "ECONOMY",
         brandOrigin: payload.brandOrigin ?? "CHINA",
+        productTypes: payload.productTypes ?? [],
         referenceID: data.requesterReferenceID ?? undefined,
         userId: data.requesterUserId ?? undefined,
       });

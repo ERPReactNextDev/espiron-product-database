@@ -44,7 +44,9 @@ type Props = {
 
 };
 
-
+type ProductFamilyLink = { productFamilyId?: string; productFamilyName?: string; productUsageId?: string };
+type ProductUsageLink = { productUsageId?: string; categoryTypeName?: string };
+type ProductTypeLink = { productTypeId?: string; productTypeName?: string; productFamilyId?: string; productUsageId?: string };
 
 export default function DownloadProduct({ products, iconOnly = false }: Props) {
 
@@ -131,65 +133,49 @@ export default function DownloadProduct({ products, iconOnly = false }: Props) {
 
 
     const sheetMap = new Map<string, any[]>();
+    const sheetMetadata = new Map<string, { name: string }>();
 
     products.forEach((p) => {
-
-      const familyName = p.productFamilies?.[0]?.productFamilyName || "Others";
-
-      if (!sheetMap.has(familyName)) sheetMap.set(familyName, []);
-
-      sheetMap.get(familyName)!.push(p);
-
+      const productTypes = p.productTypes as ProductTypeLink[] | undefined;
+      const productFamilies = p.productFamilies as ProductFamilyLink[] | undefined;
+      const categoryTypes = p.categoryTypes as ProductUsageLink[] | undefined;
+      const productType = productTypes?.[0];
+      const primaryFamily = productFamilies?.find((family) => family.productFamilyId === productType?.productFamilyId)
+        || productFamilies?.[0];
+      const familyName = primaryFamily?.productFamilyName || "Others";
+      const key = primaryFamily?.productFamilyId || `${productType?.productUsageId || categoryTypes?.[0]?.productUsageId || ""}_${familyName}`;
+      if (!sheetMap.has(key)) {
+        sheetMap.set(key, []);
+        sheetMetadata.set(key, {
+          name: familyName,
+        });
+      }
+      sheetMap.get(key)!.push(p);
     });
 
+    for (const [sheetKey, sheetProducts] of sheetMap) {
 
-
-    for (const [rawSheetName, sheetProducts] of sheetMap) {
-
+      const metadata = sheetMetadata.get(sheetKey);
+      const rawSheetName = metadata?.name || "Others";
       const sheetName = getUniqueSheetName(rawSheetName);
 
       const ws = wb.addWorksheet(sheetName);
 
 
 
-      const categoryTypeId = sheetProducts[0]?.categoryTypes?.[0]?.productUsageId || null;
-
-      const productFamilyId = sheetProducts[0]?.productFamilies?.[0]?.productFamilyId || null;
-
-
-
-      let templateSnap: any = { forEach: () => {} };
-
-      if (categoryTypeId && productFamilyId) {
-
-        templateSnap = await getDocs(
-
-          query(
-
-            collection(db, "technicalSpecifications"),
-
-            where("categoryTypeId", "==", categoryTypeId),
-
-            where("productFamilyId", "==", productFamilyId),
-
-            where("isActive", "==", true),
-
-          ),
-
-        );
-
-      }
-
-
-
       const groupMap = new Map<string, string[]>();
 
-      templateSnap.forEach((doc: any) => {
-
-        const data = doc.data();
-
-        groupMap.set(data.title, data.specs.map((s: any) => s.specId));
-
+      sheetProducts.forEach((product) => {
+        product.technicalSpecifications?.forEach((group: {
+          title: string;
+          specs?: { specId?: string }[];
+        }) => {
+          if (!groupMap.has(group.title)) groupMap.set(group.title, []);
+          const specIds = groupMap.get(group.title)!;
+          group.specs?.forEach((spec) => {
+            if (spec.specId && !specIds.includes(spec.specId)) specIds.push(spec.specId);
+          });
+        });
       });
 
 
@@ -230,6 +216,14 @@ export default function DownloadProduct({ products, iconOnly = false }: Props) {
 
         "Product Family",
 
+        "Product Family Usage",
+
+        "Product Type",
+
+        "Product Type Usage",
+
+        "Product Type Family",
+
         "Product Class",
 
         "Price Point",
@@ -254,7 +248,7 @@ export default function DownloadProduct({ products, iconOnly = false }: Props) {
 
 
 
-      // Static cols 1-7
+      // Static product columns
 
       staticColumns.forEach((col) => {
 
@@ -720,13 +714,34 @@ export default function DownloadProduct({ products, iconOnly = false }: Props) {
 
 
 
-        // Static cols 1-7
+        const categoryTypes = (product.categoryTypes || []) as ProductUsageLink[];
+        const productFamilies = (product.productFamilies || []) as ProductFamilyLink[];
+        const productType = (product.productTypes as ProductTypeLink[] | undefined)?.[0];
+        const productTypeFamily = productFamilies.find((family) => family.productFamilyId === productType?.productFamilyId);
+        const productTypeUsageId = productType?.productUsageId || productTypeFamily?.productUsageId;
+        const productUsageId = productTypeUsageId || productFamilies[0]?.productUsageId || categoryTypes[0]?.productUsageId;
+        const productUsageName = categoryTypes.find((category) => category.productUsageId === productUsageId)?.categoryTypeName
+          || categoryTypes[0]?.categoryTypeName
+          || "";
+        const usageFamilies = productFamilies.filter((family) =>
+          family.productUsageId === productUsageId || (!family.productUsageId && categoryTypes.length === 1),
+        );
 
-        row.push(product.categoryTypes?.[0]?.categoryTypeName || "");
+        // Static product fields
+
+        row.push(productUsageName);
 
         row.push(product.productName || "");
 
-        row.push(product.productFamilies?.[0]?.productFamilyName || "");
+        row.push(usageFamilies.map((family) => family.productFamilyName).filter(Boolean).join(" | "));
+
+        row.push(usageFamilies.map(() => productUsageName).join(" | "));
+
+        row.push(productType?.productTypeName || "");
+
+        row.push(productUsageName);
+
+        row.push(productTypeFamily?.productFamilyName || "");
 
         row.push(product.productClass || "");
 

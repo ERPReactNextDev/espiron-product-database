@@ -55,6 +55,10 @@ import {
 
 
 import { db } from "@/lib/firebase";
+import {
+  addMissingTechnicalSpecificationTemplateSpecs,
+  loadTechnicalSpecificationTemplates,
+} from "@/lib/product-technical-specification-templates";
 
 import { toast } from "sonner";
 
@@ -95,9 +99,11 @@ type Props = { iconOnly?: boolean };
 type UserDetails = { Firstname: string; Lastname: string; ReferenceID: string };
 
 type CategoryType = { id: string; name: string };
-
 type ProductFamily = { id: string; name: string; categoryTypeId: string };
-
+type ProductType = { id: string; name: string; productFamilyId: string; categoryTypeId: string };
+type ProductFamilyLink = { productFamilyId?: string; productFamilyName?: string; productUsageId?: string };
+type ProductUsageLink = { productUsageId?: string; categoryTypeName?: string };
+type ProductTypeLink = { productTypeId?: string; productTypeName?: string; productFamilyId?: string; productUsageId?: string };
 type Supplier = { supplierId: string; company: string; supplierBrand?: string };
 
 type TemplateSpec = { id: string; title: string; specs: { specId: string }[]; sortOrder?: number };
@@ -190,11 +196,14 @@ const normalizeField = (val: string | null | undefined) =>
 
   (val ?? "").trim().toLowerCase();
 
+const normalizeClassificationList = (val: string | null | undefined) =>
+  (val ?? "").split("|").map((item) => normalizeField(item)).filter(Boolean).sort().join("|");
+
 
 
 const buildFingerprint = (
 
-  usage: string, family: string, productClass: string,
+  usage: string, family: string, productType: string, productTypeUsage: string, productTypeFamily: string, productClass: string,
 
   pricePoint: string, brandOrigin: string, supplierBrand: string,
 
@@ -204,7 +213,8 @@ const buildFingerprint = (
 
   [
 
-    normalizeField(usage), normalizeField(family), normalizeField(productClass),
+    normalizeClassificationList(usage), normalizeClassificationList(family), normalizeField(productType),
+    normalizeField(productTypeUsage), normalizeField(productTypeFamily), normalizeField(productClass),
 
     normalizeField(pricePoint), normalizeBrandOrigin(brandOrigin),
 
@@ -538,6 +548,81 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
   };
 
+  const findProductType = async (
+    productFamilyId: string,
+    categoryTypeId: string,
+    name: string,
+  ): Promise<ProductType | null> => {
+    const productTypeName = name.trim();
+    if (!productTypeName) return null;
+
+    const snap = await getDocs(
+      query(collection(db, "productTypes"), where("productFamilyId", "==", productFamilyId)),
+    );
+    const existing = snap.docs.find((productType) => {
+      const data = productType.data();
+      return data.isActive === true && String(data.name ?? "").toLowerCase() === productTypeName.toLowerCase();
+    });
+    if (existing) {
+      return {
+        id: existing.id,
+        name: existing.data().name,
+        productFamilyId,
+        categoryTypeId,
+      };
+    }
+
+    const newDoc = await addDoc(collection(db, "productTypes"), {
+      name: productTypeName,
+      productFamilyId,
+      categoryTypeId,
+      isActive: true,
+      createdAt: serverTimestamp(),
+      whatHappened: "Product Type Added (Excel Upload)",
+      date_updated: serverTimestamp(),
+    });
+    return { id: newDoc.id, name: productTypeName, productFamilyId, categoryTypeId };
+  };
+
+  const resolveRowClassifications = async (row: ParsedProductRow) => {
+    if (row.usages.length !== 1) {
+      throw new Error(`Exactly one Product Usage is allowed in row ${row.rowIndex}.`);
+    }
+    if (row.families.some((family) => family.usage.toLowerCase() !== row.usages[0].toLowerCase())) {
+      throw new Error(`All Product Families must belong to the selected Product Usage in row ${row.rowIndex}.`);
+    }
+    const categories = new Map<string, CategoryType>();
+    for (const usageName of row.usages) {
+      const category = await findCategoryType(usageName);
+      if (!category) throw new Error(`Could not resolve Product Usage "${usageName}" in row ${row.rowIndex}.`);
+      categories.set(usageName.toLowerCase(), category);
+    }
+
+    const families: { category: CategoryType; family: ProductFamily }[] = [];
+    for (const item of row.families) {
+      const category = categories.get(item.usage.toLowerCase());
+      if (!category) {
+        throw new Error(`Product Family "${item.name}" references unknown Product Usage "${item.usage}" in row ${row.rowIndex}.`);
+      }
+      const family = await findProductFamily(category.id, item.name);
+      if (!family) throw new Error(`Could not resolve Product Family "${item.name}" in row ${row.rowIndex}.`);
+      families.push({ category, family });
+    }
+
+    const typeCategory = categories.get(row.productTypeUsage.toLowerCase());
+    if (!typeCategory) {
+      throw new Error(`Product Type references unknown Product Usage "${row.productTypeUsage}" in row ${row.rowIndex}.`);
+    }
+    const typeParent = families.find(({ category, family }) =>
+      category.id === typeCategory.id && family.name.toLowerCase() === row.productTypeFamily.toLowerCase(),
+    );
+    if (!typeParent) {
+      throw new Error(`Product Type parent "${row.productTypeFamily}" under "${row.productTypeUsage}" is not listed in row ${row.rowIndex}.`);
+    }
+
+    return { categories: Array.from(categories.values()), families, typeParent };
+  };
+
 
 
   const findSupplier = async (brand: string): Promise<Supplier | null> => {
@@ -558,63 +643,25 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
 
 
-  const createMissingTemplateSpecs = async (categoryTypeId: string, productFamilyId: string, excelColumns: { title: string; specId: string }[]) => {
-
-    const templateSnap = await getDocs(query(collection(db, "technicalSpecifications"), where("categoryTypeId", "==", categoryTypeId), where("productFamilyId", "==", productFamilyId), where("isActive", "==", true)));
-
-    const existingTitles = templateSnap.docs.map((d) => d.data().title);
-
-    const groups = new Map<string, { specId: string }[]>();
-
-    for (const col of excelColumns) {
-
-      if (!groups.has(col.title)) groups.set(col.title, []);
-
-      groups.get(col.title)!.push({ specId: col.specId });
-
-    }
-
-    let sortOrder = 0;
-
-    for (const [title, specs] of groups) {
-
-      sortOrder++;
-
-      if (!existingTitles.includes(title)) {
-
-        await addDoc(collection(db, "technicalSpecifications"), { categoryTypeId, productFamilyId, title, specs, sortOrder, isActive: true, createdAt: serverTimestamp(), whatHappened: "Product Added", date_updated: serverTimestamp() });
-
-      } else {
-
-        const existing = templateSnap.docs.find((d) => d.data().title === title);
-
-        if (existing) await updateDoc(existing.ref, { sortOrder, date_updated: serverTimestamp() });
-
-      }
-
-    }
-
+  const createMissingTemplateSpecs = async (categoryTypeId: string, productFamilyId: string, productTypeId: string, excelColumns: { title: string; specId: string }[]) => {
+    await addMissingTechnicalSpecificationTemplateSpecs(
+      { categoryTypeId, productFamilyId, productTypeId },
+      excelColumns,
+    );
   };
 
-
-
-  const findTemplateSpecs = async (categoryTypeId: string, productFamilyId: string): Promise<TemplateSpec[]> => {
-
-    const q = query(collection(db, "technicalSpecifications"), where("categoryTypeId", "==", categoryTypeId), where("productFamilyId", "==", productFamilyId), where("isActive", "==", true));
-
-    const snap = await getDocs(q);
-
-    return snap.docs.map((d) => { const data = d.data() as DocumentData; return { id: d.id, title: data.title, specs: data.specs || [], sortOrder: data.sortOrder ?? 999 }; }).sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
-
+  const findTemplateSpecs = async (categoryTypeId: string, productFamilyId: string, productTypeId: string): Promise<TemplateSpec[]> => {
+    const result = await loadTechnicalSpecificationTemplates({ categoryTypeId, productFamilyId, productTypeId });
+    return result.templates.map((template) => ({
+      id: template.id,
+      title: template.title,
+      specs: template.specs.flatMap((spec) => spec.specId ? [{ specId: spec.specId }] : []),
+      sortOrder: template.sortOrder ?? 999,
+    }));
   };
 
-
-
-  const syncExistingProductsToTemplate = async (categoryTypeId: string, productFamilyId: string) => {
-
-    const templateSnap = await getDocs(query(collection(db, "technicalSpecifications"), where("categoryTypeId", "==", categoryTypeId), where("productFamilyId", "==", productFamilyId), where("isActive", "==", true)));
-
-    const templates = templateSnap.docs.map((d) => ({ id: d.id, title: d.data().title, specs: d.data().specs || [], sortOrder: d.data().sortOrder ?? 999 })).sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+  const syncExistingProductsToTemplate = async (categoryTypeId: string, productFamilyId: string, productTypeId: string) => {
+    const { templates } = await loadTechnicalSpecificationTemplates({ categoryTypeId, productFamilyId, productTypeId });
 
     const productSnap = await getDocs(collection(db, "products"));
 
@@ -622,17 +669,32 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
       const data = productDoc.data();
 
-      const family = data.productFamilies?.[0];
+      const families = data.productFamilies as ProductFamilyLink[] | undefined;
+      const hasFamily = families?.some(
+        (family) => family.productFamilyId === productFamilyId && family.productUsageId === categoryTypeId,
+      );
+      if (!hasFamily) continue;
+      const productTypes = data.productTypes as ProductTypeLink[] | undefined;
+      if (!productTypes?.some((type) => type.productTypeId === productTypeId)) continue;
 
-      if (!family || family.productFamilyId !== productFamilyId || family.productUsageId !== categoryTypeId) continue;
-
-      const existingSpecs = data.technicalSpecifications || [];
+      const existingSpecs = (data.technicalSpecifications || []) as {
+        title: string;
+        specs: { specId: string; value?: string }[];
+      }[];
 
       const mergedSpecs = templates.map((template) => {
 
-        const existingGroup = existingSpecs.find((g: any) => g.title === template.title);
+        const existingGroup = existingSpecs.find((group) => group.title === template.title);
 
-        return { technicalSpecificationId: template.id, title: template.title, specs: template.specs.map((spec: any) => { const existingRow = existingGroup?.specs?.find((r: any) => r.specId === spec.specId); return { specId: spec.specId, value: existingRow?.value || "" }; }) };
+        return {
+          technicalSpecificationId: template.id,
+          title: template.title,
+          specs: template.specs.flatMap((spec) => {
+            if (!spec.specId) return [];
+            const existingRow = existingGroup?.specs.find((row) => row.specId === spec.specId);
+            return [{ specId: spec.specId, value: existingRow?.value || "" }];
+          }),
+        };
 
       });
 
@@ -670,11 +732,27 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
       if (data.isActive === false) return;
 
+      const existingProductType = (data.productTypes as ProductTypeLink[] | undefined)?.[0];
+      const existingFamilies = (data.productFamilies ?? []) as ProductFamilyLink[];
+      const existingUsages = (data.categoryTypes ?? []) as ProductUsageLink[];
+      const existingTypeFamily = existingFamilies.find(
+        (family) => family.productFamilyId === existingProductType?.productFamilyId,
+      );
+      const existingTypeUsageId = existingProductType?.productUsageId || existingTypeFamily?.productUsageId;
+      const existingTypeUsage = existingUsages.find(
+        (usage) => usage.productUsageId === existingTypeUsageId,
+      );
       existingFingerprints.add(buildFingerprint(
 
-        data.categoryTypes?.[0]?.categoryTypeName ?? "",
+        existingUsages.map((usage) => usage.categoryTypeName).join(" | "),
 
-        data.productFamilies?.[0]?.productFamilyName ?? "",
+        existingFamilies.map((family) => family.productFamilyName).join(" | "),
+
+        existingProductType?.productTypeName ?? "",
+
+        existingTypeUsage?.categoryTypeName ?? "",
+
+        existingTypeFamily?.productFamilyName ?? "",
 
         data.productClass ?? "", data.pricePoint ?? "",
 
@@ -696,7 +774,18 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
     for (const row of rows) {
 
-      const fp = buildFingerprint(row.usage, row.family, row.productClass, row.pricePoint, row.brandOrigin, row.supplierBrand, row.supplierModelCode);
+      const fp = buildFingerprint(
+        row.usage,
+        row.family,
+        row.productType,
+        row.productTypeUsage,
+        row.productTypeFamily,
+        row.productClass,
+        row.pricePoint,
+        row.brandOrigin,
+        row.supplierBrand,
+        row.supplierModelCode,
+      );
 
       if (existingFingerprints.has(fp)) dupeOriginals.push(row);
 
@@ -708,7 +797,8 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
     const COLS = [
 
-      "Usage", "Product Name", "Family", "Product Class", "Price Point", "Brand Origin", "Supplier Brand",
+      "Usage", "Product Name", "Family", "Product Type", "Product Type Usage", "Product Type Family",
+      "Product Class", "Price Point", "Brand Origin", "Supplier Brand",
 
       "Supplier Model Code",
 
@@ -722,13 +812,14 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
     const dupeRows: DuplicateRow[] = dupeOriginals.map((row, i) => ({
 
-      key: `${i}-${row.usage}-${row.productClass}`,
+      key: `${i}-${row.usage}-${row.family}-${row.productType}-${row.productClass}`,
 
       columns: COLS,
 
       values: [
 
-        row.usage, row.productName, row.family, row.productClass, row.pricePoint,
+        row.usage, row.productName, row.family, row.productType, row.productTypeUsage, row.productTypeFamily,
+        row.productClass, row.pricePoint,
 
         row.brandOrigin, row.supplierBrand,
 
@@ -802,6 +893,28 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
         return;
 
+      }
+
+      if (allRows.some((row) =>
+        row.usages.length !== 1
+        || !row.productType.trim()
+        || !row.productTypeUsage.trim()
+        || !row.productTypeFamily.trim()
+        || row.productTypeUsage.toLowerCase() !== row.usages[0]?.toLowerCase()
+        || row.families.some((family) => !family.usage.trim())
+        || row.families.some((family) =>
+          family.usage.toLowerCase() !== row.usages[0]?.toLowerCase(),
+        )
+        || !row.families.some((family) =>
+          family.name.toLowerCase() === row.productTypeFamily.toLowerCase()
+          && family.usage.toLowerCase() === row.productTypeUsage.toLowerCase(),
+        )
+      )) {
+        toast.error(
+          "Each row needs one Product Usage, one or more Product Families under that usage, and a Product Type parent. Download the latest product template and check the classification columns.",
+        );
+        setUploading(false);
+        return;
       }
 
 
@@ -892,7 +1005,9 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
       console.error(error);
 
-      toast.error("Upload failed");
+      toast.error("Upload failed", {
+        description: error instanceof Error ? error.message : "An unexpected error occurred.",
+      });
 
       setUploading(false);
 
@@ -1097,6 +1212,10 @@ export default function UploadProduct({ iconOnly = false }: Props) {
         const h2 = ws.getRow(2);
 
         const cols: { title: string; specId: string; col: number }[] = [];
+        const hasMultipleFamilyColumns = cleanExcelValue(h1.getCell(4).value).toLowerCase() === "product family usage";
+        const hasProductTypeColumn = hasMultipleFamilyColumns
+          || cleanExcelValue(h1.getCell(4).value).toLowerCase() === "product type";
+        const staticColumnOffset = hasMultipleFamilyColumns ? 4 : hasProductTypeColumn ? 1 : 0;
 
 
 
@@ -1142,7 +1261,7 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
 
 
-          if (col < 10) continue;
+          if (col < 10 + staticColumnOffset) continue;
 
           if (!group || !specId) continue;
 
@@ -1174,31 +1293,26 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
 
 
-        const category = await findCategoryType(row.usage);
-
-        if (!category) continue;
-
-        const productFamily = await findProductFamily(category.id, row.family);
-
-        if (!productFamily) continue;
-
+        const { categories, families, typeParent } = await resolveRowClassifications(row);
+        const productType = await findProductType(typeParent.family.id, typeParent.category.id, row.productType);
+        if (!productType) throw new Error(`Missing Product Type for row ${row.rowIndex} in worksheet ${row.wsIndex + 1}.`);
         const supplier = await findSupplier(row.supplierBrand);
 
 
 
         const excelColumns = wsColumnsMap.get(row.wsIndex) ?? [];
 
-        const syncKey = `${category.id}_${productFamily.id}`;
+        const syncKey = `${typeParent.category.id}_${typeParent.family.id}_${productType.id}`;
 
         if (!syncedFamilies.has(syncKey)) {
 
           if (cancelRef.current) break;
 
-          await createMissingTemplateSpecs(category.id, productFamily.id, excelColumns);
+          await createMissingTemplateSpecs(typeParent.category.id, typeParent.family.id, productType.id, excelColumns);
 
           if (cancelRef.current) break;
 
-          await syncExistingProductsToTemplate(category.id, productFamily.id);
+          await syncExistingProductsToTemplate(typeParent.category.id, typeParent.family.id, productType.id);
 
           syncedFamilies.add(syncKey);
 
@@ -1206,7 +1320,7 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
 
 
-        const templateSpecs = await findTemplateSpecs(category.id, productFamily.id);
+        const templateSpecs = await findTemplateSpecs(typeParent.category.id, typeParent.family.id, productType.id);
 
         const productSpecs = templateSpecs.map((template) => ({
 
@@ -1258,10 +1372,21 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
           illuminanceDrawing: row.illuminanceURL ? { url: row.illuminanceURL } : null,
 
-          categoryTypes: [{ productUsageId: category.id, categoryTypeName: category.name }],
-
-          productFamilies: [{ productFamilyId: productFamily.id, productFamilyName: productFamily.name, productUsageId: category.id }],
-
+          categoryTypes: categories.map((category) => ({
+            productUsageId: category.id,
+            categoryTypeName: category.name,
+          })),
+          productFamilies: families.map(({ category, family }) => ({
+            productFamilyId: family.id,
+            productFamilyName: family.name,
+            productUsageId: category.id,
+          })),
+          productTypes: [{
+            productTypeId: productType.id,
+            productTypeName: productType.name,
+            productFamilyId: typeParent.family.id,
+            productUsageId: typeParent.category.id,
+          }],
           technicalSpecifications: productSpecs,
 
           commercialDetails,
@@ -1296,10 +1421,19 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
           supplier: supplier ?? null,
 
-          categoryTypes: [{ productUsageId: category.id, categoryTypeName: category.name }],
-
-          productFamilies: [{ productFamilyId: productFamily.id, productFamilyName: productFamily.name }],
-
+          categoryTypes: categories.map((category) => ({
+            productUsageId: category.id,
+            categoryTypeName: category.name,
+          })),
+          productFamilies: families.map(({ category, family }) => ({
+            productFamilyId: family.id,
+            productFamilyName: family.name,
+            productUsageId: category.id,
+          })),
+          productTypes: [{
+            productTypeId: productType.id,
+            productTypeName: productType.name,
+          }],
           mainImage: row.imageURL ? { url: row.imageURL } : null,
 
           dimensionalDrawing: row.dimensionalURL ? { url: row.dimensionalURL } : null,
@@ -1366,7 +1500,9 @@ export default function UploadProduct({ iconOnly = false }: Props) {
 
       if (audioRef.current) audioRef.current.currentTime = 0;
 
-      toast.error("Upload failed");
+      toast.error("Upload failed", {
+        description: error instanceof Error ? error.message : "An unexpected error occurred.",
+      });
 
     } finally {
 

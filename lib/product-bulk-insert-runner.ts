@@ -31,6 +31,10 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
+import {
+  addMissingTechnicalSpecificationTemplateSpecs,
+  loadTechnicalSpecificationTemplates,
+} from "@/lib/product-technical-specification-templates";
 
 import {
 
@@ -48,9 +52,19 @@ export type ParsedProductRow = {
 
   usage: string;
 
+  usages: string[];
+
   productName: string;
 
   family: string;
+
+  families: { name: string; usage: string }[];
+
+  productType: string;
+
+  productTypeUsage: string;
+
+  productTypeFamily: string;
 
   productClass: string;
 
@@ -164,6 +178,8 @@ type CategoryType = { id: string; name: string };
 
 type ProductFamily = { id: string; name: string; categoryTypeId: string };
 
+type ProductType = { id: string; name: string; productFamilyId: string; categoryTypeId: string };
+
 type Supplier = { supplierId: string; company: string; supplierBrand?: string };
 
 type TemplateSpec = { id: string; title: string; specs: { specId: string }[]; sortOrder?: number };
@@ -181,6 +197,12 @@ const cleanVal = (val: unknown): string => {
   return s === "-" ? "" : s;
 
 };
+
+const splitExcelList = (value: string): string[] =>
+  value.split("|").map(item => item.trim()).filter(Boolean);
+
+const splitExcelListPreservingEmpty = (value: string): string[] =>
+  value.trim() ? value.split("|").map(item => item.trim()) : [];
 
 
 
@@ -204,6 +226,10 @@ export function buildExcelColumnsMapFromWorkbook(workbook: Workbook): ExcelColum
 
     const h2 = ws.getRow(2);
 
+    const hasMultipleFamilyColumns = cleanVal(h1.getCell(4).value).toLowerCase() === "product family usage";
+    const hasProductTypeColumn = hasMultipleFamilyColumns || cleanVal(h1.getCell(4).value).toLowerCase() === "product type";
+    const staticColumnOffset = hasMultipleFamilyColumns ? 4 : hasProductTypeColumn ? 1 : 0;
+
 
 
     const cols: { title: string; specId: string; col: number }[] = [];
@@ -218,9 +244,9 @@ export function buildExcelColumnsMapFromWorkbook(workbook: Workbook): ExcelColum
 
 
 
-      // Skip first 9 static cols (includes Supplier Model Code)
+      // Skip static product fields, including Supplier Model Code.
 
-      if (col < 10) continue;
+      if (col < 10 + staticColumnOffset) continue;
 
 
 
@@ -358,6 +384,11 @@ export function parseWorkbookRowsNew(workbook: Workbook): ParsedProductRow[] {
 
     const h2 = ws.getRow(2);
 
+    const hasMultipleFamilyColumns = cleanVal(h1.getCell(4).value).toLowerCase() === "product family usage";
+    const hasProductTypeColumn = hasMultipleFamilyColumns || cleanVal(h1.getCell(4).value).toLowerCase() === "product type";
+    const staticColumnOffset = hasMultipleFamilyColumns ? 4 : hasProductTypeColumn ? 1 : 0;
+    const productTypeColumn = hasMultipleFamilyColumns ? 5 : hasProductTypeColumn ? 4 : -1;
+
 
 
     // Build column index maps
@@ -458,7 +489,7 @@ export function parseWorkbookRowsNew(workbook: Workbook): ParsedProductRow[] {
 
 
 
-      if (col < 10) continue;
+      if (col < 10 + staticColumnOffset) continue;
 
 
 
@@ -580,7 +611,8 @@ export function parseWorkbookRowsNew(workbook: Workbook): ParsedProductRow[] {
 
 
 
-    let lastUsage = "", lastFamily = "", lastClass = "", lastPP = "";
+    let lastUsage = "", lastFamily = "", lastFamilyUsage = "", lastProductType = "";
+    let lastProductTypeUsage = "", lastProductTypeFamily = "", lastClass = "", lastPP = "";
 
     let lastBO = "", lastSB = "", lastImg = "";
 
@@ -597,27 +629,48 @@ export function parseWorkbookRowsNew(workbook: Workbook): ParsedProductRow[] {
 
       const family       = cleanVal(row.getCell(3).value) || lastFamily;
 
-      const productClass = cleanVal(row.getCell(4).value) || lastClass;
+      const familyUsage  = hasMultipleFamilyColumns ? cleanVal(row.getCell(4).value) || lastFamilyUsage : "";
 
-      const pricePoint   = cleanVal(row.getCell(5).value) || lastPP;
+      const productType  = productTypeColumn > 0 ? cleanVal(row.getCell(productTypeColumn).value) || lastProductType : "";
 
-      const brandOrigin  = cleanVal(row.getCell(6).value) || lastBO;
+      const productTypeUsage = hasMultipleFamilyColumns
+        ? cleanVal(row.getCell(6).value) || lastProductTypeUsage
+        : "";
 
-      const supplierBrand = cleanVal(row.getCell(7).value) || lastSB;
+      const productTypeFamily = hasMultipleFamilyColumns
+        ? cleanVal(row.getCell(7).value) || lastProductTypeFamily
+        : "";
 
-      const imageURL     = convertDrive(extractHyperlink(row.getCell(8))) || lastImg;
+      const productClass = cleanVal(row.getCell(4 + staticColumnOffset).value) || lastClass;
 
-      const supplierModelCodeStatic = cleanVal(row.getCell(9).value);
+      const pricePoint   = cleanVal(row.getCell(5 + staticColumnOffset).value) || lastPP;
 
+      const brandOrigin  = cleanVal(row.getCell(6 + staticColumnOffset).value) || lastBO;
 
+      const supplierBrand = cleanVal(row.getCell(7 + staticColumnOffset).value) || lastSB;
 
-      lastUsage = usage; lastFamily = family; lastClass = productClass;
+      const imageURL     = convertDrive(extractHyperlink(row.getCell(8 + staticColumnOffset))) || lastImg;
+
+      const supplierModelCodeStatic = cleanVal(row.getCell(9 + staticColumnOffset).value);
+
+      const usages = splitExcelList(usage);
+      const familyNames = splitExcelList(family);
+      const familyUsageNames = hasMultipleFamilyColumns
+        ? splitExcelListPreservingEmpty(familyUsage)
+        : [usages[0] ?? ""];
+      const parsedFamilies = familyNames.map((name, index) => ({ name, usage: familyUsageNames[index] ?? "" }));
+      const resolvedProductTypeUsage = hasMultipleFamilyColumns ? productTypeUsage : (familyUsageNames[0] ?? "");
+      const resolvedProductTypeFamily = hasMultipleFamilyColumns ? productTypeFamily : (familyNames[0] ?? "");
+
+      lastUsage = usage; lastFamily = family; lastFamilyUsage = familyUsage;
+      lastProductType = productType; lastProductTypeUsage = productTypeUsage; lastProductTypeFamily = productTypeFamily;
+      lastClass = productClass;
 
       lastPP = pricePoint; lastBO = brandOrigin; lastSB = supplierBrand; lastImg = imageURL;
 
 
 
-      if (!usage || !family) continue;
+      if (usages.length === 0 || parsedFamilies.length === 0) continue;
 
       if (!productClass && !pricePoint && !brandOrigin && !supplierBrand) continue;
 
@@ -635,7 +688,15 @@ export function parseWorkbookRowsNew(workbook: Workbook): ParsedProductRow[] {
 
       result.push({
 
-        usage, productName, family, productClass, pricePoint, brandOrigin, supplierBrand, imageURL,
+        usage: usages.join(" | "),
+        usages,
+        productName,
+        family: familyNames.join(" | "),
+        families: parsedFamilies,
+        productType,
+        productTypeUsage: resolvedProductTypeUsage,
+        productTypeFamily: resolvedProductTypeFamily,
+        productClass, pricePoint, brandOrigin, supplierBrand, imageURL,
 
         dimensionalURL: convertDrive(extractHyperlink(cm.dimensionalURL > 0 ? row.getCell(cm.dimensionalURL) : null)),
 
@@ -1012,6 +1073,85 @@ async function findProductFamily(categoryTypeId: string, name: string, reference
 
 }
 
+async function findProductType(
+  productFamilyId: string,
+  categoryTypeId: string,
+  name: string,
+): Promise<ProductType | null> {
+  const productTypeName = name.trim();
+  if (!productTypeName) return null;
+
+  const snap = await getDocs(query(collection(db, "productTypes"), where("productFamilyId", "==", productFamilyId)));
+  const existing = snap.docs.find((productType) => {
+    const data = productType.data() as DocumentData;
+    return data.isActive === true && String(data.name ?? "").toLowerCase() === productTypeName.toLowerCase();
+  });
+  if (existing) {
+    const data = existing.data() as DocumentData;
+    return { id: existing.id, name: data.name, productFamilyId, categoryTypeId };
+  }
+
+  const newDoc = await addDoc(collection(db, "productTypes"), {
+    name: productTypeName,
+    productFamilyId,
+    categoryTypeId,
+    isActive: true,
+    createdAt: serverTimestamp(),
+    whatHappened: "Product Type Added (Excel Upload)",
+    date_updated: serverTimestamp(),
+  });
+  return { id: newDoc.id, name: productTypeName, productFamilyId, categoryTypeId };
+}
+
+async function resolveRowClassifications(
+  row: ParsedProductRow,
+  referenceID: string,
+  userId: string,
+) {
+  const usageNames = row.usages?.length ? row.usages : splitExcelList(row.usage);
+  const familyRows = row.families?.length
+    ? row.families
+    : [{ name: row.family, usage: usageNames[0] ?? "" }];
+  if (usageNames.length !== 1) {
+    throw new Error(`Exactly one Product Usage is allowed in row ${row.rowIndex}.`);
+  }
+  if (familyRows.some((family) => family.usage.toLowerCase() !== usageNames[0].toLowerCase())) {
+    throw new Error(`All Product Families must belong to the selected Product Usage in row ${row.rowIndex}.`);
+  }
+  const productTypeUsage = row.productTypeUsage || usageNames[0] || "";
+  const productTypeFamily = row.productTypeFamily || familyRows[0]?.name || "";
+  const categories = new Map<string, CategoryType>();
+  for (const usageName of usageNames) {
+    const category = await findCategoryType(usageName, referenceID, userId);
+    if (!category) throw new Error(`Could not resolve Product Usage "${usageName}" in row ${row.rowIndex}.`);
+    categories.set(usageName.toLowerCase(), category);
+  }
+
+  const families: { category: CategoryType; family: ProductFamily }[] = [];
+  for (const item of familyRows) {
+    const category = categories.get(item.usage.toLowerCase());
+    if (!category) {
+      throw new Error(`Product Family "${item.name}" references unknown Product Usage "${item.usage}" in row ${row.rowIndex}.`);
+    }
+    const family = await findProductFamily(category.id, item.name, referenceID, userId);
+    if (!family) throw new Error(`Could not resolve Product Family "${item.name}" in row ${row.rowIndex}.`);
+    families.push({ category, family });
+  }
+
+  const typeCategory = categories.get(productTypeUsage.toLowerCase());
+  if (!typeCategory) {
+    throw new Error(`Product Type references unknown Product Usage "${productTypeUsage}" in row ${row.rowIndex}.`);
+  }
+  const typeParent = families.find(({ category, family }) =>
+    category.id === typeCategory.id && family.name.toLowerCase() === productTypeFamily.toLowerCase(),
+  );
+  if (!typeParent) {
+    throw new Error(`Product Type parent "${productTypeFamily}" under "${productTypeUsage}" is not listed in row ${row.rowIndex}.`);
+  }
+
+  return { categories: Array.from(categories.values()), families, typeParent };
+}
+
 
 
 async function findSupplier(brand: string): Promise<Supplier | null> {
@@ -1036,117 +1176,36 @@ async function findSupplier(brand: string): Promise<Supplier | null> {
 
 async function createMissingTemplateSpecs(
 
-  categoryTypeId: string, productFamilyId: string,
+  categoryTypeId: string, productFamilyId: string, productTypeId: string,
 
   excelColumns: { title: string; specId: string }[],
 
 ) {
 
-  const templateSnap = await getDocs(query(
-
-    collection(db, "technicalSpecifications"),
-
-    where("categoryTypeId", "==", categoryTypeId),
-
-    where("productFamilyId", "==", productFamilyId),
-
-    where("isActive", "==", true),
-
-  ));
-
-  const existingTitles = templateSnap.docs.map((d) => d.data().title);
-
-  const groups = new Map<string, { specId: string }[]>();
-
-  for (const col of excelColumns) {
-
-    if (!groups.has(col.title)) groups.set(col.title, []);
-
-    groups.get(col.title)!.push({ specId: col.specId });
-
-  }
-
-  let sortOrder = 0;
-
-  for (const [title, specs] of groups) {
-
-    sortOrder++;
-
-    if (!existingTitles.includes(title)) {
-
-      await addDoc(collection(db, "technicalSpecifications"), {
-
-        categoryTypeId, productFamilyId, title, specs, sortOrder,
-
-        isActive: true, createdAt: serverTimestamp(),
-
-        whatHappened: "Product Added", date_updated: serverTimestamp(),
-
-      });
-
-    } else {
-
-      const existing = templateSnap.docs.find((d) => d.data().title === title);
-
-      if (existing) await updateDoc(existing.ref, { sortOrder, date_updated: serverTimestamp() });
-
-    }
-
-  }
+  await addMissingTechnicalSpecificationTemplateSpecs(
+    { categoryTypeId, productFamilyId, productTypeId },
+    excelColumns,
+  );
 
 }
 
 
 
-async function findTemplateSpecs(categoryTypeId: string, productFamilyId: string): Promise<TemplateSpec[]> {
-
-  const snap = await getDocs(query(
-
-    collection(db, "technicalSpecifications"),
-
-    where("categoryTypeId", "==", categoryTypeId),
-
-    where("productFamilyId", "==", productFamilyId),
-
-    where("isActive", "==", true),
-
-  ));
-
-  return snap.docs
-
-    .map((d) => {
-
-      const data = d.data() as DocumentData;
-
-      return { id: d.id, title: data.title, specs: data.specs || [], sortOrder: data.sortOrder ?? 999 };
-
-    })
-
-    .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+async function findTemplateSpecs(categoryTypeId: string, productFamilyId: string, productTypeId: string): Promise<TemplateSpec[]> {
+  const result = await loadTechnicalSpecificationTemplates({ categoryTypeId, productFamilyId, productTypeId });
+  return result.templates.map((template) => ({
+    id: template.id,
+    title: template.title,
+    specs: template.specs.flatMap((spec) => spec.specId ? [{ specId: spec.specId }] : []),
+    sortOrder: template.sortOrder ?? 999,
+  }));
 
 }
 
 
 
-async function syncExistingProductsToTemplate(categoryTypeId: string, productFamilyId: string) {
-
-  const templateSnap = await getDocs(query(
-
-    collection(db, "technicalSpecifications"),
-
-    where("categoryTypeId", "==", categoryTypeId),
-
-    where("productFamilyId", "==", productFamilyId),
-
-    where("isActive", "==", true),
-
-  ));
-
-  const templates = templateSnap.docs
-
-    .map((d) => ({ id: d.id, title: d.data().title, specs: d.data().specs || [], sortOrder: d.data().sortOrder ?? 999 }))
-
-    .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+async function syncExistingProductsToTemplate(categoryTypeId: string, productFamilyId: string, productTypeId: string) {
+  const { templates } = await loadTechnicalSpecificationTemplates({ categoryTypeId, productFamilyId, productTypeId });
 
 
 
@@ -1156,17 +1215,22 @@ async function syncExistingProductsToTemplate(categoryTypeId: string, productFam
 
     const data = productDoc.data();
 
-    const family = data.productFamilies?.[0];
+    const families = data.productFamilies as { productFamilyId?: string; productUsageId?: string }[] | undefined;
+    const hasFamily = families?.some(
+      (family) => family.productFamilyId === productFamilyId && family.productUsageId === categoryTypeId,
+    );
+    if (!hasFamily) continue;
+    const productTypes = data.productTypes as { productTypeId?: string }[] | undefined;
+    if (!productTypes?.some((type) => type.productTypeId === productTypeId)) continue;
 
-    if (!family) continue;
-
-    if (family.productFamilyId !== productFamilyId || family.productUsageId !== categoryTypeId) continue;
-
-    const existingSpecs = data.technicalSpecifications || [];
+    const existingSpecs = (data.technicalSpecifications || []) as {
+      title: string;
+      specs: { specId: string; value?: string }[];
+    }[];
 
     const mergedSpecs = templates.map((template) => {
 
-      const existingGroup = existingSpecs.find((g: any) => g.title === template.title);
+      const existingGroup = existingSpecs.find((group) => group.title === template.title);
 
       return {
 
@@ -1174,12 +1238,10 @@ async function syncExistingProductsToTemplate(categoryTypeId: string, productFam
 
         title: template.title,
 
-        specs: template.specs.map((spec: any) => {
-
-          const existingRow = existingGroup?.specs?.find((r: any) => r.specId === spec.specId);
-
-          return { specId: spec.specId, value: existingRow?.value || "" };
-
+        specs: template.specs.flatMap((spec) => {
+          if (!spec.specId) return [];
+          const existingRow = existingGroup?.specs.find((row) => row.specId === spec.specId);
+          return [{ specId: spec.specId, value: existingRow?.value || "" }];
         }),
 
       };
@@ -1230,27 +1292,22 @@ export async function insertParsedProductBulk(params: {
 
   for (const row of rows) {
 
-    const category = await findCategoryType(row.usage, referenceID, userId);
-
-    if (!category) continue;
-
-    const productFamily = await findProductFamily(category.id, row.family, referenceID, userId);
-
-    if (!productFamily) continue;
-
+    const { categories, families, typeParent } = await resolveRowClassifications(row, referenceID, userId);
+    const productType = await findProductType(typeParent.family.id, typeParent.category.id, row.productType);
+    if (!productType) throw new Error(`Missing Product Type for row ${row.rowIndex} in worksheet ${row.wsIndex + 1}.`);
     const supplier = await findSupplier(row.supplierBrand);
 
 
 
     const excelColumns = excelColumnsByWsIndex[String(row.wsIndex)] ?? [];
 
-    const syncKey = `${category.id}_${productFamily.id}`;
+    const syncKey = `${typeParent.category.id}_${typeParent.family.id}_${productType.id}`;
 
     if (!syncedFamilies.has(syncKey)) {
 
-      await createMissingTemplateSpecs(category.id, productFamily.id, excelColumns);
+      await createMissingTemplateSpecs(typeParent.category.id, typeParent.family.id, productType.id, excelColumns);
 
-      await syncExistingProductsToTemplate(category.id, productFamily.id);
+      await syncExistingProductsToTemplate(typeParent.category.id, typeParent.family.id, productType.id);
 
       syncedFamilies.add(syncKey);
 
@@ -1258,7 +1315,7 @@ export async function insertParsedProductBulk(params: {
 
 
 
-    const templateSpecs = await findTemplateSpecs(category.id, productFamily.id);
+    const templateSpecs = await findTemplateSpecs(typeParent.category.id, typeParent.family.id, productType.id);
 
     const productSpecs = templateSpecs.map((template) => ({
 
@@ -1306,10 +1363,21 @@ export async function insertParsedProductBulk(params: {
 
       illuminanceDrawing: row.illuminanceURL ? { url: row.illuminanceURL } : null,
 
-      categoryTypes: [{ productUsageId: category.id, categoryTypeName: category.name }],
-
-      productFamilies: [{ productFamilyId: productFamily.id, productFamilyName: productFamily.name, productUsageId: category.id }],
-
+      categoryTypes: categories.map((category) => ({
+        productUsageId: category.id,
+        categoryTypeName: category.name,
+      })),
+      productFamilies: families.map(({ category, family }) => ({
+        productFamilyId: family.id,
+        productFamilyName: family.name,
+        productUsageId: category.id,
+      })),
+      productTypes: [{
+        productTypeId: productType.id,
+        productTypeName: productType.name,
+        productFamilyId: typeParent.family.id,
+        productUsageId: typeParent.category.id,
+      }],
       technicalSpecifications: productSpecs,
 
       commercialDetails,
@@ -1348,10 +1416,19 @@ export async function insertParsedProductBulk(params: {
 
       supplier: supplier ?? null,
 
-      categoryTypes: [{ productUsageId: category.id, categoryTypeName: category.name }],
-
-      productFamilies: [{ productFamilyId: productFamily.id, productFamilyName: productFamily.name }],
-
+      categoryTypes: categories.map((category) => ({
+        productUsageId: category.id,
+        categoryTypeName: category.name,
+      })),
+      productFamilies: families.map(({ category, family }) => ({
+        productFamilyId: family.id,
+        productFamilyName: family.name,
+        productUsageId: category.id,
+      })),
+      productTypes: [{
+        productTypeId: productType.id,
+        productTypeName: productType.name,
+      }],
       mainImage: row.imageURL ? { url: row.imageURL } : null,
 
       dimensionalDrawing: row.dimensionalURL ? { url: row.dimensionalURL } : null,

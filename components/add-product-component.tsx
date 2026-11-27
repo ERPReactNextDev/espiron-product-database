@@ -53,7 +53,16 @@ import AddProductSelectProductType from "@/components/add-product-edit-select-ca
 import AddProductEditSelectProduct from "@/components/add-product-edit-select-product";
 import AddProductDeleteProductType from "@/components/add-product-delete-select-category-type";
 import AddProductDeleteProduct from "@/components/add-product-delete-select-product";
+import AddProductEditProductType from "@/components/add-product-edit-product-type";
+import AddProductDeleteSpecificProductType from "@/components/add-product-delete-product-type";
 import AddProductDeleteTechnicalSpecification from "@/components/add-product-delete-technical-specification";
+import ProductTypeFamilyPickerDialog from "@/components/product-type-family-picker-dialog";
+import {
+  hasTechnicalSpecificationTemplateSchemaChanged,
+  loadTechnicalSpecificationTemplates,
+  saveTechnicalSpecificationTemplates,
+  type TechnicalSpecificationTemplateSource,
+} from "@/lib/product-technical-specification-templates";
 import RequestApprovalDialog from "@/components/request-approval-dialog";
 import AddSupplier from "@/components/add-supplier";
 import EditSupplier from "@/components/edit-supplier";
@@ -71,12 +80,18 @@ type SpecRow = {
   length: string; width: string; height: string; ipFirst: string; ipSecond: string;
 };
 type TechnicalSpecification = { id: string; title: string; specs: SpecRow[]; sortOrder?: number };
+type ProductTechnicalSpecificationSnapshot = {
+  technicalSpecificationId: string;
+  title: string;
+  specs: { specId: string; value?: string }[];
+};
 type Classification = { id: string; name: string };
 type SelectedClassification = { id: string; name: string } | null;
 type CategoryType = { id: string; name: string };
 type Supplier = { supplierId: string; company: string; supplierBrand?: string };
 type Brand = { id: string; name: string };
 type ProductFamily = { id: string; name: string; productUsageId: string };
+type ProductType = { id: string; name: string; productFamilyId: string; productUsageId: string };
 type SelectedCategoryType = { id: string; name: string };
 type MultiRow = {
   itemName: string;
@@ -386,11 +401,20 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
   const [addSupplierOpen, setAddSupplierOpen] = useState(false);
   const [editSupplierOpen, setEditSupplierOpen] = useState(false);
   const [productFamilies, setProductFamilies] = useState<ProductFamily[]>([]);
+  const [productFamiliesLoaded, setProductFamiliesLoaded] = useState(false);
+  const [selectedProductFamilies, setSelectedProductFamilies] = useState<ProductFamily[]>([]);
   const [selectedProductFamily, setSelectedProductFamily] = useState<ProductFamily | null>(null);
+  const [productTypes, setProductTypes] = useState<ProductType[]>([]);
+  const [selectedProductType, setSelectedProductType] = useState<ProductType | null>(null);
+  const [productTypesLoaded, setProductTypesLoaded] = useState(false);
   const [technicalSpecs, setTechnicalSpecs] = useState<TechnicalSpecification[]>([]);
+  const [technicalSpecTemplateSource, setTechnicalSpecTemplateSource] = useState<TechnicalSpecificationTemplateSource>("family");
   const [globalDragMode, setGlobalDragMode] = useState(false);
   const [productFamilySearch, setProductFamilySearch] = useState("");
+  const [newProductFamily, setNewProductFamily] = useState("");
+  const [productTypeSearch, setProductTypeSearch] = useState("");
   const [newProductType, setNewProductType] = useState("");
+  const [productTypeFamilyPickerOpen, setProductTypeFamilyPickerOpen] = useState(false);
   const [selectedCategoryTypes, setSelectedCategoryTypes] = useState<SelectedCategoryType[]>([]);
   const [classificationSearch, setClassificationSearch] = useState("");
   const [categoryTypeSearch, setCategoryTypeSearch] = useState("");
@@ -400,6 +424,7 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
 
   const dragIndex = useRef<number | null>(null);
   const dragRow = useRef<{ specIndex: number; rowIndex: number } | null>(null);
+  const technicalSpecsTemplateBaseline = useRef<TechnicalSpecification[]>([]);
 
   useEffect(() => {
     const saved = sessionStorage.getItem("technicalSpecs");
@@ -456,10 +481,68 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
   }, []);
 
   useEffect(() => {
-    if (selectedCategoryTypes.length === 0) { setProductFamilies([]); return; }
-    const q = query(collection(db, "productFamilies"), where("categoryTypeId", "==", selectedCategoryTypes[0].id), where("isActive", "==", true));
-    return onSnapshot(q, snap => setProductFamilies(snap.docs.map(d => ({ id: d.id, name: d.data().name, productUsageId: d.data().categoryTypeId }))));
+    if (selectedCategoryTypes.length === 0) { setProductFamilies([]); setProductFamiliesLoaded(true); return; }
+    setProductFamiliesLoaded(false);
+    const selectedUsageIds = new Set(selectedCategoryTypes.map(item => item.id));
+    const q = query(collection(db, "productFamilies"), where("isActive", "==", true));
+    return onSnapshot(
+      q,
+      snap => {
+        setProductFamilies(snap.docs
+          .map(d => ({ id: d.id, name: d.data().name, productUsageId: d.data().categoryTypeId }))
+          .filter(item => selectedUsageIds.has(item.productUsageId)));
+        setProductFamiliesLoaded(true);
+      },
+      error => { console.error(error); toast.error("Failed to load product families"); setProductFamiliesLoaded(true); },
+    );
   }, [selectedCategoryTypes]);
+
+  useEffect(() => {
+    if (!productFamiliesLoaded) return;
+    const activeFamilies = selectedProductFamilies
+      .map(selected => productFamilies.find(item => item.id === selected.id))
+      .filter((item): item is ProductFamily => Boolean(item));
+    if (activeFamilies.length !== selectedProductFamilies.length
+      || activeFamilies.some((item, index) => item.name !== selectedProductFamilies[index]?.name
+        || item.productUsageId !== selectedProductFamilies[index]?.productUsageId)) {
+      setSelectedProductFamilies(activeFamilies);
+    }
+    if (selectedProductFamily) {
+      const activeFamily = activeFamilies.find(item => item.id === selectedProductFamily.id) ?? activeFamilies[0] ?? null;
+      if (activeFamily?.id !== selectedProductFamily.id || activeFamily.name !== selectedProductFamily.name
+        || activeFamily.productUsageId !== selectedProductFamily.productUsageId) {
+        setSelectedProductFamily(activeFamily);
+        if (!activeFamily) setTechnicalSpecs([]);
+      }
+    }
+    if (selectedProductType && !activeFamilies.some(item => item.id === selectedProductType.productFamilyId)) {
+      setSelectedProductType(null);
+    }
+  }, [productFamilies, productFamiliesLoaded, selectedProductFamilies, selectedProductFamily, selectedProductType]);
+
+  useEffect(() => {
+    const selectedFamilyIds = new Set(selectedProductFamilies.map(item => item.id));
+    if (selectedFamilyIds.size === 0) { setProductTypes([]); setProductTypesLoaded(true); return; }
+    setProductTypesLoaded(false);
+    const q = query(collection(db, "productTypes"), where("isActive", "==", true));
+    return onSnapshot(
+      q,
+      snap => {
+        const loadedProductTypes = snap.docs.filter(d => selectedFamilyIds.has(d.data().productFamilyId)).map(d => ({
+          id: d.id,
+          name: d.data().name,
+          productFamilyId: d.data().productFamilyId,
+          productUsageId: d.data().categoryTypeId,
+        })).sort((a, b) => a.name.localeCompare(b.name));
+        setProductTypes(loadedProductTypes);
+        setSelectedProductType(current =>
+          current ? loadedProductTypes.find(item => item.id === current.id) ?? null : null
+        );
+        setProductTypesLoaded(true);
+      },
+      error => { console.error(error); toast.error("Failed to load product types"); setProductTypesLoaded(true); },
+    );
+  }, [selectedProductFamilies]);
 
   const addTechnicalSpec = () => setTechnicalSpecs(p => [...p, { id: "", title: "", specs: [emptySpecRow()] }]);
   const removeTechnicalSpec = (i: number) => setTechnicalSpecs(p => p.length > 1 ? p.filter((_, idx) => idx !== i) : p);
@@ -649,45 +732,184 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
     setNewCategoryType("");
   };
 
-  const handleAddProductType = async () => {
-    if (!newProductType.trim() || selectedCategoryTypes.length !== 1) return;
-    const newFamRef = await addDoc(collection(db, "productFamilies"), { name: newProductType.trim(), categoryTypeId: selectedCategoryTypes[0].id, isActive: true, createdAt: serverTimestamp(), whatHappened: "Product Family Added", date_updated: serverTimestamp() });
+  const handleAddProductFamily = async () => {
+    if (!newProductFamily.trim() || selectedCategoryTypes.length !== 1) return;
+    const newFamRef = await addDoc(collection(db, "productFamilies"), { name: newProductFamily.trim(), categoryTypeId: selectedCategoryTypes[0].id, isActive: true, createdAt: serverTimestamp(), whatHappened: "Product Family Added", date_updated: serverTimestamp() });
     await logProductFamilyEvent({
       whatHappened     : "Product Family Added",
       productFamilyId  : newFamRef.id,
-      productFamilyName: newProductType.trim(),
+      productFamilyName: newProductFamily.trim(),
       productUsageId   : selectedCategoryTypes[0].id,
       referenceID      : user?.ReferenceID,
       userId           : userId ?? undefined,
     });
-    setNewProductType("");
+    setNewProductFamily("");
   };
 
-  const selectProductFamily = async (item: ProductFamily) => {
-    setSelectedProductFamily(item);
-    if (selectedCategoryTypes.length !== 1) return;
-    const snap = await getDocs(query(collection(db, "technicalSpecifications"), where("categoryTypeId", "==", selectedCategoryTypes[0].id), where("productFamilyId", "==", item.id), where("isActive", "==", true)));
-    const loaded = snap.docs
-      .map(d => ({ id: d.id, title: d.data().title, sortOrder: d.data().sortOrder ?? 999, specs: (d.data().specs || []).map((r: any) => ({ ...r, value: "" })) }))
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-    setTechnicalSpecs(loaded);
+  const createProductTypeForFamily = async (family: ProductFamily) => {
+    const name = newProductType.trim();
+    if (!name) return;
+    if (!productTypesLoaded) { toast.error("Please wait for product types to load"); return; }
+    if (productTypes.some((item) => item.productFamilyId === family.id && item.name.toLowerCase() === name.toLowerCase())) {
+      toast.error("Product type already exists in this family");
+      return;
+    }
+
+    const typeRef = await addDoc(collection(db, "productTypes"), {
+      name,
+      productFamilyId: family.id,
+      categoryTypeId: family.productUsageId,
+      isActive: true,
+      createdAt: serverTimestamp(),
+      whatHappened: "Product Type Added",
+      date_updated: serverTimestamp(),
+    });
+    const newType: ProductType = {
+      id: typeRef.id,
+      name,
+      productFamilyId: family.id,
+      productUsageId: family.productUsageId,
+    };
+    setProductTypes(current => [...current, newType].sort((a, b) => a.name.localeCompare(b.name)));
+    await selectProductType(newType);
+    setNewProductType("");
+    setProductTypeFamilyPickerOpen(false);
+  };
+
+  const handleAddProductType = async () => {
+    if (!newProductType.trim() || selectedProductFamilies.length === 0) return;
+    if (!productTypesLoaded) { toast.error("Please wait for product types to load"); return; }
+    if (selectedProductFamilies.length > 1) {
+      setProductTypeFamilyPickerOpen(true);
+      return;
+    }
+    await createProductTypeForFamily(selectedProductFamilies[0]);
+  };
+
+  const loadTechnicalSpecsForFamily = async (family: ProductFamily, productTypeId = selectedProductType?.id) => {
+    if (!productTypeId) {
+      technicalSpecsTemplateBaseline.current = [];
+      setTechnicalSpecs([]);
+      return;
+    }
+    const result = await loadTechnicalSpecificationTemplates({
+      categoryTypeId: family.productUsageId,
+      productFamilyId: family.id,
+      productTypeId,
+    });
+    setTechnicalSpecTemplateSource(result.source);
+    const loadedSpecs = result.templates.map(template => ({
+      id: template.id,
+      title: template.title,
+      sortOrder: template.sortOrder ?? 999,
+      specs: template.specs.map(row => ({ ...row, value: "" })),
+    }));
+    technicalSpecsTemplateBaseline.current = loadedSpecs;
+    setTechnicalSpecs(loadedSpecs);
+  };
+
+  const selectProductType = async (item: ProductType) => {
+    const parentFamily = selectedProductFamilies.find(family => family.id === item.productFamilyId);
+    if (!parentFamily || parentFamily.productUsageId !== item.productUsageId) {
+      toast.error("Product type parent family is unavailable");
+      return;
+    }
+    setSelectedProductType(item);
+    setSelectedProductFamily(parentFamily);
+    await loadTechnicalSpecsForFamily(parentFamily, item.id);
+  };
+
+  const selectProductUsage = (item: CategoryType) => {
+    const isSelected = selectedCategoryTypes.some(category => category.id === item.id);
+    setSelectedCategoryTypes(isSelected ? [] : [item]);
+    setSelectedProductFamilies([]);
+    setSelectedProductFamily(null);
+    setSelectedProductType(null);
+    technicalSpecsTemplateBaseline.current = [];
+    setTechnicalSpecs([]);
+  };
+
+  const selectProductFamily = (item: ProductFamily) => {
+    const isSelected = selectedProductFamilies.some(family => family.id === item.id);
+    const nextFamilies = isSelected
+      ? selectedProductFamilies.filter(family => family.id !== item.id)
+      : [...selectedProductFamilies, item];
+    setSelectedProductFamilies(nextFamilies);
+    const nextFocusedFamily = isSelected
+      ? nextFamilies.find(family => family.id === selectedProductFamily?.id) || nextFamilies[0] || null
+      : item;
+    setSelectedProductFamily(nextFocusedFamily);
+    setSelectedProductType(null);
+    technicalSpecsTemplateBaseline.current = [];
+    setTechnicalSpecs([]);
   };
 
   const syncSpecsToProductType = async () => {
-    if (!selectedProductFamily || selectedCategoryTypes.length !== 1) return;
-    const { id: categoryTypeId } = selectedCategoryTypes[0];
-    const snap = await getDocs(query(collection(db, "technicalSpecifications"), where("categoryTypeId", "==", categoryTypeId), where("productFamilyId", "==", selectedProductFamily.id)));
-    const batch = writeBatch(db);
-    technicalSpecs.forEach((spec, i) => {
-      if (!spec.title.trim()) return;
-      const existing = snap.docs.find(d => d.data().title === spec.title);
-      const ref = existing ? doc(db, "technicalSpecifications", existing.id) : doc(collection(db, "technicalSpecifications"));
-      batch.set(ref, { categoryTypeId, productFamilyId: selectedProductFamily.id, title: spec.title.trim(), sortOrder: i + 1, specs: spec.specs.filter(r => r.specId.trim()).map(r => ({ specId: r.specId.trim(), unit: r.unit || "", isRanging: r.isRanging || false, isSlashing: r.isSlashing || false, isDimension: r.isDimension || false, isRating: r.isRating || false, rangeFrom: r.rangeFrom || "", rangeTo: r.rangeTo || "", slashValues: r.slashValues || [""], length: r.length || "", width: r.width || "", height: r.height || "", ipFirst: r.ipFirst || "", ipSecond: r.ipSecond || "" })), isActive: true, updatedAt: serverTimestamp() });
-    });
-    await batch.commit();
+    if (!selectedProductFamily) throw new Error("Select a product family before saving technical specifications");
+    if (technicalSpecTemplateSource === "family"
+      && !hasTechnicalSpecificationTemplateSchemaChanged(technicalSpecs, technicalSpecsTemplateBaseline.current)) {
+      return technicalSpecs;
+    }
+    const categoryTypeId = selectedProductFamily.productUsageId;
+    const savedSpecs = await saveTechnicalSpecificationTemplates(
+      {
+        categoryTypeId,
+        productFamilyId: selectedProductFamily.id,
+        productTypeId: selectedProductType?.id,
+      },
+      technicalSpecs.map(spec => ({
+        ...spec,
+        title: spec.title.trim(),
+        specs: spec.specs.filter(row => row.specId.trim()).map(row => ({
+          specId: row.specId.trim(),
+          value: row.value?.trim() || "",
+          unit: row.unit || "",
+          isRanging: row.isRanging || false,
+          isSlashing: row.isSlashing || false,
+          isDimension: row.isDimension || false,
+          isRating: row.isRating || false,
+          rangeFrom: row.rangeFrom || "",
+          rangeTo: row.rangeTo || "",
+          slashValues: row.slashValues || [""],
+          length: row.length || "",
+          width: row.width || "",
+          height: row.height || "",
+          ipFirst: row.ipFirst || "",
+          ipSecond: row.ipSecond || "",
+        })),
+      })),
+    );
+    const updatedSpecs = savedSpecs as TechnicalSpecification[];
+    setTechnicalSpecs(updatedSpecs);
+    technicalSpecsTemplateBaseline.current = updatedSpecs;
+    setTechnicalSpecTemplateSource(selectedProductType ? "productType" : "family");
+    return updatedSpecs;
   };
 
-  const syncProductsUsingThisFamily = async (productFamilyId: string, productFamilyName: string, categoryTypeId: string, templateSpecs: any[]) => {
+  const handleDeleteTechnicalSpecification = async (technicalSpecificationId: string) => {
+    if (!selectedProductFamily) throw new Error("Select a product family before deleting technical specifications");
+    const savedSpecs = await saveTechnicalSpecificationTemplates(
+      {
+        categoryTypeId: selectedProductFamily.productUsageId,
+        productFamilyId: selectedProductFamily.id,
+        productTypeId: selectedProductType?.id,
+      },
+      technicalSpecs.filter(spec => spec.id !== technicalSpecificationId),
+    );
+    const updatedSpecs = savedSpecs as TechnicalSpecification[];
+    setTechnicalSpecs(updatedSpecs);
+    technicalSpecsTemplateBaseline.current = updatedSpecs;
+    setTechnicalSpecTemplateSource(selectedProductType ? "productType" : "family");
+    await syncProductsUsingThisFamily(
+      selectedProductFamily.id,
+      selectedProductFamily.name,
+      selectedProductFamily.productUsageId,
+      updatedSpecs,
+      selectedProductType?.id,
+    );
+  };
+
+  const syncProductsUsingThisFamily = async (productFamilyId: string, productFamilyName: string, categoryTypeId: string, templateSpecs: TechnicalSpecification[], productTypeId?: string) => {
     const q = query(collection(db, "products"), where("productFamilies", "array-contains", { productFamilyId, productFamilyName, productUsageId: categoryTypeId }));
     const snapshot = await getDocs(q);
     const docs = snapshot.docs;
@@ -697,15 +919,20 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
       const batch = writeBatch(db);
       chunk.forEach(productDoc => {
         const ref = doc(db, "products", productDoc.id);
-        const data: any = productDoc.data();
-        const existingSpecs = data.technicalSpecifications || [];
+        const data = productDoc.data();
+        const productTypes = data.productTypes as { productTypeId?: string }[] | undefined;
+        if (productTypeId && !productTypes?.some(
+          type => type.productTypeId === productTypeId,
+        )) return;
+        const existingSpecs = (data.technicalSpecifications || []) as ProductTechnicalSpecificationSnapshot[];
         const mergedSpecs = templateSpecs.map((templateSpec) => {
-          const existingSpec = existingSpecs.find((s: any) => s.technicalSpecificationId === templateSpec.id);
+          const existingSpec = existingSpecs.find(spec => spec.technicalSpecificationId === templateSpec.id)
+            || existingSpecs.find(spec => spec.title === templateSpec.title);
           return {
             technicalSpecificationId: templateSpec.id,
             title: templateSpec.title,
             specs: templateSpec.specs.map((templateRow: SpecRow) => {
-              const existingRow = existingSpec?.specs?.find((r: SpecRow) => r.specId === templateRow.specId);
+              const existingRow = existingSpec?.specs.find(row => row.specId === templateRow.specId);
               return { specId: templateRow.specId, value: existingRow?.value || "" };
             }),
           };
@@ -865,7 +1092,19 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
       if (!productClass) { toast.error("Please select product class"); return; }
       if (!productName) { toast.error("Please enter product name"); return; }
       if (!mainImage && !imageLink) { toast.error("Please upload an image or provide an image link"); return; }
-      if (!selectedProductFamily) { toast.error("Please select product family"); setSaving(false); return; }
+      if (!productFamiliesLoaded) { toast.error("Please wait for product families to load"); setSaving(false); return; }
+      if (selectedProductFamilies.length === 0 || selectedProductFamilies.some(family => !productFamilies.some(item => item.id === family.id))) {
+        toast.error("Please select at least one active product family");
+        setSaving(false);
+        return;
+      }
+      if (!productTypesLoaded) { toast.error("Please wait for product types to load"); setSaving(false); return; }
+      if (!selectedProductType || !productTypes.some(item => item.id === selectedProductType.id)
+        || !selectedProductFamilies.some(family => family.id === selectedProductType.productFamilyId)) {
+        toast.error("Please select an active product type");
+        setSaving(false);
+        return;
+      }
 
       // Commercial details validation for BASIC type
       if (commercialType === "BASIC") {
@@ -883,10 +1122,16 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
       }
 
       const newProductReferenceID = await generateProductReferenceID();
-      const categoryTypeId = selectedCategoryTypes[0]?.id;
-
-      await syncSpecsToProductType();
-      await syncProductsUsingThisFamily(selectedProductFamily.id, selectedProductFamily.name, categoryTypeId, technicalSpecs);
+      const savedTechnicalSpecs = await syncSpecsToProductType();
+      if (selectedProductFamily) {
+        await syncProductsUsingThisFamily(
+          selectedProductFamily.id,
+          selectedProductFamily.name,
+          selectedProductFamily.productUsageId,
+          savedTechnicalSpecs,
+          selectedProductType?.id,
+        );
+      }
 
       // Prepare packaging data
       const packagingData = {
@@ -905,7 +1150,8 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
         countries: countries,
         productClass,
         supplier: noSupplier ? null : { supplierId: selectedSupplier!.supplierId, company: selectedSupplier!.company, supplierBrand: selectedSupplierBrand?.supplierBrand || "" },
-        productFamilies: [{ productFamilyId: selectedProductFamily.id, productFamilyName: selectedProductFamily.name, productUsageId: categoryTypeId || "" }],
+        productFamilies: selectedProductFamilies.map(family => ({ productFamilyId: family.id, productFamilyName: family.name, productUsageId: family.productUsageId })),
+        productTypes: [{ productTypeId: selectedProductType.id, productTypeName: selectedProductType.name, productFamilyId: selectedProductType.productFamilyId, productUsageId: selectedProductType.productUsageId }],
         categoryTypes: selectedCategoryTypes.map(c => ({ productUsageId: c.id, categoryTypeName: c.name })),
         commercialDetails: {
           commercialType,
@@ -925,7 +1171,7 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
           portOfDischarge: portOfDischarge || "",
           supplierModelCode: supplierModelCode || "",
         },
-        technicalSpecifications: technicalSpecs.filter(s => s.title.trim()).map(s => ({
+        technicalSpecifications: savedTechnicalSpecs.filter(s => s.title.trim()).map(s => ({
           technicalSpecificationId: s.id || "",
           title: s.title,
           specs: s.specs.filter(r => r.specId.trim()).map(r => ({ specId: r.specId.trim(), value: r.value?.trim() || "" })),
@@ -959,13 +1205,14 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
           supplierBrand: selectedSupplierBrand?.supplierBrand || "",
         },
         categoryTypes : selectedCategoryTypes.map(c => ({ productUsageId: c.id, categoryTypeName: c.name })),
-        productFamilies: selectedProductFamily
-          ? [{ productFamilyId: selectedProductFamily.id, productFamilyName: selectedProductFamily.name }]
+        productFamilies: selectedProductFamilies.map(family => ({ productFamilyId: family.id, productFamilyName: family.name, productUsageId: family.productUsageId })),
+        productTypes: selectedProductType
+          ? [{ productTypeId: selectedProductType.id, productTypeName: selectedProductType.name }]
           : [],
         mainImage          : imageLink ? { url: imageLink } : null,
         dimensionalDrawing : dimensionalLink ? { url: dimensionalLink } : null,
         illuminanceDrawing : illuminanceLink ? { url: illuminanceLink } : null,
-        technicalSpecifications: technicalSpecs.filter(s => s.title.trim()).map(s => ({
+        technicalSpecifications: savedTechnicalSpecs.filter(s => s.title.trim()).map(s => ({
           technicalSpecificationId: s.id || "",
           title: s.title,
           specs: s.specs.filter(r => r.specId.trim()).map(r => ({ specId: r.specId.trim(), value: r.value?.trim() || "" })),
@@ -1021,7 +1268,10 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
             supplierBrand: selectedSupplierBrand?.supplierBrand || "",
           },
           categoryTypes: selectedCategoryTypes.map(c => ({ productUsageId: c.id, categoryTypeName: c.name })),
-          productFamily: selectedProductFamily ? { productFamilyId: selectedProductFamily.id, productFamilyName: selectedProductFamily.name } : null,
+          productFamilies: selectedProductFamilies.map(family => ({ productFamilyId: family.id, productFamilyName: family.name, productUsageId: family.productUsageId })),
+          productTypes: selectedProductType
+            ? [{ productTypeId: selectedProductType.id, productTypeName: selectedProductType.name, productFamilyId: selectedProductType.productFamilyId, productUsageId: selectedProductType.productUsageId }]
+            : [],
           commercialDetails: {
             commercialType,
             calculationType: commercialType === "LIGHT" ? "LIGHTS" : commercialType === "POLE" ? "POLE" : null,
@@ -1075,6 +1325,8 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
 
   const filteredCategoryTypes = React.useMemo(() => categoryTypes.filter(i => i.name.toLowerCase().includes(categoryTypeSearch.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name)), [categoryTypes, categoryTypeSearch]);
   const filteredProductFamilies = React.useMemo(() => productFamilies.filter(i => selectedCategoryTypes.map(c => c.id).includes(i.productUsageId) && i.name.toLowerCase().includes(productFamilySearch.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name)), [productFamilies, productFamilySearch, selectedCategoryTypes]);
+  const selectedProductFamilyIds = React.useMemo(() => new Set(selectedProductFamilies.map(item => item.id)), [selectedProductFamilies]);
+  const filteredProductTypes = React.useMemo(() => productTypes.filter(i => selectedProductFamilyIds.has(i.productFamilyId) && i.name.toLowerCase().includes(productTypeSearch.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name)), [productTypes, productTypeSearch, selectedProductFamilyIds]);
 
   if (loading) return null;
 
@@ -1676,8 +1928,8 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
                       <Label className="text-[10px] font-bold uppercase text-orange-600 tracking-widest block text-center">Group Title</Label>
                       <div className="flex gap-2">
                         <Input className="border-orange-300 bg-white text-sm" placeholder="e.g. ELECTRICAL" value={item.title} onChange={e => updateTitle(index, e.target.value.toUpperCase())} />
-                        {item.id && classificationType && selectedProductFamily && selectedCategoryTypes.length === 1 ? (
-                          <AddProductDeleteTechnicalSpecification classificationId={classificationType.id} productUsageId={selectedCategoryTypes[0].id} productFamilyId={selectedProductFamily.id} technicalSpecificationId={item.id} title={item.title} referenceID={user?.ReferenceID || ""} />
+                        {item.id && classificationType && selectedProductFamily ? (
+                          <AddProductDeleteTechnicalSpecification technicalSpecificationId={item.id} title={item.title} onDelete={handleDeleteTechnicalSpecification} />
                         ) : (
                           <Button size="icon" variant="outline" className="border-orange-400 text-orange-600 shrink-0" disabled={technicalSpecs.length === 1} onClick={() => removeTechnicalSpec(index)}><Minus className="h-4 w-4" /></Button>
                         )}
@@ -1852,12 +2104,18 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
                 {filteredCategoryTypes.map(item => (
                   <div key={item.id} className="flex items-center justify-between gap-2 py-1">
                     <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
-                      <input type="radio" name="categoryType" checked={selectedCategoryTypes.length === 1 && selectedCategoryTypes[0].id === item.id} onChange={() => setSelectedCategoryTypes([{ id: item.id, name: item.name }])} className="shrink-0" />
+                      <input type="radio" name="productUsage" checked={selectedCategoryTypes.some(category => category.id === item.id)} onChange={() => selectProductUsage(item)} className="shrink-0" />
                       <span className="text-sm truncate">{item.name}</span>
                     </label>
                     <div className="flex gap-1 shrink-0">
                       <AddProductSelectProductType item={item} />
-                      <AddProductDeleteProductType item={item} referenceID={user?.ReferenceID || ""} />
+                      <AddProductDeleteProductType
+                        item={item}
+                        referenceID={user?.ReferenceID || ""}
+                        onDeleted={() => {
+                          if (selectedCategoryTypes.some(category => category.id === item.id)) void selectProductUsage(item);
+                        }}
+                      />
                     </div>
                   </div>
                 ))}
@@ -1869,20 +2127,60 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
             <CardContent className="space-y-3">
               <Input value={productFamilySearch} onChange={e => setProductFamilySearch(e.target.value)} placeholder="Search family..." disabled={selectedCategoryTypes.length === 0} className="h-9" />
               <div className="flex gap-2">
-                <Input value={newProductType} onChange={e => setNewProductType(e.target.value)} placeholder={selectedCategoryTypes.length === 1 ? "Add product family..." : "Select a usage first"} disabled={selectedCategoryTypes.length !== 1} className="h-9" />
-                <Button size="icon" variant="outline" onClick={handleAddProductType} disabled={selectedCategoryTypes.length !== 1} className="h-9 w-9 shrink-0"><Plus className="h-4 w-4" /></Button>
+                <Input value={newProductFamily} onChange={e => setNewProductFamily(e.target.value)} placeholder={selectedCategoryTypes.length === 1 ? "Add product family..." : "Select a usage first"} disabled={selectedCategoryTypes.length !== 1} className="h-9" />
+                <Button size="icon" variant="outline" onClick={handleAddProductFamily} disabled={selectedCategoryTypes.length !== 1} className="h-9 w-9 shrink-0"><Plus className="h-4 w-4" /></Button>
               </div>
               <Separator />
               <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                 {filteredProductFamilies.map(item => (
                   <div key={item.id} className="flex items-center justify-between gap-2 py-1">
                     <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
-                      <input type="radio" name="productType" checked={selectedProductFamily?.id === item.id} onChange={() => selectProductFamily(item)} className="shrink-0" />
+                      <input type="checkbox" checked={selectedProductFamilies.some(family => family.id === item.id)} onChange={() => selectProductFamily(item)} className="shrink-0" />
                       <span className="text-sm truncate">{item.name}</span>
                     </label>
                     <div className="flex gap-1 shrink-0">
                       <AddProductEditSelectProduct item={item} />
-                      <AddProductDeleteProduct item={{ id: item.id, productName: item.name, productUsageId: item.productUsageId }} referenceID={user?.ReferenceID || ""} />
+                      <AddProductDeleteProduct
+                        item={{ id: item.id, productName: item.name, productUsageId: item.productUsageId }}
+                        referenceID={user?.ReferenceID || ""}
+                        onDeleted={() => {
+                          if (selectedProductFamilies.some(family => family.id === item.id)) void selectProductFamily(item);
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="text-sm text-center">SELECT PRODUCT TYPE</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <Input value={productTypeSearch} onChange={e => setProductTypeSearch(e.target.value)} placeholder="Search product type..." disabled={selectedProductFamilies.length === 0} className="h-9" />
+              <div className="flex gap-2">
+                <Input value={newProductType} onChange={e => setNewProductType(e.target.value)} placeholder={selectedProductFamily ? "Add product type..." : "Select a family first"} disabled={!selectedProductFamily} className="h-9" />
+                <Button size="icon" variant="outline" onClick={handleAddProductType} disabled={selectedProductFamilies.length === 0 || !productTypesLoaded || !newProductType.trim()} className="h-9 w-9 shrink-0"><Plus className="h-4 w-4" /></Button>
+              </div>
+              <Separator />
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {filteredProductTypes.map(item => (
+                  <div key={item.id} className="flex items-center justify-between gap-2 py-1">
+                    <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                      <input type="radio" name="productType" checked={selectedProductType?.id === item.id} onChange={() => void selectProductType(item)} className="shrink-0" />
+                      <span className="text-sm truncate">{item.name} <span className="text-muted-foreground">({selectedProductFamilies.find(family => family.id === item.productFamilyId)?.name})</span></span>
+                    </label>
+                    <div className="flex gap-1 shrink-0">
+                      <AddProductEditProductType item={item} />
+                      <AddProductDeleteSpecificProductType
+                        item={item}
+                        referenceID={user?.ReferenceID || ""}
+                        onDeleted={() => {
+                          if (selectedProductType?.id === item.id) {
+                            setSelectedProductType(null);
+                            setTechnicalSpecs([]);
+                          }
+                        }}
+                      />
                     </div>
                   </div>
                 ))}
@@ -1899,6 +2197,13 @@ export default function AddProductComponent({ onClose }: AddProductComponentProp
       </div>
     </div>
     </div>
+    <ProductTypeFamilyPickerDialog
+      open={productTypeFamilyPickerOpen}
+      onOpenChange={setProductTypeFamilyPickerOpen}
+      families={selectedProductFamilies}
+      initialFamilyId={selectedProductFamily?.id}
+      onConfirm={(family) => void createProductTypeForFamily(family)}
+    />
     <RequestApprovalDialog
       open={requestApprovalOpen}
       onOpenChange={setRequestApprovalOpen}

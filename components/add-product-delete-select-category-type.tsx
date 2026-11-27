@@ -10,9 +10,12 @@ import {
   getDocs,
   collection,
   writeBatch,
+  query,
+  where,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
+import { removeProductClassification } from "@/lib/product-classification-sync";
 import { toast } from "sonner";
 
 import {
@@ -35,9 +38,10 @@ type ProductType = {
 type Props = {
   item: ProductType;
   referenceID: string;
+  onDeleted?: () => void;
 };
 
-export default function AddProductDeleteProductType({ item, referenceID }: Props) {
+export default function AddProductDeleteProductType({ item, referenceID, onDeleted }: Props) {
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -45,43 +49,37 @@ export default function AddProductDeleteProductType({ item, referenceID }: Props
     try {
       setDeleting(true);
 
-      const batch = writeBatch(db);
+      const [familiesSnapshot, productTypesSnapshot] = await Promise.all([
+        getDocs(query(collection(db, "productFamilies"), where("categoryTypeId", "==", item.id))),
+        getDocs(query(collection(db, "productTypes"), where("categoryTypeId", "==", item.id))),
+      ]);
+      const dependentDocs = [
+        ...familiesSnapshot.docs.map((family) => ({ ref: family.ref, whatHappened: "Product Family Deleted" })),
+        ...productTypesSnapshot.docs.map((productType) => ({ ref: productType.ref, whatHappened: "Product Type Deleted" })),
+      ];
 
-      /* ✅ STEP 1: SOFT DELETE CATEGORY TYPE */
-      batch.update(doc(db, "categoryTypes", item.id), {
-        isActive  : false,
-        deletedBy : referenceID,
-        deletedAt : serverTimestamp(),
-      });
-
-      /* ✅ STEP 2: SOFT DELETE ALL PRODUCT FAMILIES UNDER THIS CATEGORY TYPE */
-      const familiesSnapshot = await getDocs(
-        collection(db, "categoryTypes", item.id, "productFamilies"),
-      );
-      familiesSnapshot.forEach((familyDoc) => {
-        batch.update(
-          doc(db, "categoryTypes", item.id, "productFamilies", familyDoc.id),
-          { isActive: false, deletedBy: referenceID, deletedAt: serverTimestamp() },
-        );
-      });
-
-      /* ✅ STEP 3: REMOVE CATEGORY TYPE AND PRODUCT FAMILIES FROM ALL PRODUCTS */
-      const productsSnapshot = await getDocs(collection(db, "products"));
-      productsSnapshot.forEach((productDoc) => {
-        const data = productDoc.data();
-        const updatedCategoryTypes = (data.categoryTypes || []).filter(
-          (ct: any) => ct.productUsageId !== item.id,
-        );
-        const updatedProductFamilies = (data.productFamilies || []).filter(
-          (pf: any) => pf.productUsageId !== item.id,
-        );
-        batch.update(doc(db, "products", productDoc.id), {
-          categoryTypes  : updatedCategoryTypes,
-          productFamilies: updatedProductFamilies,
+      for (let index = 0; index < dependentDocs.length; index += 400) {
+        const batch = writeBatch(db);
+        dependentDocs.slice(index, index + 400).forEach(({ ref, whatHappened }) => {
+          batch.update(ref, {
+            isActive: false,
+            deletedBy: referenceID,
+            deletedAt: serverTimestamp(),
+            whatHappened,
+            date_updated: serverTimestamp(),
+          });
         });
-      });
+        await batch.commit();
+      }
 
-      await batch.commit();
+      await updateDoc(doc(db, "categoryTypes", item.id), {
+        isActive: false,
+        deletedBy: referenceID,
+        deletedAt: serverTimestamp(),
+        whatHappened: "Product Usage Deleted",
+        date_updated: serverTimestamp(),
+      });
+      await removeProductClassification({ productUsageId: item.id });
 
       // ✅ AUDIT LOG
       await logProductUsageEvent({
@@ -91,7 +89,8 @@ export default function AddProductDeleteProductType({ item, referenceID }: Props
         referenceID,
       });
 
-      toast.success("Product usage and all dependent product families deleted");
+      toast.success("Product usage and all dependent product families and types deleted");
+      onDeleted?.();
       setOpen(false);
     } catch (error) {
       console.error(error);
@@ -115,7 +114,7 @@ export default function AddProductDeleteProductType({ item, referenceID }: Props
         </DialogHeader>
 
         <p>
-          Delete <b>{item.name}</b> and all its Product Families?
+          Delete <b>{item.name}</b> and all its Product Families and Product Types?
         </p>
 
         <DialogFooter>

@@ -28,7 +28,10 @@ interface SeenByDialogProps {
 }
 
 export function SeenByDialog({ seenByIds, userNamesMap, isMe, currentUserId }: SeenByDialogProps) {
-  if (seenByIds.length === 0) return null;
+  const visibleSeenByIds = seenByIds.filter(
+    (userId) => userId === currentUserId || Boolean(userNamesMap[userId])
+  );
+  if (visibleSeenByIds.length === 0) return null;
 
   return (
     <Dialog>
@@ -38,7 +41,7 @@ export function SeenByDialog({ seenByIds, userNamesMap, isMe, currentUserId }: S
           onClick={(e) => e.stopPropagation()}
         >
           <Eye size={10} />
-          <span>{seenByIds.length}</span>
+          <span>{visibleSeenByIds.length}</span>
         </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -46,7 +49,7 @@ export function SeenByDialog({ seenByIds, userNamesMap, isMe, currentUserId }: S
           <DialogTitle className="text-lg font-bold">Seen by</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 max-h-[400px] overflow-y-auto">
-          {seenByIds.map((userId) => {
+          {visibleSeenByIds.map((userId) => {
             const isCurrentUser = userId === currentUserId;
             const user = userNamesMap[userId];
 
@@ -112,27 +115,6 @@ export function SeenByDialog({ seenByIds, userNamesMap, isMe, currentUserId }: S
               );
             }
 
-            // Fallback for users not in the map
-            return (
-              <div
-                key={userId}
-                className="flex items-center gap-3 p-2 rounded-lg bg-slate-100 border border-slate-200"
-              >
-                <Avatar className="h-12 w-12 border-2 border-slate-300">
-                  <AvatarFallback className="bg-slate-400 text-white font-semibold">
-                    ?
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-slate-600 truncate">
-                    Unknown User (ID: {userId})
-                  </p>
-                  <p className="text-xs text-slate-400 truncate">
-                    User data not found
-                  </p>
-                </div>
-              </div>
-            );
           })}
         </div>
       </DialogContent>
